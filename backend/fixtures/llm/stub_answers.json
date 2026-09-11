@@ -1,0 +1,298 @@
+{
+ "promises": {
+  "01500701.20250715230100001||가온소방서 관계자||밤 10시 40분쯤 신고를 받고 출동해 고립된 15명을 모두 구조했다": {
+   "is_promise": false,
+   "actor_org": "가온소방서",
+   "actor_raw": "가온소방서 관계자",
+   "action": null,
+   "deadline_raw": null,
+   "deadline_date": null,
+   "deadline_precision": "none",
+   "strength": "해당없음",
+   "confidence": 0.95,
+   "rationale": "구조 경과 설명으로 약속이 아님"
+  },
+  "08100201.20250718090400004||가온시장||내년 10월까지 달빛지하차도 배수펌프 용량을 2배로 늘리겠다": {
+   "is_promise": true,
+   "actor_org": "가온시",
+   "actor_raw": "가온시장",
+   "action": "달빛지하차도 배수펌프 용량을 2배로 증설한다",
+   "deadline_raw": "내년 10월까지",
+   "deadline_date": "2026-10-31",
+   "deadline_precision": "month",
+   "strength": "확약",
+   "confidence": 0.92,
+   "rationale": "기한과 행동이 명시된 단정형 발언"
+  },
+  "08100201.20250718090400004||가온시장||지하차도 진입 차단시설을 설치하고 침수 감지 시 자동으로 차단되는 시스템도 검토하겠다": {
+   "is_promise": true,
+   "actor_org": "가온시",
+   "actor_raw": "가온시장",
+   "action": "달빛지하차도 진입 차단시설을 설치한다",
+   "deadline_raw": null,
+   "deadline_date": null,
+   "deadline_precision": "none",
+   "strength": "계획",
+   "confidence": 0.8,
+   "rationale": "행동은 구체적이나 기한이 없음"
+  },
+  "01500151.20250719090500005||가온시 안전건설국장||배수펌프 증설과 차단시설 설치를 위한 예산을 추경에 반영하도록 노력하겠다": {
+   "is_promise": true,
+   "actor_org": "가온시",
+   "actor_raw": "가온시 안전건설국장",
+   "action": null,
+   "deadline_raw": null,
+   "deadline_date": null,
+   "deadline_precision": "none",
+   "strength": "의사표명",
+   "confidence": 0.7,
+   "rationale": "노력하겠다는 의사 표명으로 행동이 특정되지 않음"
+  },
+  "01500701.20250304091200012||누리군수||올해 연말까지 해맞이터널 전 구간 보강공사를 마치고 재개통하겠다": {
+   "is_promise": true,
+   "actor_org": "누리군",
+   "actor_raw": "누리군수",
+   "action": "해맞이터널 전 구간 보강공사를 마치고 재개통한다",
+   "deadline_raw": "올해 연말까지",
+   "deadline_date": "2025-12-31",
+   "deadline_precision": "year",
+   "strength": "확약",
+   "confidence": 0.93,
+   "rationale": "기한(연말)과 행동이 명시된 확약"
+  },
+  "01500051.20240923092000020||가온시 하천과장||내년 6월 우기 전까지 서리천 제방 1.2km 구간을 전면 보강하겠다": {
+   "is_promise": true,
+   "actor_org": "가온시",
+   "actor_raw": "가온시 하천과장",
+   "action": "서리천 제방 1.2km 구간을 전면 보강한다",
+   "deadline_raw": "내년 6월 우기 전까지",
+   "deadline_date": "2025-06-30",
+   "deadline_precision": "month",
+   "strength": "확약",
+   "confidence": 0.9,
+   "rationale": "기한과 구간이 명시된 확약"
+  },
+  "01500701.20251111092700027||한국철도공사 관계자||누리선 탈선 구간을 포함한 노후 선로 교체를 추진하겠다": {
+   "is_promise": true,
+   "actor_org": "한국철도공사",
+   "actor_raw": "한국철도공사 관계자",
+   "action": "누리선 노후 선로를 교체한다",
+   "deadline_raw": null,
+   "deadline_date": null,
+   "deadline_precision": "none",
+   "strength": "계획",
+   "confidence": 0.82,
+   "rationale": "행동은 구체적이나 기한이 없음"
+  },
+  "01500051.20250523093100031||가온소방서장||관내 물류창고 34곳에 대해 8월 말까지 전수 소방점검을 완료하겠다": {
+   "is_promise": true,
+   "actor_org": "가온소방서",
+   "actor_raw": "가온소방서장",
+   "action": "관내 물류창고 34곳 전수 소방점검을 완료한다",
+   "deadline_raw": "8월 말까지",
+   "deadline_date": "2025-08-31",
+   "deadline_precision": "month",
+   "strength": "확약",
+   "confidence": 0.93,
+   "rationale": "기한·대상·행동이 명시된 확약"
+  },
+  "01500701.20250807093600036||누리군수||청솔산 피해 지역에 사방댐 2곳을 내년 6월까지 설치하겠다": {
+   "is_promise": true,
+   "actor_org": "누리군",
+   "actor_raw": "누리군수",
+   "action": "청솔산 피해 지역에 사방댐 2곳을 설치한다",
+   "deadline_raw": "내년 6월까지",
+   "deadline_date": "2026-06-30",
+   "deadline_precision": "month",
+   "strength": "확약",
+   "confidence": 0.92,
+   "rationale": "기한과 행동이 명시된 확약"
+  },
+  "01500051.20260116093900039||가온시 도로과 관계자||한빛대교 접속도로 결빙 방지 대책을 다각도로 검토하겠다": {
+   "is_promise": true,
+   "actor_org": "가온시",
+   "actor_raw": "가온시 도로과 관계자",
+   "action": null,
+   "deadline_raw": null,
+   "deadline_date": null,
+   "deadline_precision": "none",
+   "strength": "의사표명",
+   "confidence": 0.85,
+   "rationale": "검토하겠다는 의사 표명으로 행동이 특정되지 않음"
+  },
+  "01500051.20251102094400044||가온시장||남문시장 내 노후 가스배관을 내년 3월까지 전면 교체하겠다": {
+   "is_promise": true,
+   "actor_org": "가온시",
+   "actor_raw": "가온시장",
+   "action": "남문시장 노후 가스배관을 전면 교체한다",
+   "deadline_raw": "내년 3월까지",
+   "deadline_date": "2026-03-31",
+   "deadline_precision": "month",
+   "strength": "확약",
+   "confidence": 0.93,
+   "rationale": "기한과 행동이 명시된 확약"
+  }
+ },
+ "signals": {
+  "gaon-underpass-flood||01500701.20250820090600006": {
+   "signal": "무관",
+   "promise_index": null,
+   "matches_promise": false,
+   "evidence_span": "",
+   "confidence": 0.8,
+   "rationale": "감사 결과와 징계 보도로 조치 이행과 무관"
+  },
+  "gaon-underpass-flood||01500051.20260305090700007": {
+   "signal": "불명확",
+   "promise_index": 0,
+   "matches_promise": true,
+   "evidence_span": "착공 시점은 정해지지 않았다",
+   "confidence": 0.55,
+   "rationale": "증설 언급은 있으나 진행 여부를 확인할 근거 문장이 없음"
+  },
+  "gaon-underpass-flood||01500401.20260620090800008": {
+   "signal": "불명확",
+   "promise_index": 0,
+   "matches_promise": true,
+   "evidence_span": "절차를 진행 중이라고만 답했다",
+   "confidence": 0.5,
+   "rationale": "진행을 확인할 구체 근거(착공·발주 등)가 없어 불명확"
+  },
+  "nuri-tunnel-collapse||01500151.20250322091300013": {
+   "signal": "무관",
+   "promise_index": null,
+   "matches_promise": false,
+   "evidence_span": "",
+   "confidence": 0.85,
+   "rationale": "원인 조사 결과 보도로 보강공사 진행 여부와 무관"
+  },
+  "nuri-tunnel-collapse||08100101.20250510091400014": {
+   "signal": "진행",
+   "promise_index": 0,
+   "matches_promise": true,
+   "evidence_span": "해맞이터널 보강공사에 착공했다",
+   "confidence": 0.85,
+   "rationale": "착공 보도로 약속된 보강공사가 진행 중"
+  },
+  "nuri-tunnel-collapse||01500051.20251222091500015": {
+   "signal": "완료",
+   "promise_index": 0,
+   "matches_promise": true,
+   "evidence_span": "전 구간 라이닝 보강을 완료했으며",
+   "confidence": 0.9,
+   "rationale": "완료형 표현과 재개통 사실이 약속 내용과 일치"
+  },
+  "nuri-tunnel-collapse||01500401.20260205091600016": {
+   "signal": "무관",
+   "promise_index": null,
+   "matches_promise": false,
+   "evidence_span": "",
+   "confidence": 0.9,
+   "rationale": "기소 보도로 조치 이행과 무관"
+  },
+  "gaon-seori-levee||01500151.20250118092100021": {
+   "signal": "진행",
+   "promise_index": 0,
+   "matches_promise": true,
+   "evidence_span": "서리천 제방 보강공사에 착공했다",
+   "confidence": 0.85,
+   "rationale": "착공 보도"
+  },
+  "gaon-seori-levee||08100101.20250515092200022": {
+   "signal": "완료",
+   "promise_index": 0,
+   "matches_promise": true,
+   "evidence_span": "서리천 제방 1.2km 보강공사를 완료했다",
+   "confidence": 0.9,
+   "rationale": "완료형 표현, 약속 구간과 일치"
+  },
+  "gaon-seori-levee||01500701.20260712092300023": {
+   "signal": "새로운문제",
+   "promise_index": 0,
+   "matches_promise": true,
+   "evidence_span": "서리천 제방이 또 유실됐다",
+   "confidence": 0.88,
+   "rationale": "같은 시설에서 재발한 문제"
+  },
+  "gaon-seori-levee||01500051.20260714092400024": {
+   "signal": "새로운문제",
+   "promise_index": 0,
+   "matches_promise": true,
+   "evidence_span": "서리천 재유실에 가온시 재조사 착수",
+   "confidence": 0.8,
+   "rationale": "재발에 따른 재조사 보도"
+  },
+  "nuri-train-derail||08100101.20251208092800028": {
+   "signal": "무관",
+   "promise_index": null,
+   "matches_promise": false,
+   "evidence_span": "",
+   "confidence": 0.85,
+   "rationale": "사고 원인 조사 결과"
+  },
+  "nuri-train-derail||01500151.20260520092900029": {
+   "signal": "진행",
+   "promise_index": 0,
+   "matches_promise": true,
+   "evidence_span": "누리선 노후 선로 교체 공사에 착공했다",
+   "confidence": 0.85,
+   "rationale": "착공 보도, 약속 대상과 일치"
+  },
+  "gaon-logistics-fire||08100201.20250625093200032": {
+   "signal": "무관",
+   "promise_index": null,
+   "matches_promise": false,
+   "evidence_span": "",
+   "confidence": 0.85,
+   "rationale": "화재 원인 조사 결과"
+  },
+  "gaon-logistics-fire||01500151.20250902093300033": {
+   "signal": "완료",
+   "promise_index": 0,
+   "matches_promise": true,
+   "evidence_span": "물류창고 34곳에 대한 전수 소방점검을 완료했다",
+   "confidence": 0.92,
+   "rationale": "완료형 표현, 대상·행동이 약속과 일치"
+  },
+  "nuri-landslide||01500151.20251210093700037": {
+   "signal": "무관",
+   "promise_index": null,
+   "matches_promise": false,
+   "evidence_span": "",
+   "confidence": 0.85,
+   "rationale": "이재민 지원 보도로 사방댐 설치와 무관"
+  },
+  "gaon-bridge-crash||08100101.20260220094000040": {
+   "signal": "무관",
+   "promise_index": null,
+   "matches_promise": false,
+   "evidence_span": "",
+   "confidence": 0.9,
+   "rationale": "수사 보도로 조치와 무관"
+  },
+  "gaon-bridge-crash||01500151.20260805094100041": {
+   "signal": "불명확",
+   "promise_index": null,
+   "matches_promise": false,
+   "evidence_span": "결빙 방지 시설 설치 여부는 언급되지 않았다",
+   "confidence": 0.5,
+   "rationale": "점검 보도이나 추적 중인 구체 약속이 없어 대응 여부를 판단할 수 없음"
+  },
+  "gaon-market-explosion||01500151.20260203094500045": {
+   "signal": "진행",
+   "promise_index": 0,
+   "matches_promise": true,
+   "evidence_span": "남문시장 노후 가스배관 교체 공사에 착공했다",
+   "confidence": 0.87,
+   "rationale": "착공 보도"
+  },
+  "gaon-market-explosion||08100101.20260415094600046": {
+   "signal": "진행",
+   "promise_index": 0,
+   "matches_promise": true,
+   "evidence_span": "5월 완료 예정이라고 밝혔다",
+   "confidence": 0.78,
+   "rationale": "'완료 예정'은 완료가 아니라 진행 중인 상태"
+  }
+ }
+}

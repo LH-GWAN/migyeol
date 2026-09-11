@@ -1,0 +1,117 @@
+# 추적 대상 사건 시드 — 예선용 가상 사건. 본선에서는 discover 초안을 바탕으로 사람이 확정한다.
+events:
+- key: gaon-underpass-flood
+  title: 가온시 달빛지하차도 침수 사고
+  incident_type: 재해>자연재해>홍수
+  region: 가온시
+  facility: 달빛지하차도
+  responsible_org: 가온시
+  org_aliases:
+  - 가온시청
+  - 가온시장
+  keywords:
+  - 지하차도 침수
+  - 달빛지하차도
+  occurred_at: '2025-07-15'
+  summary: 2025년 7월 15일 밤 집중호우로 가온시 달빛지하차도가 침수돼 차량 12대가 고립되고 2명이 다쳤다. 배수펌프 용량 부족이
+    원인으로 지목됐다.
+- key: nuri-tunnel-collapse
+  title: 누리군 해맞이터널 붕괴 사고
+  incident_type: 사고>산업사고>붕괴
+  region: 누리군
+  facility: 해맞이터널
+  responsible_org: 누리군
+  org_aliases:
+  - 누리군청
+  - 누리군수
+  keywords:
+  - 터널 붕괴
+  - 해맞이터널
+  occurred_at: '2025-03-02'
+  summary: 2025년 3월 2일 누리군 해맞이터널 입구 상부 구조물이 붕괴해 차량 3대가 파손되고 1명이 중상을 입었다. 노후 콘크리트 박리가
+    원인으로 조사됐다.
+- key: gaon-seori-levee
+  title: 가온시 서리천 제방 유실
+  incident_type: 재해>자연재해>태풍
+  region: 가온시
+  facility: 서리천 제방
+  responsible_org: 가온시
+  org_aliases:
+  - 가온시청
+  - 가온시장
+  keywords:
+  - 제방 유실
+  - 서리천
+  occurred_at: '2024-09-20'
+  summary: 2024년 9월 20일 태풍 '해온' 북상으로 가온시 서리천 제방 120m가 유실돼 인근 주택 40가구가 침수됐다.
+- key: nuri-train-derail
+  title: 누리군 화물열차 탈선 사고
+  incident_type: 사고>교통사고>철도사고
+  region: 누리군
+  facility: 누리선
+  responsible_org: 한국철도공사
+  org_aliases:
+  - 코레일
+  - 철도공사
+  keywords:
+  - 화물열차 탈선
+  - 누리선
+  occurred_at: '2025-11-08'
+  summary: 2025년 11월 8일 누리군 누리선 구간에서 화물열차 6량이 탈선해 인근 주택으로 컨테이너가 떨어졌다. 노후 선로 균열이 원인으로
+    지목됐다.
+- key: gaon-logistics-fire
+  title: 가온시 별빛물류센터 화재
+  incident_type: 사고>산업사고>화재
+  region: 가온시
+  facility: 별빛물류센터
+  responsible_org: 가온소방서
+  org_aliases:
+  - 가온소방
+  - 소방당국
+  keywords:
+  - 물류센터 화재
+  - 별빛물류센터
+  occurred_at: '2025-05-21'
+  summary: 2025년 5월 21일 가온시 별빛물류센터에서 불이 나 창고 2개 동이 전소됐다. 스프링클러가 작동하지 않은 것으로 조사됐다.
+- key: nuri-landslide
+  title: 누리군 청솔산 산사태
+  incident_type: 재해>자연재해>눈사태_산사태
+  region: 누리군
+  facility: 청솔산
+  responsible_org: 누리군
+  org_aliases:
+  - 누리군청
+  - 누리군수
+  keywords:
+  - 산사태
+  - 청솔산
+  occurred_at: '2025-08-03'
+  summary: 2025년 8월 3일 집중호우로 누리군 청솔산 자락에서 산사태가 발생해 주택 5채가 매몰되고 1명이 숨졌다.
+- key: gaon-bridge-crash
+  title: 가온시 한빛대교 접속도로 연쇄 추돌 사고
+  incident_type: 사고>교통사고>노상사고
+  region: 가온시
+  facility: 한빛대교 접속도로
+  responsible_org: 가온시
+  org_aliases:
+  - 가온시청
+  - 가온시장
+  keywords:
+  - 연쇄 추돌
+  - 한빛대교
+  occurred_at: '2026-01-14'
+  summary: 2026년 1월 14일 새벽 가온시 한빛대교 접속도로에서 도로 결빙으로 차량 11대가 연쇄 추돌해 8명이 다쳤다.
+- key: gaon-market-explosion
+  title: 가온시 남문시장 가스폭발 사고
+  incident_type: 사고>산업사고>폭발
+  region: 가온시
+  facility: 남문시장
+  responsible_org: 가온시
+  org_aliases:
+  - 가온시청
+  - 가온시장
+  keywords:
+  - 가스폭발
+  - 남문시장
+  occurred_at: '2025-10-30'
+  summary: 2025년 10월 30일 가온시 남문시장 점포에서 노후 가스배관 누출로 폭발이 일어나 6명이 다치고 점포 9곳이 파손됐다.

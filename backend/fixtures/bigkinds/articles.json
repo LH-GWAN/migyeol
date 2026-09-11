@@ -1,0 +1,1177 @@
+[
+ {
+  "_fixture": true,
+  "news_id": "01500701.20250715230100001",
+  "title": "가온시 달빛지하차도 침수… 차량 12대 고립·2명 부상",
+  "content": "15일 밤 시간당 80mm 집중호우로 가온시 달빛지하차도가 침수돼 차량 12대가 고립됐다. 소방당국은 운전자 등 15명을 구조했으며 2명이 병원으로 옮겨졌다. 지하차도는 전면 통제됐다.",
+  "published_at": "2025-07-15T00:00:00.000+09:00",
+  "enveloped_at": "2025-07-15T23:21:00.000+09:00",
+  "dateline": "2025-07-15T23:01:00.000+09:00",
+  "provider": "부산일보",
+  "category": [
+   "사회>사건_사고",
+   "지역>경남"
+  ],
+  "category_incident": [
+   "재해>자연재해>홍수"
+  ],
+  "byline": "박누리",
+  "images": null,
+  "images_caption": null,
+  "provider_news_id": "F000001",
+  "publisher_code": "F000001",
+  "provider_link_page": "https://example.invalid/news/01500701.20250715230100001",
+  "printing_page": null,
+  "tms_raw_stream": "가온시\n달빛지하차도\n침수\n차량\n고립\n부상\n시간당\n집중호우\n소방당국\n운전자\n병원\n지하차도"
+ },
+ {
+  "_fixture": true,
+  "news_id": "08100101.20250716090200002",
+  "title": "달빛지하차도 침수 하루 만에 통행 재개… 배수펌프 작동 여부 조사",
+  "content": "가온시는 16일 오후 달빛지하차도 통행을 재개했다. 침수 당시 배수펌프 3대 중 2대가 작동하지 않았다는 증언이 나와 시는 원인 조사에 착수했다.",
+  "published_at": "2025-07-16T00:00:00.000+09:00",
+  "enveloped_at": "2025-07-16T09:22:00.000+09:00",
+  "dateline": "2025-07-16T09:02:00.000+09:00",
+  "provider": "KBS",
+  "category": [
+   "사회>사건_사고",
+   "지역>경남"
+  ],
+  "category_incident": [
+   "재해>자연재해>홍수"
+  ],
+  "byline": "이해솔",
+  "images": null,
+  "images_caption": null,
+  "provider_news_id": "F000002",
+  "publisher_code": "F000002",
+  "provider_link_page": "https://example.invalid/news/08100101.20250716090200002",
+  "printing_page": null,
+  "tms_raw_stream": "달빛지하차도\n침수\n하루\n통행\n재개\n배수펌프\n작동\n여부\n조사\n가온시\n오후\n당시\n않았다\n증언\n원인"
+ },
+ {
+  "_fixture": true,
+  "news_id": "01500051.20250716090300003",
+  "title": "\"배수펌프 용량 절반\"… 달빛지하차도 침수 예견된 사고였나",
+  "content": "달빛지하차도 배수펌프 용량이 설계 기준의 절반 수준이었다는 지적이 나왔다. 가온시의회는 침수 경위와 관리 실태를 점검하기로 했다.",
+  "published_at": "2025-07-16T00:00:00.000+09:00",
+  "enveloped_at": "2025-07-16T09:23:00.000+09:00",
+  "dateline": "2025-07-16T09:03:00.000+09:00",
+  "provider": "경남신문",
+  "category": [
+   "사회>사건_사고",
+   "지역>경남"
+  ],
+  "category_incident": [
+   "재해>자연재해>홍수"
+  ],
+  "byline": "정다온",
+  "images": null,
+  "images_caption": null,
+  "provider_news_id": "F000003",
+  "publisher_code": "F000003",
+  "provider_link_page": "https://example.invalid/news/01500051.20250716090300003",
+  "printing_page": null,
+  "tms_raw_stream": "배수펌프\n용량\n절반\n달빛지하차도\n침수\n예견된\n사고였나\n설계\n기준\n수준이었다\n지적\n가온시의회\n경위\n관리\n실태\n점검하기"
+ },
+ {
+  "_fixture": true,
+  "news_id": "08100201.20250718090400004",
+  "title": "가온시장 \"내년 10월까지 달빛지하차도 배수펌프 2배 증설\"",
+  "content": "가온시장은 18일 사고 현장을 찾아 내년 10월까지 배수펌프 용량을 2배로 늘리고 진입 차단시설을 설치하겠다고 밝혔다. 침수 감지 시 자동 차단되는 시스템도 검토한다.",
+  "published_at": "2025-07-18T00:00:00.000+09:00",
+  "enveloped_at": "2025-07-18T09:24:00.000+09:00",
+  "dateline": "2025-07-18T09:04:00.000+09:00",
+  "provider": "MBC",
+  "category": [
+   "사회>사건_사고",
+   "지역>경남"
+  ],
+  "category_incident": [
+   "재해>자연재해>홍수"
+  ],
+  "byline": "최서리",
+  "images": null,
+  "images_caption": null,
+  "provider_news_id": "F000004",
+  "publisher_code": "F000004",
+  "provider_link_page": "https://example.invalid/news/08100201.20250718090400004",
+  "printing_page": null,
+  "tms_raw_stream": "가온시장\n내년\n달빛지하차도\n배수펌프\n증설\n현장\n찾아\n용량\n진입\n차단시설\n침수\n자동\n차단되\n시스템도"
+ },
+ {
+  "_fixture": true,
+  "news_id": "01500151.20250719090500005",
+  "title": "가온시 \"지하차도 침수 재발 방지 대책 마련\"… 예산은 미정",
+  "content": "가온시가 달빛지하차도 침수 재발 방지 대책을 발표했지만 배수펌프 증설 예산 확보 방안은 제시하지 않았다. 시의회는 추경 편성을 요구했다.",
+  "published_at": "2025-07-19T00:00:00.000+09:00",
+  "enveloped_at": "2025-07-19T09:25:00.000+09:00",
+  "dateline": "2025-07-19T09:05:00.000+09:00",
+  "provider": "경남도민일보",
+  "category": [
+   "사회>사건_사고",
+   "지역>경남"
+  ],
+  "category_incident": [
+   "재해>자연재해>홍수"
+  ],
+  "byline": "한별빛",
+  "images": null,
+  "images_caption": null,
+  "provider_news_id": "F000005",
+  "publisher_code": "F000005",
+  "provider_link_page": "https://example.invalid/news/01500151.20250719090500005",
+  "printing_page": null,
+  "tms_raw_stream": "가온시\n지하차도\n침수\n재발\n대책\n마련\n예산\n미정\n달빛지하차도\n발표했지만\n배수펌프\n증설\n확보\n방안\n시의회\n추경\n편성"
+ },
+ {
+  "_fixture": true,
+  "news_id": "01500701.20250820090600006",
+  "title": "달빛지하차도 침수 원인은 '펌프 용량 부족·경보 지연'… 감사 결과 발표",
+  "content": "가온시 감사 결과 달빛지하차도 침수는 배수펌프 용량 부족과 침수 경보 지연이 겹친 결과로 확인됐다. 담당 부서 직원 3명이 징계 대상에 올랐다.",
+  "published_at": "2025-08-20T00:00:00.000+09:00",
+  "enveloped_at": "2025-08-20T09:26:00.000+09:00",
+  "dateline": "2025-08-20T09:06:00.000+09:00",
+  "provider": "부산일보",
+  "category": [
+   "사회>사건_사고",
+   "지역>경남"
+  ],
+  "category_incident": [
+   "재해>자연재해>홍수"
+  ],
+  "byline": "김가온",
+  "images": null,
+  "images_caption": null,
+  "provider_news_id": "F000006",
+  "publisher_code": "F000006",
+  "provider_link_page": "https://example.invalid/news/01500701.20250820090600006",
+  "printing_page": null,
+  "tms_raw_stream": "달빛지하차도\n침수\n원인\n펌프\n용량\n부족\n경보\n지연\n감사\n발표\n가온시\n배수펌프\n겹친\n결과\n담당\n직원\n징계\n대상"
+ },
+ {
+  "_fixture": true,
+  "news_id": "01500051.20260305090700007",
+  "title": "장마 앞두고 가온시 지하차도 점검… 달빛지하차도 펌프 증설은 \"시점 미정\"",
+  "content": "가온시가 장마철을 앞두고 관내 지하차도 6곳을 점검했다. 달빛지하차도 배수펌프 증설에 대해 시는 설계 검토 중이며 착공 시점은 정해지지 않았다고 밝혔다.",
+  "published_at": "2026-03-05T00:00:00.000+09:00",
+  "enveloped_at": "2026-03-05T09:27:00.000+09:00",
+  "dateline": "2026-03-05T09:07:00.000+09:00",
+  "provider": "경남신문",
+  "category": [
+   "지역>경남",
+   "사회>사건_사고"
+  ],
+  "category_incident": [],
+  "byline": "박누리",
+  "images": null,
+  "images_caption": null,
+  "provider_news_id": "F000007",
+  "publisher_code": "F000007",
+  "provider_link_page": "https://example.invalid/news/01500051.20260305090700007",
+  "printing_page": null,
+  "tms_raw_stream": "장마\n가온시\n지하차도\n점검\n달빛지하차도\n펌프\n증설\n시점\n미정\n장마철\n관내\n배수펌프\n설계\n검토\n착공"
+ },
+ {
+  "_fixture": true,
+  "news_id": "01500401.20260620090800008",
+  "title": "달빛지하차도 침수 1년… 주민 \"달라진 게 없다\"",
+  "content": "달빛지하차도 침수 사고 1년을 앞두고 주민들이 배수펌프 증설이 아직 이뤄지지 않았다며 불안을 호소했다. 시는 절차를 진행 중이라고만 답했다.",
+  "published_at": "2026-06-20T00:00:00.000+09:00",
+  "enveloped_at": "2026-06-20T09:28:00.000+09:00",
+  "dateline": "2026-06-20T09:08:00.000+09:00",
+  "provider": "국제신문",
+  "category": [
+   "지역>경남"
+  ],
+  "category_incident": [],
+  "byline": "이해솔",
+  "images": null,
+  "images_caption": null,
+  "provider_news_id": "F000008",
+  "publisher_code": "F000008",
+  "provider_link_page": "https://example.invalid/news/01500401.20260620090800008",
+  "printing_page": null,
+  "tms_raw_stream": "달빛지하차도\n침수\n주민\n달라진\n주민들\n배수펌프\n증설\n아직\n불안\n절차\n진행\n중이라고만"
+ },
+ {
+  "_fixture": true,
+  "news_id": "01500101.20260322090900009",
+  "title": "가온시 별빛지하차도 정기 안전점검 실시",
+  "content": "가온시가 별빛지하차도 정기 안전점검을 실시했다. 배수펌프와 조명 설비를 점검했으며 특이사항은 없었다.",
+  "published_at": "2026-03-22T00:00:00.000+09:00",
+  "enveloped_at": "2026-03-22T09:29:00.000+09:00",
+  "dateline": "2026-03-22T09:09:00.000+09:00",
+  "provider": "경남일보",
+  "category": [
+   "지역>경남"
+  ],
+  "category_incident": [],
+  "byline": "정다온",
+  "images": null,
+  "images_caption": null,
+  "provider_news_id": "F000009",
+  "publisher_code": "F000009",
+  "provider_link_page": "https://example.invalid/news/01500101.20260322090900009",
+  "printing_page": null,
+  "tms_raw_stream": "가온시\n별빛지하차도\n정기\n안전점검\n실시\n배수펌프\n조명\n설비\n특이사항"
+ },
+ {
+  "_fixture": true,
+  "news_id": "01500051.20250302091000010",
+  "title": "누리군 해맞이터널 입구 붕괴… 차량 3대 파손, 1명 중상",
+  "content": "2일 오전 누리군 해맞이터널 입구 상부 콘크리트 구조물이 무너져 지나던 차량 3대가 파손되고 운전자 1명이 중상을 입었다. 터널은 양방향 전면 통제됐다.",
+  "published_at": "2025-03-02T00:00:00.000+09:00",
+  "enveloped_at": "2025-03-02T09:30:00.000+09:00",
+  "dateline": "2025-03-02T09:10:00.000+09:00",
+  "provider": "경남신문",
+  "category": [
+   "사회>사건_사고",
+   "지역>경남"
+  ],
+  "category_incident": [
+   "사고>산업사고>붕괴"
+  ],
+  "byline": "최서리",
+  "images": null,
+  "images_caption": null,
+  "provider_news_id": "F000010",
+  "publisher_code": "F000010",
+  "provider_link_page": "https://example.invalid/news/01500051.20250302091000010",
+  "printing_page": null,
+  "tms_raw_stream": "누리군\n해맞이터널\n입구\n붕괴\n차량\n파손\n중상\n오전\n상부\n콘크리트\n구조물\n운전자\n터널\n양방향"
+ },
+ {
+  "_fixture": true,
+  "news_id": "08100401.20250302151100011",
+  "title": "해맞이터널 붕괴, 준공 32년 노후 터널… 정밀안전진단 D등급",
+  "content": "붕괴한 누리군 해맞이터널은 1993년 준공된 노후 터널로 지난해 정밀안전진단에서 D등급을 받았던 것으로 확인됐다.",
+  "published_at": "2025-03-02T00:00:00.000+09:00",
+  "enveloped_at": "2025-03-02T15:31:00.000+09:00",
+  "dateline": "2025-03-02T15:11:00.000+09:00",
+  "provider": "YTN",
+  "category": [
+   "사회>사건_사고",
+   "지역>경남"
+  ],
+  "category_incident": [
+   "사고>산업사고>붕괴"
+  ],
+  "byline": "한별빛",
+  "images": null,
+  "images_caption": null,
+  "provider_news_id": "F000011",
+  "publisher_code": "F000011",
+  "provider_link_page": "https://example.invalid/news/08100401.20250302151100011",
+  "printing_page": null,
+  "tms_raw_stream": "해맞이터널\n붕괴\n준공\n노후\n터널\n정밀안전진단\nD등급\n붕괴한\n누리군\n준공된"
+ },
+ {
+  "_fixture": true,
+  "news_id": "01500701.20250304091200012",
+  "title": "누리군수 \"해맞이터널 연말까지 전 구간 보강 후 재개통\"",
+  "content": "누리군수는 4일 해맞이터널 붕괴 현장에서 연말까지 전 구간 보강공사를 마치고 재개통하겠다고 밝혔다. 공사 기간 우회도로를 운영한다.",
+  "published_at": "2025-03-04T00:00:00.000+09:00",
+  "enveloped_at": "2025-03-04T09:32:00.000+09:00",
+  "dateline": "2025-03-04T09:12:00.000+09:00",
+  "provider": "부산일보",
+  "category": [
+   "사회>사건_사고",
+   "지역>경남"
+  ],
+  "category_incident": [
+   "사고>산업사고>붕괴"
+  ],
+  "byline": "김가온",
+  "images": null,
+  "images_caption": null,
+  "provider_news_id": "F000012",
+  "publisher_code": "F000012",
+  "provider_link_page": "https://example.invalid/news/01500701.20250304091200012",
+  "printing_page": null,
+  "tms_raw_stream": "누리군수\n해맞이터널\n구간\n보강\n재개통\n붕괴\n보강공사\n공사\n기간\n우회도로"
+ },
+ {
+  "_fixture": true,
+  "news_id": "01500151.20250322091300013",
+  "title": "해맞이터널 붕괴 원인 '콘크리트 박리·배수 불량'… 국토부 조사 결과",
+  "content": "국토교통부 사고조사위원회는 해맞이터널 붕괴 원인을 노후 콘크리트 박리와 배수 불량으로 결론지었다. 위원회는 전국 노후 터널 점검을 권고했다.",
+  "published_at": "2025-03-22T00:00:00.000+09:00",
+  "enveloped_at": "2025-03-22T09:33:00.000+09:00",
+  "dateline": "2025-03-22T09:13:00.000+09:00",
+  "provider": "경남도민일보",
+  "category": [
+   "사회>사건_사고",
+   "지역>경남"
+  ],
+  "category_incident": [
+   "사고>산업사고>붕괴"
+  ],
+  "byline": "박누리",
+  "images": null,
+  "images_caption": null,
+  "provider_news_id": "F000013",
+  "publisher_code": "F000013",
+  "provider_link_page": "https://example.invalid/news/01500151.20250322091300013",
+  "printing_page": null,
+  "tms_raw_stream": "해맞이터널\n붕괴\n원인\n콘크리트\n박리\n배수\n불량\n국토부\n조사\n국토교통부\n사고조사위원회\n노후\n위원회\n전국\n터널\n점검"
+ },
+ {
+  "_fixture": true,
+  "news_id": "08100101.20250510091400014",
+  "title": "누리군 해맞이터널 보강공사 착공… 12월 재개통 목표",
+  "content": "누리군이 10일 해맞이터널 보강공사에 착공했다. 군은 12월 재개통을 목표로 상부 구조물 철거와 라이닝 보강을 진행한다.",
+  "published_at": "2025-05-10T00:00:00.000+09:00",
+  "enveloped_at": "2025-05-10T09:34:00.000+09:00",
+  "dateline": "2025-05-10T09:14:00.000+09:00",
+  "provider": "KBS",
+  "category": [
+   "지역>경남",
+   "사회>사건_사고"
+  ],
+  "category_incident": [],
+  "byline": "이해솔",
+  "images": null,
+  "images_caption": null,
+  "provider_news_id": "F000014",
+  "publisher_code": "F000014",
+  "provider_link_page": "https://example.invalid/news/08100101.20250510091400014",
+  "printing_page": null,
+  "tms_raw_stream": "누리군\n해맞이터널\n보강공사\n착공\n재개통\n목표\n상부\n구조물\n철거\n라이닝\n보강"
+ },
+ {
+  "_fixture": true,
+  "news_id": "01500051.20251222091500015",
+  "title": "해맞이터널 보강공사 완료… 붕괴 9개월 만에 재개통",
+  "content": "누리군 해맞이터널이 22일 재개통됐다. 군은 상부 구조물 재시공과 전 구간 라이닝 보강을 완료했으며 정밀안전진단에서 B등급을 받았다고 밝혔다.",
+  "published_at": "2025-12-22T00:00:00.000+09:00",
+  "enveloped_at": "2025-12-22T09:35:00.000+09:00",
+  "dateline": "2025-12-22T09:15:00.000+09:00",
+  "provider": "경남신문",
+  "category": [
+   "지역>경남",
+   "사회>사건_사고"
+  ],
+  "category_incident": [],
+  "byline": "정다온",
+  "images": null,
+  "images_caption": null,
+  "provider_news_id": "F000015",
+  "publisher_code": "F000015",
+  "provider_link_page": "https://example.invalid/news/01500051.20251222091500015",
+  "printing_page": null,
+  "tms_raw_stream": "해맞이터널\n보강공사\n완료\n붕괴\n재개통\n누리군\n상부\n구조물\n재시공\n구간\n라이닝\n보강\nB등급"
+ },
+ {
+  "_fixture": true,
+  "news_id": "01500401.20260205091600016",
+  "title": "해맞이터널 붕괴 책임 공무원 2명 기소",
+  "content": "검찰은 해맞이터널 붕괴 사고와 관련해 안전점검을 소홀히 한 혐의로 누리군 공무원 2명을 불구속 기소했다.",
+  "published_at": "2026-02-05T00:00:00.000+09:00",
+  "enveloped_at": "2026-02-05T09:36:00.000+09:00",
+  "dateline": "2026-02-05T09:16:00.000+09:00",
+  "provider": "국제신문",
+  "category": [
+   "사회>사건_사고"
+  ],
+  "category_incident": [],
+  "byline": "최서리",
+  "images": null,
+  "images_caption": null,
+  "provider_news_id": "F000016",
+  "publisher_code": "F000016",
+  "provider_link_page": "https://example.invalid/news/01500401.20260205091600016",
+  "printing_page": null,
+  "tms_raw_stream": "해맞이터널\n붕괴\n책임\n공무원\n기소\n검찰\n사고\n안전점검\n혐의\n누리군\n불구속"
+ },
+ {
+  "_fixture": true,
+  "news_id": "01500101.20260406091700017",
+  "title": "누리군 달빛터널 낙석… 노후 터널 안전 우려 재점화",
+  "content": "누리군 달빛터널에서 낙석이 발생해 차량 1대가 파손됐다. 지난해 터널 붕괴 사고 이후 군내 노후 터널 안전 우려가 다시 커지고 있다.",
+  "published_at": "2026-04-06T00:00:00.000+09:00",
+  "enveloped_at": "2026-04-06T09:37:00.000+09:00",
+  "dateline": "2026-04-06T09:17:00.000+09:00",
+  "provider": "경남일보",
+  "category": [
+   "사회>사건_사고",
+   "지역>경남"
+  ],
+  "category_incident": [
+   "사고>산업사고>붕괴"
+  ],
+  "byline": "한별빛",
+  "images": null,
+  "images_caption": null,
+  "provider_news_id": "F000017",
+  "publisher_code": "F000017",
+  "provider_link_page": "https://example.invalid/news/01500101.20260406091700017",
+  "printing_page": null,
+  "tms_raw_stream": "누리군\n달빛터널\n낙석\n노후\n터널\n안전\n우려\n재점화\n차량\n붕괴\n이후\n군내\n다시"
+ },
+ {
+  "_fixture": true,
+  "news_id": "01500701.20240920081800018",
+  "title": "태풍 '해온'에 가온시 서리천 제방 120m 유실… 주택 40가구 침수",
+  "content": "20일 새벽 태풍 해온이 몰고 온 폭우로 가온시 서리천 제방 120m 구간이 유실돼 인근 주택 40가구가 침수됐다. 주민 90여 명이 대피했다.",
+  "published_at": "2024-09-20T00:00:00.000+09:00",
+  "enveloped_at": "2024-09-20T08:38:00.000+09:00",
+  "dateline": "2024-09-20T08:18:00.000+09:00",
+  "provider": "부산일보",
+  "category": [
+   "사회>사건_사고",
+   "지역>경남"
+  ],
+  "category_incident": [
+   "재해>자연재해>태풍"
+  ],
+  "byline": "김가온",
+  "images": null,
+  "images_caption": null,
+  "provider_news_id": "F000018",
+  "publisher_code": "F000018",
+  "provider_link_page": "https://example.invalid/news/01500701.20240920081800018",
+  "printing_page": null,
+  "tms_raw_stream": "태풍\n해온\n가온시\n서리천\n제방\n유실\n주택\n침수\n새벽\n폭우\n구간\n인근\n주민"
+ },
+ {
+  "_fixture": true,
+  "news_id": "08100201.20240921091900019",
+  "title": "서리천 제방, 2019년에도 유실… 임시 복구만 반복",
+  "content": "이번에 유실된 가온시 서리천 제방은 2019년 태풍 때도 무너졌던 구간으로 임시 복구만 반복돼 왔다는 지적이 나온다.",
+  "published_at": "2024-09-21T00:00:00.000+09:00",
+  "enveloped_at": "2024-09-21T09:39:00.000+09:00",
+  "dateline": "2024-09-21T09:19:00.000+09:00",
+  "provider": "MBC",
+  "category": [
+   "사회>사건_사고",
+   "지역>경남"
+  ],
+  "category_incident": [
+   "재해>자연재해>태풍"
+  ],
+  "byline": "박누리",
+  "images": null,
+  "images_caption": null,
+  "provider_news_id": "F000019",
+  "publisher_code": "F000019",
+  "provider_link_page": "https://example.invalid/news/08100201.20240921091900019",
+  "printing_page": null,
+  "tms_raw_stream": "서리천\n제방\n유실\n임시\n복구만\n반복\n이번\n유실된\n가온시\n태풍\n때도\n구간\n왔다\n지적"
+ },
+ {
+  "_fixture": true,
+  "news_id": "01500051.20240923092000020",
+  "title": "가온시 \"서리천 제방 내년 우기 전 전면 보강\"",
+  "content": "가온시는 23일 서리천 유실 구간을 포함해 제방 1.2km를 내년 6월 우기 전까지 전면 보강하겠다고 발표했다. 국비 60억 원을 신청했다.",
+  "published_at": "2024-09-23T00:00:00.000+09:00",
+  "enveloped_at": "2024-09-23T09:40:00.000+09:00",
+  "dateline": "2024-09-23T09:20:00.000+09:00",
+  "provider": "경남신문",
+  "category": [
+   "사회>사건_사고",
+   "지역>경남"
+  ],
+  "category_incident": [
+   "재해>자연재해>태풍"
+  ],
+  "byline": "이해솔",
+  "images": null,
+  "images_caption": null,
+  "provider_news_id": "F000020",
+  "publisher_code": "F000020",
+  "provider_link_page": "https://example.invalid/news/01500051.20240923092000020",
+  "printing_page": null,
+  "tms_raw_stream": "가온시\n서리천\n제방\n내년\n우기\n보강\n유실\n구간\n국비"
+ },
+ {
+  "_fixture": true,
+  "news_id": "01500151.20250118092100021",
+  "title": "서리천 제방 보강공사 착공… 6월 완공 목표",
+  "content": "가온시가 서리천 제방 보강공사에 착공했다. 시는 유실 구간을 콘크리트 옹벽으로 교체하고 6월까지 완공할 계획이다.",
+  "published_at": "2025-01-18T00:00:00.000+09:00",
+  "enveloped_at": "2025-01-18T09:41:00.000+09:00",
+  "dateline": "2025-01-18T09:21:00.000+09:00",
+  "provider": "경남도민일보",
+  "category": [
+   "지역>경남"
+  ],
+  "category_incident": [],
+  "byline": "정다온",
+  "images": null,
+  "images_caption": null,
+  "provider_news_id": "F000021",
+  "publisher_code": "F000021",
+  "provider_link_page": "https://example.invalid/news/01500151.20250118092100021",
+  "printing_page": null,
+  "tms_raw_stream": "서리천\n제방\n보강공사\n착공\n완공\n목표\n가온시\n유실\n구간\n콘크리트\n옹벽\n완공할"
+ },
+ {
+  "_fixture": true,
+  "news_id": "08100101.20250515092200022",
+  "title": "가온시 서리천 제방 보강공사 완료… 우기 전 마무리",
+  "content": "가온시는 15일 서리천 제방 1.2km 보강공사를 완료했다고 밝혔다. 유실 구간은 콘크리트 옹벽으로 교체됐고 나머지 구간은 사석 보강을 마쳤다.",
+  "published_at": "2025-05-15T00:00:00.000+09:00",
+  "enveloped_at": "2025-05-15T09:42:00.000+09:00",
+  "dateline": "2025-05-15T09:22:00.000+09:00",
+  "provider": "KBS",
+  "category": [
+   "지역>경남"
+  ],
+  "category_incident": [],
+  "byline": "최서리",
+  "images": null,
+  "images_caption": null,
+  "provider_news_id": "F000022",
+  "publisher_code": "F000022",
+  "provider_link_page": "https://example.invalid/news/08100101.20250515092200022",
+  "printing_page": null,
+  "tms_raw_stream": "가온시\n서리천\n제방\n보강공사\n완료\n우기\n마무리\n유실\n구간\n콘크리트\n옹벽\n사석\n보강"
+ },
+ {
+  "_fixture": true,
+  "news_id": "01500701.20260712092300023",
+  "title": "서리천 제방 또 유실… 보강 구간 바로 옆 30m 무너져",
+  "content": "12일 집중호우로 가온시 서리천 제방이 또 유실됐다. 무너진 30m 구간은 지난해 보강공사 구간 바로 옆으로, 주택 10가구가 침수됐다.",
+  "published_at": "2026-07-12T00:00:00.000+09:00",
+  "enveloped_at": "2026-07-12T09:43:00.000+09:00",
+  "dateline": "2026-07-12T09:23:00.000+09:00",
+  "provider": "부산일보",
+  "category": [
+   "사회>사건_사고",
+   "지역>경남"
+  ],
+  "category_incident": [
+   "재해>자연재해>홍수"
+  ],
+  "byline": "한별빛",
+  "images": null,
+  "images_caption": null,
+  "provider_news_id": "F000023",
+  "publisher_code": "F000023",
+  "provider_link_page": "https://example.invalid/news/01500701.20260712092300023",
+  "printing_page": null,
+  "tms_raw_stream": "서리천\n제방\n유실\n보강\n구간\n집중호우\n가온시\n무너진\n보강공사\n주택"
+ },
+ {
+  "_fixture": true,
+  "news_id": "01500051.20260714092400024",
+  "title": "\"보강 범위 좁았다\"… 서리천 재유실에 가온시 재조사 착수",
+  "content": "서리천 제방 재유실과 관련해 가온시는 보강 범위와 설계 적정성을 재조사하기로 했다. 주민들은 전 구간 재점검을 요구했다.",
+  "published_at": "2026-07-14T00:00:00.000+09:00",
+  "enveloped_at": "2026-07-14T09:44:00.000+09:00",
+  "dateline": "2026-07-14T09:24:00.000+09:00",
+  "provider": "경남신문",
+  "category": [
+   "사회>사건_사고",
+   "지역>경남"
+  ],
+  "category_incident": [
+   "재해>자연재해>홍수"
+  ],
+  "byline": "김가온",
+  "images": null,
+  "images_caption": null,
+  "provider_news_id": "F000024",
+  "publisher_code": "F000024",
+  "provider_link_page": "https://example.invalid/news/01500051.20260714092400024",
+  "printing_page": null,
+  "tms_raw_stream": "보강\n범위\n서리천\n재유실\n가온시\n재조사\n착수\n제방\n설계\n적정성\n재조사하기\n주민들\n구간\n재점검"
+ },
+ {
+  "_fixture": true,
+  "news_id": "01500051.20251108092500025",
+  "title": "누리군 누리선 화물열차 탈선… 컨테이너 주택 덮쳐 1명 경상",
+  "content": "8일 오전 누리군 누리선 구간에서 화물열차 6량이 탈선해 컨테이너 2개가 인근 주택으로 떨어졌다. 주민 1명이 경상을 입었고 누리선 운행이 중단됐다.",
+  "published_at": "2025-11-08T00:00:00.000+09:00",
+  "enveloped_at": "2025-11-08T09:45:00.000+09:00",
+  "dateline": "2025-11-08T09:25:00.000+09:00",
+  "provider": "경남신문",
+  "category": [
+   "사회>사건_사고",
+   "지역>경남"
+  ],
+  "category_incident": [
+   "사고>교통사고>철도사고"
+  ],
+  "byline": "박누리",
+  "images": null,
+  "images_caption": null,
+  "provider_news_id": "F000025",
+  "publisher_code": "F000025",
+  "provider_link_page": "https://example.invalid/news/01500051.20251108092500025",
+  "printing_page": null,
+  "tms_raw_stream": "누리군\n누리선\n화물열차\n탈선\n컨테이너\n주택\n덮쳐\n경상\n오전\n인근\n주민\n운행"
+ },
+ {
+  "_fixture": true,
+  "news_id": "08100401.20251109092600026",
+  "title": "누리선 탈선 원인은 선로 균열… 40년 넘은 노후 구간",
+  "content": "누리선 화물열차 탈선 사고 원인이 선로 균열로 파악됐다. 사고 구간은 1980년대 부설된 노후 선로로 교체 시기가 지났다는 지적이 나온다.",
+  "published_at": "2025-11-09T00:00:00.000+09:00",
+  "enveloped_at": "2025-11-09T09:46:00.000+09:00",
+  "dateline": "2025-11-09T09:26:00.000+09:00",
+  "provider": "YTN",
+  "category": [
+   "사회>사건_사고",
+   "지역>경남"
+  ],
+  "category_incident": [
+   "사고>교통사고>철도사고"
+  ],
+  "byline": "이해솔",
+  "images": null,
+  "images_caption": null,
+  "provider_news_id": "F000026",
+  "publisher_code": "F000026",
+  "provider_link_page": "https://example.invalid/news/08100401.20251109092600026",
+  "printing_page": null,
+  "tms_raw_stream": "누리선\n탈선\n원인\n균열\n노후\n구간\n화물열차\n부설된\n선로\n교체\n시기\n지났다\n지적"
+ },
+ {
+  "_fixture": true,
+  "news_id": "01500701.20251111092700027",
+  "title": "철도공사 \"누리선 노후 선로 교체 추진\"… 시점은 안 밝혀",
+  "content": "한국철도공사는 11일 누리선 탈선 구간을 포함한 노후 선로 교체를 추진하겠다고 밝혔다. 다만 구체적인 교체 시점과 예산은 제시하지 않았다.",
+  "published_at": "2025-11-11T00:00:00.000+09:00",
+  "enveloped_at": "2025-11-11T09:47:00.000+09:00",
+  "dateline": "2025-11-11T09:27:00.000+09:00",
+  "provider": "부산일보",
+  "category": [
+   "사회>사건_사고",
+   "지역>경남"
+  ],
+  "category_incident": [
+   "사고>교통사고>철도사고"
+  ],
+  "byline": "정다온",
+  "images": null,
+  "images_caption": null,
+  "provider_news_id": "F000027",
+  "publisher_code": "F000027",
+  "provider_link_page": "https://example.invalid/news/01500701.20251111092700027",
+  "printing_page": null,
+  "tms_raw_stream": "철도공사\n누리선\n노후\n교체\n추진\n시점\n밝혀\n한국철도공사\n탈선\n구간\n포함한\n다만\n구체적인\n예산"
+ },
+ {
+  "_fixture": true,
+  "news_id": "08100101.20251208092800028",
+  "title": "항공철도사고조사위 \"누리선 탈선, 선로 피로 균열이 원인\"",
+  "content": "항공철도사고조사위원회는 누리선 화물열차 탈선 사고의 원인을 선로 피로 균열로 결론지었다.",
+  "published_at": "2025-12-08T00:00:00.000+09:00",
+  "enveloped_at": "2025-12-08T09:48:00.000+09:00",
+  "dateline": "2025-12-08T09:28:00.000+09:00",
+  "provider": "KBS",
+  "category": [
+   "사회>사건_사고",
+   "지역>경남"
+  ],
+  "category_incident": [
+   "사고>교통사고>철도사고"
+  ],
+  "byline": "최서리",
+  "images": null,
+  "images_caption": null,
+  "provider_news_id": "F000028",
+  "publisher_code": "F000028",
+  "provider_link_page": "https://example.invalid/news/08100101.20251208092800028",
+  "printing_page": null,
+  "tms_raw_stream": "항공철도사고조사위\n누리선\n탈선\n균열\n원인\n항공철도사고조사위원회\n화물열차\n사고"
+ },
+ {
+  "_fixture": true,
+  "news_id": "01500151.20260520092900029",
+  "title": "누리선 노후 선로 교체 공사 착공… 8km 구간 내년 완료",
+  "content": "한국철도공사가 20일 누리선 노후 선로 교체 공사에 착공했다. 탈선 구간을 포함한 8km 구간이 대상이며 내년 상반기 완료가 목표다.",
+  "published_at": "2026-05-20T00:00:00.000+09:00",
+  "enveloped_at": "2026-05-20T09:49:00.000+09:00",
+  "dateline": "2026-05-20T09:29:00.000+09:00",
+  "provider": "경남도민일보",
+  "category": [
+   "지역>경남",
+   "경제>산업_기업"
+  ],
+  "category_incident": [],
+  "byline": "한별빛",
+  "images": null,
+  "images_caption": null,
+  "provider_news_id": "F000029",
+  "publisher_code": "F000029",
+  "provider_link_page": "https://example.invalid/news/01500151.20260520092900029",
+  "printing_page": null,
+  "tms_raw_stream": "누리선\n노후\n교체\n공사\n착공\n구간\n내년\n완료\n한국철도공사\n탈선\n포함한\n상반기"
+ },
+ {
+  "_fixture": true,
+  "news_id": "01500701.20250521063000030",
+  "title": "가온시 별빛물류센터 화재… 창고 2개동 전소, 인명피해 없어",
+  "content": "21일 새벽 가온시 별빛물류센터에서 불이 나 창고 2개 동이 전소됐다. 인명피해는 없었으나 스프링클러가 작동하지 않은 것으로 파악됐다.",
+  "published_at": "2025-05-21T00:00:00.000+09:00",
+  "enveloped_at": "2025-05-21T06:50:00.000+09:00",
+  "dateline": "2025-05-21T06:30:00.000+09:00",
+  "provider": "부산일보",
+  "category": [
+   "사회>사건_사고",
+   "지역>경남"
+  ],
+  "category_incident": [
+   "사고>산업사고>화재"
+  ],
+  "byline": "김가온",
+  "images": null,
+  "images_caption": null,
+  "provider_news_id": "F000030",
+  "publisher_code": "F000030",
+  "provider_link_page": "https://example.invalid/news/01500701.20250521063000030",
+  "printing_page": null,
+  "tms_raw_stream": "가온시\n별빛물류센터\n화재\n전소\n없어\n새벽\n인명피해\n없었으나\n스프링클러"
+ },
+ {
+  "_fixture": true,
+  "news_id": "01500051.20250523093100031",
+  "title": "가온소방서 \"관내 물류창고 8월까지 전수 소방점검\"",
+  "content": "가온소방서는 23일 별빛물류센터 화재를 계기로 관내 물류창고 34곳에 대해 8월 말까지 전수 소방점검을 완료하겠다고 밝혔다.",
+  "published_at": "2025-05-23T00:00:00.000+09:00",
+  "enveloped_at": "2025-05-23T09:51:00.000+09:00",
+  "dateline": "2025-05-23T09:31:00.000+09:00",
+  "provider": "경남신문",
+  "category": [
+   "사회>사건_사고",
+   "지역>경남"
+  ],
+  "category_incident": [
+   "사고>산업사고>화재"
+  ],
+  "byline": "박누리",
+  "images": null,
+  "images_caption": null,
+  "provider_news_id": "F000031",
+  "publisher_code": "F000031",
+  "provider_link_page": "https://example.invalid/news/01500051.20250523093100031",
+  "printing_page": null,
+  "tms_raw_stream": "관내\n전수\n소방점검\n가온소방서\n별빛물류센터\n화재\n계기"
+ },
+ {
+  "_fixture": true,
+  "news_id": "08100201.20250625093200032",
+  "title": "별빛물류센터 화재 원인은 전기 배선… 스프링클러 밸브 잠겨 있었다",
+  "content": "가온소방서 조사 결과 별빛물류센터 화재는 전기 배선 합선이 원인이며 스프링클러 주밸브가 잠겨 있어 작동하지 않은 것으로 확인됐다.",
+  "published_at": "2025-06-25T00:00:00.000+09:00",
+  "enveloped_at": "2025-06-25T09:52:00.000+09:00",
+  "dateline": "2025-06-25T09:32:00.000+09:00",
+  "provider": "MBC",
+  "category": [
+   "사회>사건_사고",
+   "지역>경남"
+  ],
+  "category_incident": [
+   "사고>산업사고>화재"
+  ],
+  "byline": "이해솔",
+  "images": null,
+  "images_caption": null,
+  "provider_news_id": "F000032",
+  "publisher_code": "F000032",
+  "provider_link_page": "https://example.invalid/news/08100201.20250625093200032",
+  "printing_page": null,
+  "tms_raw_stream": "별빛물류센터\n화재\n원인\n전기\n배선\n스프링클러\n밸브\n잠겨\n조사\n합선\n주밸브\n있어"
+ },
+ {
+  "_fixture": true,
+  "news_id": "01500151.20250902093300033",
+  "title": "가온소방서, 물류창고 34곳 전수점검 완료… 12곳 개선명령",
+  "content": "가온소방서가 관내 물류창고 34곳에 대한 전수 소방점검을 완료했다. 스프링클러 밸브 폐쇄 등 위반이 확인된 12곳에는 개선명령을 내렸다.",
+  "published_at": "2025-09-02T00:00:00.000+09:00",
+  "enveloped_at": "2025-09-02T09:53:00.000+09:00",
+  "dateline": "2025-09-02T09:33:00.000+09:00",
+  "provider": "경남도민일보",
+  "category": [
+   "지역>경남",
+   "사회>사건_사고"
+  ],
+  "category_incident": [],
+  "byline": "정다온",
+  "images": null,
+  "images_caption": null,
+  "provider_news_id": "F000033",
+  "publisher_code": "F000033",
+  "provider_link_page": "https://example.invalid/news/01500151.20250902093300033",
+  "printing_page": null,
+  "tms_raw_stream": "전수점검\n완료\n개선명령\n가온소방서\n관내\n대한\n전수\n소방점검\n스프링클러\n밸브\n폐쇄\n위반\n확인된"
+ },
+ {
+  "_fixture": true,
+  "news_id": "01500051.20250803073400034",
+  "title": "누리군 청솔산 산사태… 주택 5채 매몰, 1명 사망",
+  "content": "3일 새벽 집중호우로 누리군 청솔산 자락에서 산사태가 발생해 주택 5채가 매몰됐다. 1명이 숨지고 3명이 구조됐으며 주민 60여 명이 대피했다.",
+  "published_at": "2025-08-03T00:00:00.000+09:00",
+  "enveloped_at": "2025-08-03T07:54:00.000+09:00",
+  "dateline": "2025-08-03T07:34:00.000+09:00",
+  "provider": "경남신문",
+  "category": [
+   "사회>사건_사고",
+   "지역>경남"
+  ],
+  "category_incident": [
+   "재해>자연재해>눈사태_산사태"
+  ],
+  "byline": "최서리",
+  "images": null,
+  "images_caption": null,
+  "provider_news_id": "F000034",
+  "publisher_code": "F000034",
+  "provider_link_page": "https://example.invalid/news/01500051.20250803073400034",
+  "printing_page": null,
+  "tms_raw_stream": "누리군\n청솔산\n산사태\n주택\n매몰\n사망\n새벽\n집중호우\n주민"
+ },
+ {
+  "_fixture": true,
+  "news_id": "08100101.20250804093500035",
+  "title": "청솔산 산사태 지역, 산사태 취약지역 지정 안 돼 있었다",
+  "content": "산사태가 난 누리군 청솔산 자락은 산림청 산사태 취약지역으로 지정되지 않아 사방시설이 전혀 없었던 것으로 드러났다.",
+  "published_at": "2025-08-04T00:00:00.000+09:00",
+  "enveloped_at": "2025-08-04T09:55:00.000+09:00",
+  "dateline": "2025-08-04T09:35:00.000+09:00",
+  "provider": "KBS",
+  "category": [
+   "사회>사건_사고",
+   "지역>경남"
+  ],
+  "category_incident": [
+   "재해>자연재해>눈사태_산사태"
+  ],
+  "byline": "한별빛",
+  "images": null,
+  "images_caption": null,
+  "provider_news_id": "F000035",
+  "publisher_code": "F000035",
+  "provider_link_page": "https://example.invalid/news/08100101.20250804093500035",
+  "printing_page": null,
+  "tms_raw_stream": "청솔산\n산사태\n지역\n취약지역\n지정\n누리군\n자락\n산림청\n않아\n사방시설\n전혀"
+ },
+ {
+  "_fixture": true,
+  "news_id": "01500701.20250807093600036",
+  "title": "누리군 \"청솔산 사방댐 2곳 내년 6월까지 설치\"",
+  "content": "누리군은 7일 청솔산 산사태 피해 지역에 사방댐 2곳을 내년 6월까지 설치하고 취약지역 지정을 신청하겠다고 밝혔다.",
+  "published_at": "2025-08-07T00:00:00.000+09:00",
+  "enveloped_at": "2025-08-07T09:56:00.000+09:00",
+  "dateline": "2025-08-07T09:36:00.000+09:00",
+  "provider": "부산일보",
+  "category": [
+   "사회>사건_사고",
+   "지역>경남"
+  ],
+  "category_incident": [
+   "재해>자연재해>눈사태_산사태"
+  ],
+  "byline": "김가온",
+  "images": null,
+  "images_caption": null,
+  "provider_news_id": "F000036",
+  "publisher_code": "F000036",
+  "provider_link_page": "https://example.invalid/news/01500701.20250807093600036",
+  "printing_page": null,
+  "tms_raw_stream": "누리군\n청솔산\n사방댐\n내년\n설치\n산사태\n지역\n취약지역\n지정"
+ },
+ {
+  "_fixture": true,
+  "news_id": "01500151.20251210093700037",
+  "title": "청솔산 산사태 이재민 임시주거 지원 연장",
+  "content": "누리군은 청솔산 산사태 이재민 5가구에 대한 임시주거 지원을 내년 3월까지 연장하기로 했다.",
+  "published_at": "2025-12-10T00:00:00.000+09:00",
+  "enveloped_at": "2025-12-10T09:57:00.000+09:00",
+  "dateline": "2025-12-10T09:37:00.000+09:00",
+  "provider": "경남도민일보",
+  "category": [
+   "지역>경남",
+   "사회>노동_복지"
+  ],
+  "category_incident": [],
+  "byline": "박누리",
+  "images": null,
+  "images_caption": null,
+  "provider_news_id": "F000037",
+  "publisher_code": "F000037",
+  "provider_link_page": "https://example.invalid/news/01500151.20251210093700037",
+  "printing_page": null,
+  "tms_raw_stream": "청솔산\n산사태\n이재민\n임시주거\n지원\n연장\n누리군\n대한\n내년\n연장하기"
+ },
+ {
+  "_fixture": true,
+  "news_id": "01500701.20260114073800038",
+  "title": "가온시 한빛대교 접속도로 11중 추돌… 블랙아이스에 8명 부상",
+  "content": "14일 새벽 가온시 한빛대교 접속도로에서 도로 결빙으로 차량 11대가 연쇄 추돌해 8명이 다쳤다. 경찰은 블랙아이스가 원인인 것으로 보고 있다.",
+  "published_at": "2026-01-14T00:00:00.000+09:00",
+  "enveloped_at": "2026-01-14T07:58:00.000+09:00",
+  "dateline": "2026-01-14T07:38:00.000+09:00",
+  "provider": "부산일보",
+  "category": [
+   "사회>사건_사고",
+   "지역>경남"
+  ],
+  "category_incident": [
+   "사고>교통사고>노상사고"
+  ],
+  "byline": "이해솔",
+  "images": null,
+  "images_caption": null,
+  "provider_news_id": "F000038",
+  "publisher_code": "F000038",
+  "provider_link_page": "https://example.invalid/news/01500701.20260114073800038",
+  "printing_page": null,
+  "tms_raw_stream": "가온시\n한빛대교\n접속도\n추돌\n블랙아이스\n부상\n새벽\n결빙\n차량\n연쇄\n경찰\n원인인"
+ },
+ {
+  "_fixture": true,
+  "news_id": "01500051.20260116093900039",
+  "title": "가온시 \"한빛대교 결빙 방지 대책 검토\"… 열선·염수 분사 거론",
+  "content": "가온시는 16일 한빛대교 접속도로 연쇄 추돌과 관련해 결빙 방지 대책을 검토하겠다고 밝혔다. 열선 설치와 자동 염수 분사 장치가 거론됐으나 확정된 것은 없다.",
+  "published_at": "2026-01-16T00:00:00.000+09:00",
+  "enveloped_at": "2026-01-16T09:59:00.000+09:00",
+  "dateline": "2026-01-16T09:39:00.000+09:00",
+  "provider": "경남신문",
+  "category": [
+   "사회>사건_사고",
+   "지역>경남"
+  ],
+  "category_incident": [
+   "사고>교통사고>노상사고"
+  ],
+  "byline": "정다온",
+  "images": null,
+  "images_caption": null,
+  "provider_news_id": "F000039",
+  "publisher_code": "F000039",
+  "provider_link_page": "https://example.invalid/news/01500051.20260116093900039",
+  "printing_page": null,
+  "tms_raw_stream": "가온시\n한빛대교\n결빙\n대책\n검토\n열선\n염수\n분사\n거론\n접속도\n연쇄\n추돌\n설치\n자동\n장치\n거론됐으나\n확정된"
+ },
+ {
+  "_fixture": true,
+  "news_id": "08100101.20260220094000040",
+  "title": "한빛대교 11중 추돌, 선행 차량 운전자 입건",
+  "content": "경찰은 한빛대교 접속도로 연쇄 추돌 사고와 관련해 과속 혐의로 선행 차량 운전자를 입건했다.",
+  "published_at": "2026-02-20T00:00:00.000+09:00",
+  "enveloped_at": "2026-02-20T10:00:00.000+09:00",
+  "dateline": "2026-02-20T09:40:00.000+09:00",
+  "provider": "KBS",
+  "category": [
+   "사회>사건_사고",
+   "지역>경남"
+  ],
+  "category_incident": [
+   "사고>교통사고>노상사고"
+  ],
+  "byline": "최서리",
+  "images": null,
+  "images_caption": null,
+  "provider_news_id": "F000040",
+  "publisher_code": "F000040",
+  "provider_link_page": "https://example.invalid/news/08100101.20260220094000040",
+  "printing_page": null,
+  "tms_raw_stream": "한빛대교\n추돌\n선행\n차량\n운전자\n입건\n경찰\n접속도\n연쇄\n사고\n과속\n혐의"
+ },
+ {
+  "_fixture": true,
+  "news_id": "01500151.20260805094100041",
+  "title": "가온시, 겨울철 앞두고 한빛대교 등 결빙 취약구간 점검",
+  "content": "가온시가 겨울철을 앞두고 한빛대교 접속도로 등 결빙 취약구간 12곳을 점검했다. 결빙 방지 시설 설치 여부는 언급되지 않았다.",
+  "published_at": "2026-08-05T00:00:00.000+09:00",
+  "enveloped_at": "2026-08-05T10:01:00.000+09:00",
+  "dateline": "2026-08-05T09:41:00.000+09:00",
+  "provider": "경남도민일보",
+  "category": [
+   "지역>경남"
+  ],
+  "category_incident": [],
+  "byline": "한별빛",
+  "images": null,
+  "images_caption": null,
+  "provider_news_id": "F000041",
+  "publisher_code": "F000041",
+  "provider_link_page": "https://example.invalid/news/01500151.20260805094100041",
+  "printing_page": null,
+  "tms_raw_stream": "가온시\n겨울철\n한빛대교\n결빙\n취약구간\n점검\n접속도\n시설\n설치\n여부"
+ },
+ {
+  "_fixture": true,
+  "news_id": "01500701.20251030174200042",
+  "title": "가온시 남문시장 가스폭발… 6명 부상·점포 9곳 파손",
+  "content": "30일 오후 가온시 남문시장 점포에서 가스폭발이 발생해 6명이 다치고 점포 9곳이 파손됐다. 노후 가스배관 누출이 원인으로 추정된다.",
+  "published_at": "2025-10-30T00:00:00.000+09:00",
+  "enveloped_at": "2025-10-30T18:02:00.000+09:00",
+  "dateline": "2025-10-30T17:42:00.000+09:00",
+  "provider": "부산일보",
+  "category": [
+   "사회>사건_사고",
+   "지역>경남"
+  ],
+  "category_incident": [
+   "사고>산업사고>폭발"
+  ],
+  "byline": "김가온",
+  "images": null,
+  "images_caption": null,
+  "provider_news_id": "F000042",
+  "publisher_code": "F000042",
+  "provider_link_page": "https://example.invalid/news/01500701.20251030174200042",
+  "printing_page": null,
+  "tms_raw_stream": "가온시\n남문시장\n가스폭발\n부상\n점포\n파손\n오후\n노후\n가스배관\n누출\n원인"
+ },
+ {
+  "_fixture": true,
+  "news_id": "08100201.20251031094300043",
+  "title": "남문시장 가스배관 30년 넘어… 점검 기록도 부실",
+  "content": "폭발이 난 가온시 남문시장 가스배관은 설치 30년이 넘은 노후 배관으로 최근 3년간 점검 기록이 부실했던 것으로 드러났다.",
+  "published_at": "2025-10-31T00:00:00.000+09:00",
+  "enveloped_at": "2025-10-31T10:03:00.000+09:00",
+  "dateline": "2025-10-31T09:43:00.000+09:00",
+  "provider": "MBC",
+  "category": [
+   "사회>사건_사고",
+   "지역>경남"
+  ],
+  "category_incident": [
+   "사고>산업사고>폭발"
+  ],
+  "byline": "박누리",
+  "images": null,
+  "images_caption": null,
+  "provider_news_id": "F000043",
+  "publisher_code": "F000043",
+  "provider_link_page": "https://example.invalid/news/08100201.20251031094300043",
+  "printing_page": null,
+  "tms_raw_stream": "남문시장\n가스배관\n넘어\n점검\n기록도\n부실\n폭발\n가온시\n설치\n노후\n배관\n최근\n기록"
+ },
+ {
+  "_fixture": true,
+  "news_id": "01500051.20251102094400044",
+  "title": "가온시 \"남문시장 노후 가스배관 내년 3월까지 전면 교체\"",
+  "content": "가온시는 2일 남문시장 노후 가스배관을 내년 3월까지 전면 교체하겠다고 밝혔다. 교체 비용 12억 원은 시비로 충당한다.",
+  "published_at": "2025-11-02T00:00:00.000+09:00",
+  "enveloped_at": "2025-11-02T10:04:00.000+09:00",
+  "dateline": "2025-11-02T09:44:00.000+09:00",
+  "provider": "경남신문",
+  "category": [
+   "사회>사건_사고",
+   "지역>경남"
+  ],
+  "category_incident": [
+   "사고>산업사고>폭발"
+  ],
+  "byline": "이해솔",
+  "images": null,
+  "images_caption": null,
+  "provider_news_id": "F000044",
+  "publisher_code": "F000044",
+  "provider_link_page": "https://example.invalid/news/01500051.20251102094400044",
+  "printing_page": null,
+  "tms_raw_stream": "가온시\n남문시장\n노후\n가스배관\n내년\n교체\n비용\n시비"
+ },
+ {
+  "_fixture": true,
+  "news_id": "01500151.20260203094500045",
+  "title": "남문시장 가스배관 교체 공사 착공… 3월 완료 목표",
+  "content": "가온시가 3일 남문시장 노후 가스배관 교체 공사에 착공했다. 시는 3월까지 시장 전 구간 배관을 교체할 계획이다.",
+  "published_at": "2026-02-03T00:00:00.000+09:00",
+  "enveloped_at": "2026-02-03T10:05:00.000+09:00",
+  "dateline": "2026-02-03T09:45:00.000+09:00",
+  "provider": "경남도민일보",
+  "category": [
+   "지역>경남",
+   "사회>사건_사고"
+  ],
+  "category_incident": [],
+  "byline": "정다온",
+  "images": null,
+  "images_caption": null,
+  "provider_news_id": "F000045",
+  "publisher_code": "F000045",
+  "provider_link_page": "https://example.invalid/news/01500151.20260203094500045",
+  "printing_page": null,
+  "tms_raw_stream": "남문시장\n가스배관\n교체\n공사\n착공\n완료\n목표\n가온시\n노후\n시장\n구간\n배관\n교체할"
+ },
+ {
+  "_fixture": true,
+  "news_id": "08100101.20260415094600046",
+  "title": "남문시장 가스배관 교체 기한 넘겨… 시 \"5월 완료 예정\"",
+  "content": "3월까지 마치기로 했던 가온시 남문시장 가스배관 교체 공사가 기한을 넘겼다. 시는 상인 영업시간을 피해 공사하느라 늦어졌다며 5월 완료 예정이라고 밝혔다.",
+  "published_at": "2026-04-15T00:00:00.000+09:00",
+  "enveloped_at": "2026-04-15T10:06:00.000+09:00",
+  "dateline": "2026-04-15T09:46:00.000+09:00",
+  "provider": "KBS",
+  "category": [
+   "지역>경남"
+  ],
+  "category_incident": [],
+  "byline": "최서리",
+  "images": null,
+  "images_caption": null,
+  "provider_news_id": "F000046",
+  "publisher_code": "F000046",
+  "provider_link_page": "https://example.invalid/news/08100101.20260415094600046",
+  "printing_page": null,
+  "tms_raw_stream": "남문시장\n가스배관\n교체\n기한\n넘겨\n완료\n예정\n마치기\n가온시\n공사\n상인\n영업시간\n공사하느라"
+ },
+ {
+  "_fixture": true,
+  "news_id": "01500051.20250715110000047",
+  "title": "가온시 여름 별빛축제 개막… 사흘간 달빛공원서",
+  "content": "가온시 여름 별빛축제가 15일 달빛공원에서 개막했다. 사흘간 공연과 야시장이 열린다.",
+  "published_at": "2025-07-15T00:00:00.000+09:00",
+  "enveloped_at": "2025-07-15T11:00:00.000+09:00",
+  "dateline": "2025-07-15T11:00:00.000+09:00",
+  "provider": "경남신문",
+  "category": [
+   "문화>전시_공연",
+   "지역>경남"
+  ],
+  "category_incident": [],
+  "byline": "한별빛",
+  "provider_news_id": "F000047",
+  "publisher_code": "F000047",
+  "provider_link_page": "https://example.invalid/news/01500051.20250715110000047",
+  "tms_raw_stream": "가온시\n여름\n별빛축제\n개막\n사흘간\n공연\n야시장"
+ },
+ {
+  "_fixture": true,
+  "news_id": "01500701.20250302110000048",
+  "title": "누리군 봄맞이 농산물 직거래 장터 열려",
+  "content": "누리군이 2일 군청 광장에서 봄맞이 농산물 직거래 장터를 열었다.",
+  "published_at": "2025-03-02T00:00:00.000+09:00",
+  "enveloped_at": "2025-03-02T11:00:00.000+09:00",
+  "dateline": "2025-03-02T11:00:00.000+09:00",
+  "provider": "부산일보",
+  "category": [
+   "경제>유통",
+   "지역>경남"
+  ],
+  "category_incident": [],
+  "byline": "김가온",
+  "provider_news_id": "F000048",
+  "publisher_code": "F000048",
+  "provider_link_page": "https://example.invalid/news/01500701.20250302110000048",
+  "tms_raw_stream": "누리군\n봄맞\n농산물\n직거래\n장터\n열려\n군청"
+ },
+ {
+  "_fixture": true,
+  "news_id": "08100101.20251030110000049",
+  "title": "가온시 도서관 야간 개방 확대",
+  "content": "가온시는 11월부터 시립도서관 야간 개방을 밤 10시까지 확대한다고 밝혔다.",
+  "published_at": "2025-10-30T00:00:00.000+09:00",
+  "enveloped_at": "2025-10-30T11:00:00.000+09:00",
+  "dateline": "2025-10-30T11:00:00.000+09:00",
+  "provider": "KBS",
+  "category": [
+   "문화>생활",
+   "지역>경남"
+  ],
+  "category_incident": [],
+  "byline": "박누리",
+  "provider_news_id": "F000049",
+  "publisher_code": "F000049",
+  "provider_link_page": "https://example.invalid/news/08100101.20251030110000049",
+  "tms_raw_stream": "가온시\n도서관\n야간\n개방\n확대\n시립도서관"
+ }
+]
