@@ -6,6 +6,7 @@
 import type {
   AdminLinkAction,
   AdminLinkOut,
+  ResolveReportOut,
   ArticleOut,
   EventCard,
   EventDetailOut,
@@ -519,7 +520,7 @@ function buildTimeline(articles: ArticleOut[]): TimelinePhase[] {
     phase,
     articles: articles
       .filter((a) => a.phase === phase)
-      .sort((a, b) => a.published_at.localeCompare(b.published_at)),
+      .sort((a, b) => (a.published_at ?? "").localeCompare(b.published_at ?? "")),
   }));
 }
 
@@ -848,6 +849,11 @@ export async function mockPostAdminLink(
     link_method: "manual",
     confirmed: action === "confirm",
   };
+}
+
+export async function mockResolveReport(reportId: number): Promise<ResolveReportOut> {
+  await delay(400);
+  return { id: reportId, resolved: true };
 }
 
 export async function mockPostPipelineRun(body: PipelineRunIn): Promise<PipelineRunOut> {

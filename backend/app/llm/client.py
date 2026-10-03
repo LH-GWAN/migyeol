@@ -93,10 +93,13 @@ class AnthropicLLM:
         self.usage: dict[str, int] = {"input_tokens": 0, "output_tokens": 0, "cache_read_input_tokens": 0, "calls": 0}
 
     def _parse(self, system_text: str, payload: BaseModel, output_model: type[T], effort: str) -> T:
+        import anthropic
+
         # 시스템 프롬프트는 고정 문자열이므로 cache_control 로 프롬프트 캐시를 건다.
+        # max_tokens 는 adaptive thinking 토큰까지 포함하므로 넉넉히 둔다 (부족하면 JSON 이 잘려 parse 실패).
         request: dict[str, Any] = dict(
             model=self.model,
-            max_tokens=2048,
+            max_tokens=16000,
             system=[{"type": "text", "text": system_text, "cache_control": {"type": "ephemeral"}}],
             messages=[{"role": "user", "content": payload.model_dump_json()}],
             output_format=output_model,
@@ -122,6 +125,12 @@ class AnthropicLLM:
             except (ValidationError, ValueError) as exc:
                 last_exc = exc
                 log.warning("LLM parse attempt %d failed: %s", attempt + 1, exc)
+            except (anthropic.AuthenticationError, anthropic.PermissionDeniedError, anthropic.NotFoundError):
+                # 키·권한·모델 ID 오류는 모든 호출이 똑같이 실패하므로 파이프라인을 멈춰 바로 드러낸다
+                raise
+            except anthropic.APIError as exc:
+                # 한도 초과·서버·연결 오류(SDK 재시도 후에도 실패)는 이 항목만 실패 처리하고 다음 항목으로 넘어간다
+                raise RuntimeError(f"LLM API error: {exc}") from exc
         raise RuntimeError(f"LLM structured output failed after retry: {last_exc}")
 
     def extract_promise(self, inp: PromiseInput, *, key: str = "") -> PromiseExtraction:

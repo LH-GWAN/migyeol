@@ -35,14 +35,15 @@ export interface ArticleOut {
   news_id: string;
   title: string;
   provider: string;
-  published_at: string; // YYYY-MM-DD
-  provider_link_page: string;
+  published_at: string | null; // YYYY-MM-DD
+  provider_link_page: string | null;
   hilight: string; // <= 200 chars, never full text
   byline: string | null;
-  phase: Phase;
-  link_method: LinkMethod;
-  link_score: number;
-  link_reason: string;
+  // link 필드는 사건에 연결되지 않은 기사(예: 약속 근거 기사가 연결 목록에 없을 때)면 null
+  phase: Phase | null;
+  link_method: LinkMethod | null;
+  link_score: number | null;
+  link_reason: string | null;
   change_status: ChangeStatus;
 }
 
@@ -51,7 +52,7 @@ export interface QuotationOut {
   source: string;
   quotation: string;
   provider: string;
-  published_at: string;
+  published_at: string | null;
 }
 
 export interface PromiseOut {
@@ -169,7 +170,7 @@ export interface EventDetailOut {
   card: EventCard;
   summary: string;
   seed_query: string;
-  status_reason: string;
+  status_reason: string | null;
   status_reason_text: string;
   latest_judgment: LatestJudgment | null;
   promises: PromiseOut[];
@@ -195,7 +196,7 @@ export interface SignalOut {
   evidence_span: string;
   rationale: string;
   counted: boolean;
-  article: ArticleOut;
+  article: ArticleOut | null; // 신호의 기사가 DB에 없으면 null
 }
 
 export interface LowConfidenceLink {
@@ -274,6 +275,13 @@ export interface AdminLinkOut {
   news_id: string;
   link_method: LinkMethod;
   confirmed: boolean;
+}
+
+// ---------- POST /api/admin/reports/{report_id}/resolve ----------
+
+export interface ResolveReportOut {
+  id: number;
+  resolved: boolean;
 }
 
 // ---------- POST /api/pipeline/run ----------

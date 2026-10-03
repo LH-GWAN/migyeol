@@ -10,6 +10,9 @@ interface Props {
 
 /** External link to the provider page (new tab); never renders full text — only `hilight`. */
 export function ArticleLink({ article, className = "" }: { article: ArticleOut; className?: string }) {
+  if (!article.provider_link_page) {
+    return <span className={`font-medium text-gray-900 ${className}`}>{article.title}</span>;
+  }
   return (
     <a
       href={article.provider_link_page}
@@ -28,7 +31,7 @@ export function ArticleLink({ article, className = "" }: { article: ArticleOut; 
 export function ArticleMeta({ article, className = "" }: { article: ArticleOut; className?: string }) {
   return (
     <span className={`text-xs text-gray-500 ${className}`}>
-      {article.provider} · <time dateTime={article.published_at}>{formatDate(article.published_at)}</time>
+      {article.provider} · <time dateTime={article.published_at ?? undefined}>{formatDate(article.published_at)}</time>
       {article.byline ? ` · ${article.byline}` : ""}
       {article.change_status !== "ok" && (
         <span className="ml-1 rounded bg-amber-100 px-1 py-px text-[10px] font-semibold text-amber-800">
@@ -49,7 +52,7 @@ export default function ArticleItem({ article, compact = false, showLinkInfo = t
       {article.hilight && (
         <p className={`mt-1 ${compact ? "text-xs" : "text-sm"} leading-relaxed text-gray-600`}>{article.hilight}</p>
       )}
-      {showLinkInfo && !compact && (
+      {showLinkInfo && !compact && article.link_method && (
         <p className="mt-1 text-[11px] text-gray-400">
           연결: {LINK_METHOD_LABELS[article.link_method] ?? article.link_method} · 점수 {formatScore(article.link_score)}
           {article.link_reason ? ` · ${article.link_reason}` : ""}

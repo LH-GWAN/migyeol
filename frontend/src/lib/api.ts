@@ -19,6 +19,7 @@ import type {
   PipelineRunOut,
   ReportIn,
   ReportOut,
+  ResolveReportOut,
   ReviewQueueOut,
   TrendOut,
 } from "./types";
@@ -178,6 +179,12 @@ export function postAdminLink(eventId: number, newsId: string, action: AdminLink
   return request<AdminLinkOut>(`/api/admin/links/${eventId}/${encodeURIComponent(newsId)}`, {
     json: { action },
   });
+}
+
+/** POST /api/admin/reports/{report_id}/resolve */
+export function resolveReport(reportId: number): Promise<ResolveReportOut> {
+  if (USE_MOCK) return viaMock(() => mock.mockResolveReport(reportId));
+  return request<ResolveReportOut>(`/api/admin/reports/${reportId}/resolve`, { method: "POST" });
 }
 
 /** POST /api/pipeline/run (dev/demo only; 403 when PIPELINE_API_ENABLED=false) */

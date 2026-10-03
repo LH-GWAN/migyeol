@@ -4,6 +4,7 @@ import AdminLinkActions from "@/components/AdminLinkActions";
 import { ArticleLink, ArticleMeta } from "@/components/ArticleItem";
 import Disclaimer from "@/components/Disclaimer";
 import ErrorBox from "@/components/ErrorBox";
+import ReportResolveButton from "@/components/ReportResolveButton";
 import StatusBadge from "@/components/StatusBadge";
 import { getReviewQueue, safe } from "@/lib/api";
 import { formatDate, formatDateTime, formatDaysAgo, formatPercent, formatScore, REPORT_TYPE_LABELS } from "@/lib/format";
@@ -176,7 +177,7 @@ export default async function AdminPage() {
                           {r.resolved ? (
                             <span className="rounded bg-gray-100 px-1.5 py-0.5">처리됨</span>
                           ) : (
-                            <span className="rounded bg-amber-100 px-1.5 py-0.5 font-semibold text-amber-800">미처리</span>
+                            <ReportResolveButton reportId={r.id} />
                           )}
                         </td>
                       </tr>

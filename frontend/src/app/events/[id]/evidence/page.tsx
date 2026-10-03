@@ -201,10 +201,16 @@ export default async function EvidencePage({ params }: { params: Params }) {
                       <q className="leading-relaxed">{s.evidence_span}</q>
                     </td>
                     <td className="py-3 pr-3">
-                      <ArticleLink article={s.article} className="text-sm" />
-                      <div className="mt-0.5">
-                        <ArticleMeta article={s.article} />
-                      </div>
+                      {s.article ? (
+                        <>
+                          <ArticleLink article={s.article} className="text-sm" />
+                          <div className="mt-0.5">
+                            <ArticleMeta article={s.article} />
+                          </div>
+                        </>
+                      ) : (
+                        <span className="text-xs text-gray-400">기사 정보 없음</span>
+                      )}
                     </td>
                     <td className="py-3 pr-3">
                       <ConfidenceBar value={s.confidence} threshold={signalMin} />
