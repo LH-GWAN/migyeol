@@ -30,6 +30,7 @@
 - `phase` ∈ `발생` | `원인조사` | `대응발표` | `조치진행` | `결과확인` | `기타`
 - `link_method` ∈ `seed` | `rule` | `embedding` | `manual`
 - `change_status` ∈ `ok` | `updated` | `cancelled` (변경이력 API 결과)
+- null 가능: `published_at`, `provider_link_page`, `byline`. 사건에 연결되지 않은 기사(예: 약속 근거 기사가 연결 목록에 없을 때)는 `phase`·`link_method`·`link_score`·`link_reason`도 null
 
 ### PromiseOut
 ```json
@@ -57,6 +58,7 @@
 ```
 - `strength` ∈ `확약` | `계획` | `의사표명` | `해당없음`
 - `deadline_precision` ∈ `day` | `month` | `year` | `none`
+- null 가능: `deadline_raw`, `deadline_date`, `quotation`, `quotation.published_at`, `evidence_article`
 
 ### TrendOut
 ```json
@@ -192,7 +194,8 @@
 }
 ```
 - `signal` ∈ `완료` | `진행` | `새로운문제` | `무관` | `불명확`
-- `counted` : 상태 판정에 실제 반영된 유효 신호인지(`matches_promise` 이고 `confidence ≥ signal_min_conf`)
+- `counted` : 최신 상태 판정의 근거 목록(`StatusJudgment.evidence`)에 실제로 들어간 신호인지. 판정 규칙(R1~R5)이 근거로 채택한 신호만 true 이므로, `matches_promise` 이고 `confidence ≥ signal_min_conf` 인 신호라도 false 일 수 있다
+- `article` : 신호의 기사가 DB에 없으면 null
 
 ### GET `/api/events/{id}/trend`
 `TrendOut` 그대로.
@@ -220,10 +223,15 @@
   ]
 }
 ```
+- `reports` 는 미처리(`resolved=false`) 신고만 담는다
 
 ### POST `/api/admin/links/{event_id}/{news_id}`
 요청 `{ "action": "confirm" }` 또는 `{ "action": "reject" }`
-응답 `{ "event_id": 1, "news_id": "…", "link_method": "manual", "confirmed": true }` (reject 시 연결 행 삭제, `confirmed:false`)
+응답 `{ "event_id": 1, "news_id": "…", "link_method": "manual", "confirmed": true, "rejected": false }`
+- reject 는 연결 행을 지우지 않고 `rejected=true` 로 표시한다(`confirmed:false`). 해제된 연결은 타임라인·근거·검토 큐에서 빠지고, 재실행해도 다시 자동 연결되지 않는다
+
+### POST `/api/admin/reports/{report_id}/resolve`
+요청 본문 없음. 응답 `{ "id": 5, "resolved": true }` — 없는 id 면 `404`
 
 ### POST `/api/pipeline/run` (개발·시연용, `PIPELINE_API_ENABLED=true`일 때만)
 요청 `{ "stage": "all", "event_id": null }` — `stage` ∈ `discover`|`collect`|`link`|`extract`|`judge`|`all`
