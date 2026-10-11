@@ -2,7 +2,7 @@ import Link from "next/link";
 import Disclaimer from "@/components/Disclaimer";
 import Sparkline from "@/components/Sparkline";
 import StatusBadge from "@/components/StatusBadge";
-import { formatDate, formatDaysAgo, formatPercent } from "@/lib/format";
+import { formatDate, formatDaysAgo, formatPercent, showsDeadlinePassed } from "@/lib/format";
 import type { EventCard } from "@/lib/types";
 
 interface Props {
@@ -40,7 +40,7 @@ export default function EventCardView({ card }: Props) {
             {card.facility ? ` · ${card.facility}` : ""} · {card.incident_type} · 기사 {card.article_count}건
           </p>
           <div className="mt-2 flex flex-wrap gap-1.5">
-            {card.deadline_passed_days !== null && (
+            {showsDeadlinePassed(card.status, card.deadline_passed_days) && (
               <span className="rounded-full border border-red-200 bg-red-50 px-2 py-0.5 text-xs font-semibold text-red-700">
                 기한 경과 {card.deadline_passed_days}일
               </span>

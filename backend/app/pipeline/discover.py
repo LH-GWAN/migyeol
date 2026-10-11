@@ -1,7 +1,7 @@
 """1. 사건 후보 발견 — 오늘의 이슈(issue_ranking) 를 날짜별로 순회해 재난·안전 사건 후보를 뽑는다.
 
 각 이슈의 news_cluster 를 뉴스 상세 조회(news_ids)로 받아 category_incident 가 MVP 3계열이면 후보로 본다.
-결과는 seeds/events.draft.yaml 초안으로 내보내고, 최종 시드는 사람이 확정한다.
+결과는 시드 파일 옆 events.draft.yaml 초안으로 내보내고(record/live: seeds/events.draft.yaml), 최종 시드는 사람이 확정한다.
 """
 
 from __future__ import annotations
@@ -15,12 +15,12 @@ from pathlib import Path
 
 import yaml
 
-from ..bigkinds.codes import is_mvp_incident, normalize_incident
+from ..bigkinds.codes import MVP_INCIDENT_PREFIXES, is_mvp_incident, normalize_incident
 from ..bigkinds.protocol import BigKindsClient
 
 log = logging.getLogger("migyeol.discover")
 
-_DETAIL_FIELDS = ["title", "published_at", "provider", "category", "category_incident"]
+_DETAIL_FIELDS = ["news_id", "title", "published_at", "provider", "category", "category_incident"]
 
 
 @dataclass
@@ -53,7 +53,13 @@ def discover(client: BigKindsClient, dates: Iterable[date], min_ratio: float = 0
             ratio = len(mvp_docs) / len(docs)
             if ratio < min_ratio:
                 continue
-            types = Counter(normalize_incident(c) for doc in mvp_docs for c in doc.category_incident)
+            # 초안의 사건 유형은 MVP 3계열 안에서만 고른다 (함께 붙은 범죄 등 비-MVP 분류 제외)
+            types = Counter(
+                normalize_incident(c)
+                for doc in mvp_docs
+                for c in doc.category_incident
+                if normalize_incident(c).startswith(MVP_INCIDENT_PREFIXES)
+            )
             out.append(
                 Candidate(
                     date=d,

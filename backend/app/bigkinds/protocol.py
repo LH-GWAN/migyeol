@@ -19,7 +19,9 @@ from .schemas import (
 )
 
 # 뉴스 검색에서 기본으로 요청하는 fields (지침서 2.3 documents 참고). content 는 200자 제한 범위.
+# news_id 는 기본 반환으로 보이지만 확실하지 않아 명시한다 (명세 §5.4).
 DEFAULT_NEWS_FIELDS: list[str] = [
+    "news_id",
     "title",
     "hilight",
     "published_at",
@@ -32,6 +34,7 @@ DEFAULT_NEWS_FIELDS: list[str] = [
     "provider_news_id",
 ]
 DEFAULT_QUOTATION_FIELDS: list[str] = [
+    "news_id",
     "published_at",
     "provider",
     "category",

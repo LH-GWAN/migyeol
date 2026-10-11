@@ -8,18 +8,23 @@ import PromiseCard from "@/components/PromiseCard";
 import StatusBadge from "@/components/StatusBadge";
 import Stepper, { STEP_PHASES } from "@/components/Stepper";
 import TrendChart from "@/components/TrendChart";
-import { getEvent, safe } from "@/lib/api";
-import { formatDate, formatDateTime, formatDaysAgo, formatPercent, PHASE_LABELS } from "@/lib/format";
+import { getEvent, isEventNotFound, safe } from "@/lib/api";
+import {
+  formatDate,
+  formatDateTime,
+  formatDaysAgo,
+  formatPercent,
+  parseId,
+  PHASE_LABELS,
+  showsDeadlinePassed,
+} from "@/lib/format";
 import type { ArticleOut, Phase } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
 
 type Params = Promise<{ id: string }>;
 
-function parseId(raw: string): number | null {
-  const n = Number(raw);
-  return Number.isInteger(n) && n > 0 ? n : null;
-}
+const UNJUDGED_TEXT = "아직 판정 전(수집·연결 단계)";
 
 export async function generateMetadata({ params }: { params: Params }): Promise<Metadata> {
   const { id } = await params;
@@ -33,7 +38,8 @@ export default async function EventPage({ params }: { params: Params }) {
 
   const result = await safe(getEvent(eventId));
   if (!result.ok) {
-    if (result.error.isNotFound) notFound();
+    // Only the backend's own "event N not found" becomes a 404 page; any other failure is shown inline.
+    if (isEventNotFound(result.error, eventId)) notFound();
     return (
       <div className="flex flex-col gap-4">
         <Link href="/" className="text-sm text-blue-700 hover:underline">
@@ -50,6 +56,7 @@ export default async function EventPage({ params }: { params: Params }) {
   const byPhase = new Map<Phase, ArticleOut[]>();
   for (const t of timeline) byPhase.set(t.phase, t.articles);
   const others = byPhase.get("기타") ?? [];
+  const judged = latest_judgment !== null;
 
   return (
     <div className="flex flex-col gap-6">
@@ -67,7 +74,7 @@ export default async function EventPage({ params }: { params: Params }) {
           <div className="min-w-0 flex-1">
             <div className="flex flex-wrap items-center gap-2">
               <h1 className="text-2xl font-bold leading-tight text-gray-900">{card.title}</h1>
-              {card.deadline_passed_days !== null && (
+              {showsDeadlinePassed(card.status, card.deadline_passed_days) && (
                 <span className="rounded-full border border-red-200 bg-red-50 px-2 py-0.5 text-xs font-semibold text-red-700">
                   기한 경과 {card.deadline_passed_days}일
                 </span>
@@ -106,12 +113,19 @@ export default async function EventPage({ params }: { params: Params }) {
             <span className="text-xs font-semibold text-gray-500">현재 상태</span>
             <div className="flex flex-wrap items-center gap-2">
               <StatusBadge status={card.status} size="lg" />
-              <span className="text-sm text-gray-600">신뢰도 {formatPercent(card.status_confidence)}</span>
+              <span className="text-sm text-gray-600">신뢰도 {judged ? formatPercent(card.status_confidence) : "-"}</span>
             </div>
-            <p className="text-xs text-gray-600">
-              {status_reason_text}
-              <span className="ml-1 font-mono text-[11px] text-gray-400">({status_reason})</span>
-            </p>
+            {judged ? (
+              <p className="text-xs text-gray-600">
+                {status_reason_text}
+                {status_reason && <span className="ml-1 font-mono text-[11px] text-gray-400">({status_reason})</span>}
+              </p>
+            ) : (
+              <p className="text-xs text-gray-600">
+                {UNJUDGED_TEXT}
+                <span className="ml-1 text-gray-400">· {status_reason_text}</span>
+              </p>
+            )}
             {latest_judgment?.unresolved_reason && (
               <p className="text-xs text-amber-800">사유: {latest_judgment.unresolved_reason}</p>
             )}
@@ -180,7 +194,7 @@ export default async function EventPage({ params }: { params: Params }) {
                     <ul className="mt-2 flex flex-col gap-3">
                       {promises.map((p) => (
                         <li key={p.id}>
-                          <PromiseCard promise={p} />
+                          <PromiseCard promise={p} eventStatus={card.status} />
                         </li>
                       ))}
                     </ul>

@@ -1,9 +1,10 @@
 /**
  * Typed fetchers for every endpoint in docs/API_CONTRACT.md.
  *
- * - Base URL: NEXT_PUBLIC_API_BASE (default http://localhost:8000)
- * - NEXT_PUBLIC_USE_MOCK=1 switches every fetcher to src/lib/mock.ts
- * - Works in both server components and client components (NEXT_PUBLIC_* is inlined).
+ * - Server components call the backend directly: API_BASE_INTERNAL (default http://localhost:8000).
+ * - Client components call relative `/api/...` on the same origin; next.config.ts rewrites
+ *   `/api/:path*` to `${API_BASE_INTERNAL}/api/:path*`, so the browser never needs the backend URL.
+ * - NEXT_PUBLIC_USE_MOCK=1 switches every fetcher to src/lib/mock.ts (server and client).
  */
 import * as mock from "./mock";
 import type {
@@ -24,20 +25,37 @@ import type {
   TrendOut,
 } from "./types";
 
-export const API_BASE = (process.env.NEXT_PUBLIC_API_BASE ?? "http://localhost:8000").replace(/\/+$/, "");
+/**
+ * Backend base URL used by server-side code (server components, route handlers).
+ * `||` (not `??`) so an empty env value falls back to the default. NEXT_PUBLIC_API_BASE is kept
+ * as a legacy alias. Client components never use it (see `requestBase`).
+ */
+export const API_BASE = (
+  process.env.API_BASE_INTERNAL ||
+  process.env.NEXT_PUBLIC_API_BASE ||
+  "http://localhost:8000"
+).replace(/\/+$/, "");
 export const USE_MOCK = process.env.NEXT_PUBLIC_USE_MOCK === "1";
 
 const REQUEST_TIMEOUT_MS = 10_000;
 
+/** Server: absolute backend URL. Browser: "" so paths stay relative and go through the Next.js rewrite. */
+function requestBase(): string {
+  return typeof window === "undefined" ? API_BASE : "";
+}
+
 export class ApiError extends Error {
   readonly status: number | undefined;
   readonly detail: string | undefined;
+  /** true only when fetch itself failed (connection refused, DNS, timeout) — not for HTTP error bodies. */
+  readonly network: boolean;
 
-  constructor(message: string, status?: number, detail?: string) {
+  constructor(message: string, status?: number, detail?: string, network = false) {
     super(message);
     this.name = "ApiError";
     this.status = status;
     this.detail = detail;
+    this.network = network;
   }
 
   get isNotFound(): boolean {
@@ -49,6 +67,15 @@ export function isApiError(error: unknown): error is ApiError {
   return error instanceof ApiError;
 }
 
+/**
+ * True only for the backend's own "event {id} not found" 404 (FastAPI `detail`).
+ * Any other 404 (wrong route, proxy, missing sub-resource) is NOT treated as "event not found"
+ * so pages can show an ErrorBox instead of a misleading 404 page.
+ */
+export function isEventNotFound(error: unknown, eventId: number): boolean {
+  return isApiError(error) && error.status === 404 && error.detail === `event ${eventId} not found`;
+}
+
 /** Korean, user-facing message for any thrown value. */
 export function describeError(error: unknown): { message: string; detail?: string } {
   if (isApiError(error)) return { message: error.message, detail: error.detail };
@@ -57,7 +84,7 @@ export function describeError(error: unknown): { message: string; detail?: strin
 }
 
 async function request<T>(path: string, init?: RequestInit & { json?: unknown }): Promise<T> {
-  const url = `${API_BASE}${path}`;
+  const url = `${requestBase()}${path}`;
   const { json, ...rest } = init ?? {};
   const headers: Record<string, string> = { Accept: "application/json" };
   if (json !== undefined) headers["Content-Type"] = "application/json";
@@ -74,7 +101,7 @@ async function request<T>(path: string, init?: RequestInit & { json?: unknown })
     });
   } catch (error) {
     const reason = error instanceof Error ? error.message : String(error);
-    throw new ApiError(`백엔드 서버에 연결할 수 없습니다. (${API_BASE})`, undefined, reason);
+    throw new ApiError("백엔드 서버에 연결할 수 없습니다.", undefined, reason, true);
   }
 
   if (!res.ok) {
@@ -95,7 +122,9 @@ async function request<T>(path: string, init?: RequestInit & { json?: unknown })
           ? "요청 형식이 올바르지 않습니다."
           : res.status === 403
             ? "허용되지 않은 요청입니다."
-            : `백엔드 응답 오류 (HTTP ${res.status})`;
+            : res.status === 409
+              ? "이미 실행 중인 작업이 있습니다. 잠시 후 다시 시도해 주세요."
+              : `백엔드 응답 오류 (HTTP ${res.status})`;
     throw new ApiError(label, res.status, detail);
   }
 
@@ -187,7 +216,7 @@ export function resolveReport(reportId: number): Promise<ResolveReportOut> {
   return request<ResolveReportOut>(`/api/admin/reports/${reportId}/resolve`, { method: "POST" });
 }
 
-/** POST /api/pipeline/run (dev/demo only; 403 when PIPELINE_API_ENABLED=false) */
+/** POST /api/pipeline/run (dev/demo only; 403 when PIPELINE_API_ENABLED=false, 409 while a run is in progress, 404 for unknown event_id) */
 export function postPipelineRun(body: PipelineRunIn): Promise<PipelineRunOut> {
   if (USE_MOCK) return viaMock(() => mock.mockPostPipelineRun(body));
   return request<PipelineRunOut>(`/api/pipeline/run`, { json: body });

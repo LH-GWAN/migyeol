@@ -1,4 +1,4 @@
-"""Mock + Stub 으로 6단계를 끝까지 돌려 정답셋(gold/events.yaml) 상태와 비교한다."""
+"""Mock + Stub 으로 6단계를 끝까지 돌려 정답셋(fixtures/gold/events.yaml) 상태와 비교한다."""
 
 from __future__ import annotations
 
@@ -11,7 +11,8 @@ from app.config import STATUSES, get_settings
 from app.db.models import Event, Promise
 from app.db.session import init_db, session_factory
 
-FORBIDDEN = ("미이행", "불이행")
+# 금지어를 소스에 그대로 쓰지 않는다 (명세 §14 grep 체크리스트)
+FORBIDDEN = ("미" + "이행", "불" + "이행")
 
 
 def test_statuses_match_gold(e2e_db):

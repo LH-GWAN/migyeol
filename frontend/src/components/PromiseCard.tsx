@@ -1,5 +1,5 @@
 import { ArticleLink, ArticleMeta } from "@/components/ArticleItem";
-import { formatDate, formatPercent, STRENGTH_LABELS } from "@/lib/format";
+import { formatDate, formatPercent, showsDeadlinePassed, STRENGTH_LABELS } from "@/lib/format";
 import type { PromiseOut, Strength } from "@/lib/types";
 
 const STRENGTH_STYLE: Record<Strength, string> = {
@@ -11,10 +11,12 @@ const STRENGTH_STYLE: Record<Strength, string> = {
 
 interface Props {
   promise: PromiseOut;
+  /** Current event status; the 기한 경과 chip is hidden once completion evidence is confirmed. */
+  eventStatus: string;
 }
 
 /** Extracted promise (주체·행동·기한·발언 강도·원문 인용문·근거 기사). */
-export default function PromiseCard({ promise }: Props) {
+export default function PromiseCard({ promise, eventStatus }: Props) {
   const deadline =
     promise.deadline_date && promise.deadline_precision !== "none"
       ? formatDate(promise.deadline_date, promise.deadline_precision)
@@ -31,7 +33,7 @@ export default function PromiseCard({ promise }: Props) {
         <span className="text-xs text-gray-500">
           {promise.is_trackable ? "추적 가능" : "추적 불가(기한·행동 불명확)"} · 추출 신뢰도 {formatPercent(promise.confidence)}
         </span>
-        {promise.deadline_passed && (
+        {showsDeadlinePassed(eventStatus, promise.deadline_passed) && (
           <span className="rounded-full border border-red-200 bg-red-50 px-2 py-0.5 text-xs font-semibold text-red-700">
             기한 경과
           </span>

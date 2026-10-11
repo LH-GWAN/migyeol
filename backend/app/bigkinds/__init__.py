@@ -21,6 +21,7 @@ def build_client(settings: Settings) -> BigKindsClient:
             settings.bigkinds_base_url,
             rps=settings.bigkinds_rps,
             recordings_dir=settings.fixtures_dir / "bigkinds" / "recordings",
+            replay_only=settings.bigkinds_replay_only,
         )
     from .live import LiveBigKindsClient
 

@@ -1,5 +1,7 @@
 /**
- * Sample data that matches docs/API_CONTRACT.md exactly.
+ * Sample data that matches docs/API_CONTRACT.md (plus the agreed contract additions:
+ * meta.today_overridden/last_run, signal.active/considered, trend.markers.deadline_precision,
+ * promise.merged_into_id, review-queue.rejected_links, admin link action "restore").
  * Used when NEXT_PUBLIC_USE_MOCK=1 so the UI can be verified without the backend.
  * All names/places are fictional (가온시, 누리군 ...).
  */
@@ -58,9 +60,8 @@ const E1_ARTICLES: ArticleOut[] = [
     hilight: "15일 밤 집중호우로 가온시 달빛지하차도가 침수돼 차량 12대가 고립됐다…",
     byline: "김가온",
     phase: "발생",
-    link_method: "seed",
-    link_score: 1,
-    link_reason: "seed",
+    link_score: 0.93,
+    link_reason: "region+facility-title",
   }),
   article({
     news_id: "01100101.20250716113000002",
@@ -138,6 +139,19 @@ const E1_ARTICLES: ArticleOut[] = [
   }),
 ];
 
+/** Linked automatically, then rejected by an admin (다른 지하차도): its signal stays but is inactive. */
+const E1_REJECTED_ARTICLE = article({
+  news_id: "01500701.20260612090000009",
+  title: "가온시 샛별지하차도 배수펌프 교체 완료… 침수 대비 강화",
+  provider: "부산일보",
+  published_at: "2026-06-12",
+  hilight: "가온시는 샛별지하차도 배수펌프 교체 공사를 마치고 12일 가동을 시작했다고 밝혔다.",
+  phase: "기타",
+  link_method: "embedding",
+  link_score: 0.68,
+  link_reason: "region+promise-kw=배수펌프",
+});
+
 const E1_LOW_LINK_ARTICLE = article({
   news_id: "01500601.20260722090000008",
   title: "가온시 은하지하차도 배수 공사 지연에 주민 불편",
@@ -171,6 +185,7 @@ const E1_PROMISES: PromiseOut[] = [
       published_at: "2025-07-18",
     },
     evidence_article: E1_ARTICLES[3],
+    merged_into_id: null,
   },
   {
     id: 4,
@@ -192,6 +207,7 @@ const E1_PROMISES: PromiseOut[] = [
       published_at: "2025-07-19",
     },
     evidence_article: E1_ARTICLES[4],
+    merged_into_id: null,
   },
 ];
 
@@ -240,9 +256,8 @@ const E2_ARTICLES: ArticleOut[] = [
     published_at: "2025-11-03",
     hilight: "3일 새벽 누리군 새벽시장 상가 건물 일부가 무너져 상인 3명이 다쳤다.",
     phase: "발생",
-    link_method: "seed",
-    link_score: 1,
-    link_reason: "seed",
+    link_score: 0.92,
+    link_reason: "region+facility-title",
   }),
   article({
     news_id: "01100801.20251110090000012",
@@ -330,6 +345,7 @@ const E2_PROMISES: PromiseOut[] = [
       published_at: "2025-11-12",
     },
     evidence_article: E2_ARTICLES[2],
+    merged_into_id: null,
   },
 ];
 
@@ -378,9 +394,8 @@ const E3_ARTICLES: ArticleOut[] = [
     published_at: "2026-03-20",
     hilight: "20일 새벽 누리군 별빛마을 뒷산 사면이 무너져 주택 2채가 매몰되고 주민 15명이 대피했다.",
     phase: "발생",
-    link_method: "seed",
-    link_score: 1,
-    link_reason: "seed",
+    link_score: 0.9,
+    link_reason: "region+facility-title",
   }),
   article({
     news_id: "01100801.20260324090000022",
@@ -401,6 +416,16 @@ const E3_ARTICLES: ArticleOut[] = [
     phase: "대응발표",
     link_score: 0.8,
     link_reason: "region+facility; actor=누리군",
+  }),
+  article({
+    news_id: "01100201.20260428180000026",
+    title: "별빛마을 산사태 현장 응급 복구 마무리… 주민 복귀",
+    provider: "KBS",
+    published_at: "2026-04-28",
+    hilight: "누리군은 별빛마을 산사태 현장의 토사 제거와 임시 배수로 설치 등 응급 복구를 마쳤다고 28일 밝혔다.",
+    phase: "결과확인",
+    link_score: 0.81,
+    link_reason: "region+facility",
   }),
   article({
     news_id: "01500601.20260402090000024",
@@ -448,10 +473,11 @@ const E3_PROMISES: PromiseOut[] = [
       published_at: "2026-03-25",
     },
     evidence_article: E3_ARTICLES[2],
+    merged_into_id: null,
   },
 ];
 
-const E3_SPARK = [12, 3, 0, 0, 0, 0, 0];
+const E3_SPARK = [12, 4, 0, 0, 0, 0, 0];
 
 const E3_CARD: EventCard = {
   id: 3,
@@ -462,17 +488,17 @@ const E3_CARD: EventCard = {
   responsible_org: "누리군",
   occurred_at: "2026-03-20",
   status: "판단 불가",
-  status_confidence: 0.3,
+  status_confidence: 0.5,
   priority_score: 55.2,
   needs_check: true,
   needs_review: false,
   deadline_date: null,
   deadline_passed_days: null,
-  last_followup_at: "2026-04-02",
-  days_since_last_followup: 162,
-  followup_count: 1,
-  evidence_count: 2,
-  article_count: 4,
+  last_followup_at: "2026-04-28",
+  days_since_last_followup: 136,
+  followup_count: 2,
+  evidence_count: 3,
+  article_count: 5,
   primary_promise: null,
   trend_sparkline: E3_SPARK,
   disclaimer: DISCLAIMER,
@@ -511,7 +537,12 @@ function buildTrend(startYm: string, spark: number[], card: EventCard): TrendOut
     peak_hits: peak,
     recent_mean: Number(recentMean.toFixed(2)),
     drop_ratio: peak > 0 ? Number((1 - recentMean / peak).toFixed(2)) : 0,
-    markers: { occurred_at: card.occurred_at, deadline_date: card.deadline_date, today: TODAY },
+    markers: {
+      occurred_at: card.occurred_at,
+      deadline_date: card.deadline_date,
+      deadline_precision: card.deadline_date ? (card.primary_promise?.deadline_precision ?? "day") : null,
+      today: TODAY,
+    },
   };
 }
 
@@ -572,6 +603,8 @@ const E1: MockEvent = {
         evidence_span: "배수펌프 증설을 위한 설계 용역에 착수했다",
         rationale: "설계 착수는 진행 정황이나 공사 자체의 진행 여부는 확인되지 않음",
         counted: false,
+        considered: false,
+        active: true,
         article: E1_ARTICLES[5],
       },
       {
@@ -580,10 +613,25 @@ const E1: MockEvent = {
         promise_id: 3,
         matches_promise: false,
         confidence: 0.71,
-        evidence_span: "지하차도 침수 상황을 가정한 여름철 재난 대비 훈련을 실시했다",
+        evidence_span: "",
         rationale: "약속 대상(배수펌프 증설)과 무관한 일반 훈련 보도",
         counted: false,
+        considered: false,
+        active: true,
         article: E1_ARTICLES[7],
+      },
+      {
+        id: 23,
+        signal: "완료",
+        promise_id: 3,
+        matches_promise: true,
+        confidence: 0.8,
+        evidence_span: "배수펌프 교체 공사를 마치고 12일 가동을 시작했다",
+        rationale: "완료형 표현이나 대상 시설이 다른 지하차도(샛별)로 확인되어 관리자가 연결을 해제함",
+        counted: false,
+        considered: false,
+        active: false,
+        article: E1_REJECTED_ARTICLE,
       },
     ],
     low_confidence_links: [{ article: E1_LOW_LINK_ARTICLE, link_score: 0.47, link_reason: "region only" }],
@@ -636,6 +684,8 @@ const E2: MockEvent = {
         evidence_span: "보강 공사를 마치고 28일 재개장했다",
         rationale: "완료형 표현과 약속 대상(보강 공사)이 일치",
         counted: true,
+        considered: false,
+        active: true,
         article: E2_ARTICLES[4],
       },
       {
@@ -645,8 +695,10 @@ const E2: MockEvent = {
         matches_promise: true,
         confidence: 0.66,
         evidence_span: "보강 공사가 5일 착공했다",
-        rationale: "착공은 약속 대상 공사의 진행 정황",
-        counted: true,
+        rationale: "착공은 약속 대상 공사의 진행 정황이지만 R2(완료)가 먼저 적용되어 근거로 채택되지 않음",
+        counted: false,
+        considered: false,
+        active: true,
         article: E2_ARTICLES[3],
       },
       {
@@ -658,6 +710,8 @@ const E2: MockEvent = {
         evidence_span: "전통시장 6곳을 대상으로 화재·붕괴 위험 안전점검을 강화한다",
         rationale: "관내 일반 점검 보도로 약속 대상 시설과 직접 관련 없음",
         counted: false,
+        considered: false,
+        active: true,
         article: E2_ARTICLES[5],
       },
     ],
@@ -676,13 +730,13 @@ const E3: MockEvent = {
     summary:
       "2026년 3월 20일 누리군 별빛마을 뒷산 사면이 무너져 주택 2채가 매몰되고 주민 15명이 대피했다. 누리군은 사면 안정화 방안을 검토하겠다고 밝혔으나 구체적인 기한은 제시하지 않았다.",
     seed_query: '("별빛마을" AND "산사태") AND ("누리군" OR "누리군청")',
-    status_reason: "R5_unresolved",
-    status_reason_text: "추적 가능한 약속이 없어 상태를 판정할 수 없음",
+    status_reason: "R5_undetermined",
+    status_reason_text: "추적 가능한 약속(확약·계획)이 인용문에서 추출되지 않음",
     latest_judgment: {
       status: "판단 불가",
-      reason: "R5_unresolved",
-      confidence: 0.3,
-      unresolved_reason: "추적 가능한 약속이 추출되지 않음(발언 강도 ‘의사표명’만 확인)",
+      reason: "R5_undetermined",
+      confidence: 0.5,
+      unresolved_reason: "추적 가능한 약속(확약·계획)이 인용문에서 추출되지 않음",
       judged_at: JUDGED_AT,
     },
     promises: E3_PROMISES,
@@ -694,37 +748,135 @@ const E3: MockEvent = {
     event_id: 3,
     title: E3_CARD.title,
     status: "판단 불가",
-    confidence: 0.3,
+    confidence: 0.5,
     rule: {
-      name: "R5_unresolved",
-      text: "추적 가능한 약속이 없어 상태를 판정할 수 없음",
+      name: "R5_undetermined",
+      text: "추적 가능한 약속(확약·계획)이 인용문에서 추출되지 않음",
       thresholds: { signal_min_conf: 0.6, completion_min_conf: 0.7, stale_followup_days: 60 },
     },
-    unresolved_reason: "추적 가능한 약속이 추출되지 않음(발언 강도 ‘의사표명’만 확인)",
+    unresolved_reason: "추적 가능한 약속(확약·계획)이 인용문에서 추출되지 않음",
     signals: [
       {
         id: 31,
+        signal: "완료",
+        promise_id: 7,
+        matches_promise: true,
+        confidence: 0.55,
+        evidence_span: "토사 제거와 임시 배수로 설치 등 응급 복구를 마쳤다",
+        rationale: "응급 복구 완료는 확인되나 약속(사면 안정화 방안 검토)의 이행인지 불확실. R5가 참고한 신호",
+        counted: false,
+        considered: true,
+        active: true,
+        article: E3_ARTICLES[3],
+      },
+      {
+        id: 32,
         signal: "불명확",
         promise_id: 7,
         matches_promise: false,
         confidence: 0.35,
-        evidence_span: "산사태 위험지역 12곳에 대한 점검에 나섰다",
+        evidence_span: "",
         rationale: "점검 활동이 별빛마을 사면 안정화와 연결되는지 불명확",
         counted: false,
-        article: E3_ARTICLES[3],
+        considered: false,
+        active: true,
+        article: E3_ARTICLES[4],
       },
     ],
     low_confidence_links: [
       { article: E3_LOW_LINK_ARTICLE, link_score: 0.44, link_reason: "region+facility(마을명)" },
     ],
-    last_followup_at: "2026-04-02",
+    last_followup_at: "2026-04-28",
     next_scheduled_run: NEXT_RUN,
     judged_at: JUDGED_AT,
     disclaimer: DISCLAIMER,
   },
 };
 
-const EVENTS: MockEvent[] = [E1, E2, E3];
+// ---------------------------------------------------------------------------
+// Event 4: 가온시 은빛교 보행로 난간 추락 사고 — 아직 판정 전 (수집·연결까지만 실행)
+// ---------------------------------------------------------------------------
+
+const E4_ARTICLES: ArticleOut[] = [
+  article({
+    news_id: "01100101.20260905083000031",
+    title: "가온시 은빛교 보행로 난간 무너져 행인 1명 추락",
+    provider: "연합뉴스",
+    published_at: "2026-09-05",
+    hilight: "5일 오전 가온시 은빛교 보행로 난간 일부가 무너지면서 행인 1명이 하천으로 추락해 다쳤다.",
+    phase: "발생",
+    link_score: 0.91,
+    link_reason: "region+facility-title",
+  }),
+  article({
+    news_id: "01500701.20260906090000032",
+    title: "은빛교 난간 추락, 부식된 고정 볼트가 원인 추정",
+    provider: "부산일보",
+    published_at: "2026-09-06",
+    hilight: "가온시는 은빛교 난간 고정 볼트가 부식돼 하중을 견디지 못한 것으로 추정된다고 밝혔다.",
+    byline: "김가온",
+    phase: "원인조사",
+    link_score: 0.86,
+    link_reason: "region+facility",
+  }),
+];
+
+const E4_CARD: EventCard = {
+  id: 4,
+  title: "가온시 은빛교 보행로 난간 추락 사고",
+  incident_type: "사고>시설사고>추락",
+  region: "가온시",
+  facility: "은빛교",
+  responsible_org: "가온시",
+  occurred_at: "2026-09-05",
+  status: "판단 불가",
+  status_confidence: 0,
+  priority_score: 40,
+  needs_check: true,
+  needs_review: false,
+  deadline_date: null,
+  deadline_passed_days: null,
+  last_followup_at: null,
+  days_since_last_followup: null,
+  followup_count: 0,
+  evidence_count: 0,
+  article_count: 2,
+  primary_promise: null,
+  trend_sparkline: [2],
+  disclaimer: DISCLAIMER,
+};
+
+const E4: MockEvent = {
+  card: E4_CARD,
+  detail: {
+    card: E4_CARD,
+    summary: "2026년 9월 5일 가온시 은빛교 보행로 난간 일부가 무너져 행인 1명이 추락했다. 가온시는 원인을 조사 중이다.",
+    seed_query: '("은빛교" AND ("난간" OR "추락")) AND ("가온시" OR "가온시청")',
+    status_reason: null,
+    status_reason_text: "아직 상태 판정이 실행되지 않음",
+    latest_judgment: null,
+    promises: [],
+    timeline: buildTimeline(E4_ARTICLES),
+    trend: buildTrend("202609", [2], E4_CARD),
+    disclaimer: DISCLAIMER,
+  },
+  evidence: {
+    event_id: 4,
+    title: E4_CARD.title,
+    status: "판단 불가",
+    confidence: 0,
+    rule: { name: "", text: "아직 상태 판정이 실행되지 않음", thresholds: {} },
+    unresolved_reason: null,
+    signals: [],
+    low_confidence_links: [],
+    last_followup_at: null,
+    next_scheduled_run: null,
+    judged_at: null,
+    disclaimer: DISCLAIMER,
+  },
+};
+
+const EVENTS: MockEvent[] = [E1, E2, E3, E4];
 
 function findEvent(id: number): MockEvent {
   const found = EVENTS.find((e) => e.card.id === id);
@@ -811,6 +963,15 @@ export async function mockGetReviewQueue(): Promise<ReviewQueueOut> {
         link_reason: l.link_reason,
       })),
     ),
+    rejected_links: [
+      {
+        event_id: E1_CARD.id,
+        event_title: E1_CARD.title,
+        article: E1_REJECTED_ARTICLE,
+        link_score: E1_REJECTED_ARTICLE.link_score ?? 0,
+        link_reason: E1_REJECTED_ARTICLE.link_reason ?? "",
+      },
+    ],
     reports: [
       {
         id: 5,
@@ -846,8 +1007,9 @@ export async function mockPostAdminLink(
   return {
     event_id: eventId,
     news_id: newsId,
-    link_method: "manual",
+    link_method: action === "confirm" ? "manual" : "embedding",
     confirmed: action === "confirm",
+    rejected: action === "reject",
   };
 }
 
@@ -862,7 +1024,7 @@ export async function mockPostPipelineRun(body: PipelineRunIn): Promise<Pipeline
     run_id: 12,
     stage: body.stage,
     ok: true,
-    stats: { events: EVENTS.length, articles: 22, links: 20, promises: 4, signals: 6 },
+    stats: { events: EVENTS.length, articles: 24, links: 22, promises: 4, signals: 8 },
     duration_ms: 1840,
   };
 }
@@ -877,11 +1039,20 @@ export async function mockGetMeta(): Promise<MetaOut> {
     embedding_backend: "hash",
     event_count: EVENTS.length,
     today: TODAY,
+    today_overridden: true,
     last_pipeline_run: {
       stage: "all",
       finished_at: "2026-09-11T14:59:31+09:00",
       ok: true,
-      stats: { events: EVENTS.length, articles: 22, links: 20, promises: 4, signals: 6 },
+      stats: { events: 3, articles: 24, links: 22, promises: 4, signals: 8 },
+    },
+    // Most recent run of any kind: a per-event collect for the new event failed.
+    last_run: {
+      stage: "collect",
+      finished_at: "2026-09-11T16:10:02+09:00",
+      ok: false,
+      error_summary: "BigKinds search timeout (30s)",
+      event_id: 4,
     },
     disclaimer: DISCLAIMER,
   };

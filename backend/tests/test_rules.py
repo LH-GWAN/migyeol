@@ -101,13 +101,26 @@ def test_priority_deadline_passed_ranks_above_stale():
 def test_public_actor_detection():
     assert is_public_actor("가온시장")
     assert is_public_actor("가온시 안전건설국장")
-    assert is_public_actor("한국철도공사 관계자")
+    assert is_public_actor("누리철도공사 관계자")
     assert is_public_actor("가온소방서장")
     assert is_public_actor("행정안전부 장관")
     assert is_public_actor("소방당국")
     assert not is_public_actor("주민 김모씨")
     assert not is_public_actor("가온건설 대표")
     assert not is_public_actor("유가족")
+
+
+def test_public_actor_regressions_from_review():
+    # 1-3: '이름 직함' / 직함 단독 / 소방 관계자 는 공공
+    for src in ("이상민 장관", "김영환 충북지사", "소방 관계자", "안전총괄과장", "가온시 대변인", "국무총리"):
+        assert is_public_actor(src), src
+    # 1-3: 민간은 한 글자 접미사·별칭 부분 일치로 통과하면 안 된다
+    aliases = ["가온시청", "가온시장", "가온시"]
+    for src in ("시공사 관계자", "유가족협의회", "박태구 씨", "가온시 주민 김모씨", "가온시민 A씨", "남문시장 상인회", "시공사 현장소장", "가온건설 본부장"):
+        assert not is_public_actor(src, aliases), src
+    # 시의회는 공공이지만 지자체(가온시) 별칭으로 귀속되면 안 된다
+    assert is_public_actor("가온시의회 의원")
+    assert normalize_actor_org("가온시의회 의원", "가온시", aliases) == "가온시의회"
 
 
 def test_actor_normalization_to_org():
@@ -117,3 +130,25 @@ def test_actor_normalization_to_org():
     assert normalize_actor_org("행정안전부 장관") == "행정안전부"
     assert normalize_actor_org("한국철도공사 관계자") == "한국철도공사"
     assert normalize_actor_org("주민 김모씨") is None
+
+
+# ------------------------------------------------------------------ 동률·중복 규칙 (ev-13, ej-17, ej-21, ej-18)
+def test_same_day_done_and_problem_prefers_problem_regardless_of_order():
+    d = date(2026, 7, 12)
+    a = [sig("완료", 0.9, d, i=1), sig("새로운문제", 0.85, d, i=2)]
+    b = [sig("새로운문제", 0.85, d, i=2), sig("완료", 0.9, d, i=1)]
+    assert judge(a, [promise()], [d], TODAY, TH).status == judge(b, [promise()], [d], TODAY, TH).status == STATUS_NEW_PROBLEM
+
+
+def test_two_weak_completions_with_same_sentence_count_once():
+    s1 = SignalIn(id=1, news_id="n1", signal="완료", matches_promise=True, confidence=0.65, published_at=date(2026, 8, 20), evidence_span="보강 공사를 완료했다")
+    s2 = SignalIn(id=2, news_id="n2", signal="완료", matches_promise=True, confidence=0.62, published_at=date(2026, 8, 20), evidence_span="보강 공사를  완료했다")
+    j = judge([s1, s2], [promise()], [date(2026, 8, 20)], TODAY, TH)
+    assert j.status == STATUS_UNDETERMINED  # 전재된 같은 문장 2건은 1건
+    s3 = SignalIn(id=3, news_id="n3", signal="완료", matches_promise=True, confidence=0.62, published_at=date(2026, 8, 25), evidence_span="재개통했다")
+    assert judge([s1, s3], [promise()], [date(2026, 8, 25)], TODAY, TH).status == STATUS_DONE
+
+
+def test_weak_new_problem_gives_specific_r5_reason():
+    j = judge([sig("새로운문제", 0.65, date(2026, 8, 1))], [promise()], [date(2026, 8, 1)], TODAY, TH)
+    assert j.status == STATUS_UNDETERMINED and "새로운 문제" in j.unresolved_reason and j.evidence and not j.counted_signal_ids

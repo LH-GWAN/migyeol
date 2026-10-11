@@ -22,7 +22,9 @@ log = logging.getLogger("migyeol")
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     settings = get_settings()
-    init_db()
+    init_db()  # 누락 컬럼은 간이 마이그레이션으로 보충
+    for w in settings.startup_warnings():
+        log.warning("설정 경고: %s", w)
     scheduler = None
     if settings.scheduler_enabled:
         from .pipeline.scheduler import build_scheduler
@@ -30,7 +32,14 @@ async def lifespan(app: FastAPI):
         scheduler = build_scheduler(settings)
         scheduler.start()
         log.info("scheduler started (04:00 refresh / 05:00 tracker, KST)")
-    log.info("bigkinds=%s llm=%s embedding=%s", settings.bigkinds_mode, settings.llm_mode, settings.embedding_backend)
+    log.info(
+        "bigkinds=%s llm=%s embedding=%s today=%s%s",
+        settings.bigkinds_mode,
+        settings.llm_mode,
+        settings.embedding_backend,
+        settings.today(),
+        " (TODAY_OVERRIDE)" if settings.today_overridden() else "",
+    )
     yield
     if scheduler is not None:
         scheduler.shutdown(wait=False)
@@ -38,7 +47,7 @@ async def lifespan(app: FastAPI):
 
 def create_app() -> FastAPI:
     settings = get_settings()
-    app = FastAPI(title="미결(未結) API", version="0.1.0", lifespan=lifespan)
+    app = FastAPI(title="미결(未結) API", version="0.2.0", lifespan=lifespan)
     app.add_middleware(
         CORSMiddleware,
         allow_origins=settings.cors_origin_list(),

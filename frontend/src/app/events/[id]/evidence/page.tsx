@@ -6,13 +6,14 @@ import Disclaimer from "@/components/Disclaimer";
 import ErrorBox from "@/components/ErrorBox";
 import ReportForm from "@/components/ReportForm";
 import StatusBadge from "@/components/StatusBadge";
-import { getEvidence, safe } from "@/lib/api";
+import { getEvidence, isEventNotFound, safe } from "@/lib/api";
 import {
   formatDate,
   formatDateTime,
   formatPercent,
   formatScore,
   formatThreshold,
+  parseId,
   SIGNAL_LABELS,
 } from "@/lib/format";
 import type { SignalKind } from "@/lib/types";
@@ -66,14 +67,17 @@ export async function generateMetadata({ params }: { params: Params }): Promise<
   return { title: `사건 #${id} 근거·불확실성` };
 }
 
+const UNJUDGED_TEXT = "아직 판정 전(수집·연결 단계)";
+
 export default async function EvidencePage({ params }: { params: Params }) {
   const { id } = await params;
-  const eventId = Number(id);
-  if (!Number.isInteger(eventId) || eventId <= 0) notFound();
+  const eventId = parseId(id);
+  if (eventId === null) notFound();
 
   const result = await safe(getEvidence(eventId));
   if (!result.ok) {
-    if (result.error.isNotFound) notFound();
+    // Only the backend's own "event N not found" becomes a 404 page; any other failure is shown inline.
+    if (isEventNotFound(result.error, eventId)) notFound();
     return (
       <div className="flex flex-col gap-4">
         <Link href={`/events/${eventId}`} className="text-sm text-blue-700 hover:underline">
@@ -85,10 +89,12 @@ export default async function EvidencePage({ params }: { params: Params }) {
   }
 
   const ev = result.data;
-  const isUnresolved = ev.status === "판단 불가" || ev.status === "후속보도 부족";
+  const judged = ev.judged_at !== null;
+  const isUnresolved = judged && (ev.status === "판단 불가" || ev.status === "후속보도 부족");
   const signalMin = ev.rule.thresholds?.signal_min_conf;
   const thresholds = Object.entries(ev.rule.thresholds ?? {});
   const counted = ev.signals.filter((s) => s.counted).length;
+  const considered = ev.signals.filter((s) => !s.counted && s.considered).length;
 
   return (
     <div className="flex flex-col gap-6">
@@ -109,8 +115,12 @@ export default async function EvidencePage({ params }: { params: Params }) {
         <h1 className="mt-1 text-2xl font-bold leading-tight text-gray-900">{ev.title}</h1>
         <div className="mt-3 flex flex-wrap items-center gap-3">
           <StatusBadge status={ev.status} size="lg" />
-          <span className="text-sm text-gray-600">판정 신뢰도 {formatPercent(ev.confidence)}</span>
-          {ev.judged_at && <span className="text-xs text-gray-400">판정 시각 {formatDateTime(ev.judged_at)}</span>}
+          <span className="text-sm text-gray-600">판정 신뢰도 {judged ? formatPercent(ev.confidence) : "-"}</span>
+          {ev.judged_at ? (
+            <span className="text-xs text-gray-400">판정 시각 {formatDateTime(ev.judged_at)}</span>
+          ) : (
+            <span className="text-xs text-gray-500">{UNJUDGED_TEXT}</span>
+          )}
         </div>
         <Disclaimer text={ev.disclaimer} className="mt-3" />
       </header>
@@ -118,10 +128,21 @@ export default async function EvidencePage({ params }: { params: Params }) {
       {/* How the status was decided */}
       <section className="rounded-lg border border-gray-200 bg-white p-5">
         <h2 className="text-base font-bold text-gray-900">이 상태는 어떻게 판정되었나</h2>
-        <p className="mt-2 rounded-md bg-gray-50 px-4 py-3 text-[15px] font-medium text-gray-900">{ev.rule.text}</p>
-        <p className="mt-2 text-xs text-gray-500">
-          적용 규칙 <code className="rounded bg-gray-100 px-1.5 py-0.5 font-mono text-[11px] text-gray-700">{ev.rule.name}</code>
-        </p>
+        {judged ? (
+          <>
+            <p className="mt-2 rounded-md bg-gray-50 px-4 py-3 text-[15px] font-medium text-gray-900">{ev.rule.text}</p>
+            {ev.rule.name && (
+              <p className="mt-2 text-xs text-gray-500">
+                적용 규칙{" "}
+                <code className="rounded bg-gray-100 px-1.5 py-0.5 font-mono text-[11px] text-gray-700">{ev.rule.name}</code>
+              </p>
+            )}
+          </>
+        ) : (
+          <p className="mt-2 rounded-md bg-gray-50 px-4 py-3 text-sm text-gray-700">
+            {UNJUDGED_TEXT}. 기사 수집·연결이 끝난 뒤 상태 판정이 실행되면 적용 규칙과 근거가 여기에 표시됩니다.
+          </p>
+        )}
         {thresholds.length > 0 && (
           <div className="mt-3">
             <h3 className="text-xs font-semibold text-gray-500">판정 기준값</h3>
@@ -153,7 +174,9 @@ export default async function EvidencePage({ params }: { params: Params }) {
             <dt className="text-amber-800">마지막 후속 기사일</dt>
             <dd className="text-amber-950">{ev.last_followup_at ? formatDate(ev.last_followup_at) : "후속 기사 없음"}</dd>
             <dt className="text-amber-800">다음 자동 재조회 예정</dt>
-            <dd className="text-amber-950">{ev.next_scheduled_run ? formatDateTime(ev.next_scheduled_run) : "예정 없음"}</dd>
+            <dd className="text-amber-950">
+              {ev.next_scheduled_run === null ? "자동 재조회 꺼짐" : formatDateTime(ev.next_scheduled_run)}
+            </dd>
           </dl>
           <Disclaimer text={ev.disclaimer} className="mt-3 text-amber-800" />
         </section>
@@ -162,10 +185,15 @@ export default async function EvidencePage({ params }: { params: Params }) {
       {/* Signals */}
       <section className="rounded-lg border border-gray-200 bg-white p-5">
         <h2 className="text-base font-bold text-gray-900">
-          후속 신호 <span className="text-sm font-normal text-gray-500">유효 {counted}건 / 전체 {ev.signals.length}건</span>
+          후속 신호{" "}
+          <span className="text-sm font-normal text-gray-500">
+            반영 {counted}건{considered > 0 ? ` · 참고 ${considered}건` : ""} / 전체 {ev.signals.length}건
+          </span>
         </h2>
         <p className="mt-1 text-xs text-gray-500">
-          약속과 일치하고 신뢰도가 기준 이상인 신호만 판정에 반영됩니다. 반영되지 않은 신호는 흐리게 표시하고 「판정 미반영」으로 표기합니다.
+          반영 = 이번 판정 규칙(R1~R5)이 근거로 채택한 신호. 일치·기준 이상이어도 우선순위가 높은 규칙이 먼저 적용되면 미반영될 수
+          있습니다. 「참고(미반영)」는 규칙이 살펴봤지만 채택하지 않은 신호, 「제외된 연결」은 기사 연결이 해제·검토 중·삭제되어
+          판정에서 빠진 신호입니다.
         </p>
         {ev.signals.length === 0 ? (
           <p className="mt-3 rounded-md border border-dashed border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-500">
@@ -185,11 +213,11 @@ export default async function EvidencePage({ params }: { params: Params }) {
                 </tr>
               </thead>
               <tbody>
-                {ev.signals.map((s) => (
-                  <tr
-                    key={s.id}
-                    className={`border-b border-gray-100 align-top ${s.counted ? "" : "opacity-60"}`}
-                  >
+                {ev.signals.map((s) => {
+                  const inactive = s.active === false;
+                  const muted = inactive ? "opacity-40" : s.counted ? "" : "opacity-60";
+                  return (
+                  <tr key={s.id} className={`border-b border-gray-100 align-top ${muted}`}>
                     <td className="py-3 pr-3">
                       <SignalBadge signal={s.signal} />
                       <p className="mt-1 text-[11px] text-gray-400">
@@ -198,7 +226,11 @@ export default async function EvidencePage({ params }: { params: Params }) {
                       </p>
                     </td>
                     <td className="py-3 pr-3 text-gray-800">
-                      <q className="leading-relaxed">{s.evidence_span}</q>
+                      {s.evidence_span ? (
+                        <q className="leading-relaxed">{s.evidence_span}</q>
+                      ) : (
+                        <span className="text-xs text-gray-400">발췌 없음(무관·불명확)</span>
+                      )}
                     </td>
                     <td className="py-3 pr-3">
                       {s.article ? (
@@ -215,10 +247,18 @@ export default async function EvidencePage({ params }: { params: Params }) {
                     <td className="py-3 pr-3">
                       <ConfidenceBar value={s.confidence} threshold={signalMin} />
                     </td>
-                    <td className="py-3 pr-3 text-xs leading-relaxed text-gray-600">{s.rationale}</td>
+                    <td className="py-3 pr-3 text-xs leading-relaxed text-gray-600">{s.rationale || "-"}</td>
                     <td className="py-3">
-                      {s.counted ? (
+                      {inactive ? (
+                        <span className="whitespace-nowrap rounded border border-gray-300 bg-white px-1.5 py-0.5 text-[11px] text-gray-600">
+                          제외된 연결
+                        </span>
+                      ) : s.counted ? (
                         <span className="whitespace-nowrap text-xs font-semibold text-green-700">반영</span>
+                      ) : s.considered ? (
+                        <span className="whitespace-nowrap rounded bg-amber-50 px-1.5 py-0.5 text-[11px] text-amber-800">
+                          참고(미반영)
+                        </span>
                       ) : (
                         <span className="whitespace-nowrap rounded bg-gray-100 px-1.5 py-0.5 text-[11px] text-gray-500">
                           판정 미반영
@@ -226,7 +266,8 @@ export default async function EvidencePage({ params }: { params: Params }) {
                       )}
                     </td>
                   </tr>
-                ))}
+                  );
+                })}
               </tbody>
             </table>
           </div>

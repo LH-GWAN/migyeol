@@ -1,12 +1,14 @@
-# 미결 백엔드 API 계약 (v0, Phase 0)
+# 미결 백엔드 API 계약 (v0.2, 2026-10-12 리뷰 반영)
 
-- Base URL: `http://localhost:8000` (환경변수 `NEXT_PUBLIC_API_BASE`)
-- 모든 응답은 `application/json; charset=utf-8`. 날짜는 `YYYY-MM-DD`, 일시는 ISO 8601(KST, `+09:00`).
+- Base URL: `http://localhost:8000`. 프런트 서버 컴포넌트는 `API_BASE_INTERNAL` 로 직접 호출하고, 브라우저는 같은 출처의 `/api/...` 를 쓴다(Next `rewrites` 가 백엔드로 프록시).
+- 모든 응답은 `application/json; charset=utf-8`. 날짜는 `YYYY-MM-DD`, 일시는 ISO 8601 KST(`+09:00`). 서버 TZ 와 무관하게 KST 로 기록한다.
 - 사건 상태 `status`는 아래 5개 문자열 중 하나이며 다른 값은 존재하지 않는다.
   - `조치 완료 근거 확인` / `조치 진행 정황 확인` / `새로운 문제 발생` / `후속보도 부족` / `판단 불가`
 - 기사 응답에는 전문이 없다. `hilight`는 200자 이내, 원문은 `provider_link_page` 외부 링크로만 연결한다.
 - 모든 상태 표시 옆에 고정 면책 문구를 노출한다. 서버는 `disclaimer` 필드로 같은 문장을 내려준다.
   - `보도가 없다는 사실은 조치가 없었다는 근거가 아니라, 확인이 필요하다는 신호입니다.`
+- 목록·상세·검토 큐·meta 는 **활성 사건**(현재 시드에 있는 사건, `active=true`)만 다룬다. 시드에서 빠진 사건은 404.
+- `ADMIN_TOKEN` 이 설정돼 있으면 `/api/admin/*` 와 `/api/pipeline/run` 에 `X-Admin-Token` 헤더가 필요하다(없으면 401). 비어 있으면 검사하지 않는다.
 
 ## 공통 객체
 
@@ -23,12 +25,13 @@
   "phase": "발생",
   "link_method": "rule",
   "link_score": 0.81,
-  "link_reason": "region+facility; category_incident=재해>자연재해",
+  "link_reason": "region+facility+facility-title+incident+seed-kw=2",
   "change_status": "ok"
 }
 ```
 - `phase` ∈ `발생` | `원인조사` | `대응발표` | `조치진행` | `결과확인` | `기타`
-- `link_method` ∈ `seed` | `rule` | `embedding` | `manual`
+- `link_method` ∈ `rule` | `embedding` | `manual` (관리자 확정·해제·복구)
+- `link_reason` 은 통과한 게이트 조건을 `+` 로 이은 문자열. `other-facility`, `multi-event` 가 붙으면 검토 큐 사유다.
 - `change_status` ∈ `ok` | `updated` | `cancelled` (변경이력 API 결과)
 - null 가능: `published_at`, `provider_link_page`, `byline`. 사건에 연결되지 않은 기사(예: 약속 근거 기사가 연결 목록에 없을 때)는 `phase`·`link_method`·`link_score`·`link_reason`도 null
 
@@ -44,21 +47,17 @@
   "deadline_precision": "month",
   "strength": "확약",
   "is_trackable": true,
+  "merged_into_id": null,
   "confidence": 0.9,
   "deadline_passed": false,
-  "quotation": {
-    "news_id": "01500701.20250718100000001",
-    "source": "가온시 안전건설국장",
-    "quotation": "내년 10월까지 배수펌프 용량을 2배로 늘리겠다",
-    "provider": "부산일보",
-    "published_at": "2025-07-18"
-  },
-  "evidence_article": { "...": "ArticleOut" }
+  "quotation": { "news_id": "…", "source": "가온시 안전건설국장", "quotation": "내년 10월까지 …", "provider": "부산일보", "published_at": "2025-07-18" },
+  "evidence_article": { "...": "ArticleOut" },
+  "merged_news_ids": []
 }
 ```
-- `strength` ∈ `확약` | `계획` | `의사표명` | `해당없음`
-- `deadline_precision` ∈ `day` | `month` | `year` | `none`
+- `strength` ∈ `확약` | `계획` | `의사표명` | `해당없음`, `deadline_precision` ∈ `day` | `month` | `year` | `none`
 - null 가능: `deadline_raw`, `deadline_date`, `quotation`, `quotation.published_at`, `evidence_article`
+- 중복으로 병합된 약속은 `merged_into_id` 에 대표 약속 id 가 있고, 상세의 `promises` 목록에서는 빠진다(대표의 `merged_news_ids` 에 근거 기사가 남는다).
 
 ### TrendOut
 ```json
@@ -69,9 +68,10 @@
   "peak_hits": 41,
   "recent_mean": 1.3,
   "drop_ratio": 0.97,
-  "markers": { "occurred_at": "2025-07-15", "deadline_date": "2026-10-31", "today": "2026-09-11" }
+  "markers": { "occurred_at": "2025-07-15", "deadline_date": "2026-10-31", "deadline_precision": "month", "today": "2026-09-11" }
 }
 ```
+- `recent_mean` 은 완결된 직전 3개월 평균(진행 중인 이번 달 제외). `markers.deadline_*` 는 카드의 대표 약속 기준, 없으면 null.
 
 ### EventCard
 ```json
@@ -85,157 +85,116 @@
   "occurred_at": "2025-07-15",
   "status": "후속보도 부족",
   "status_confidence": 0.5,
-  "priority_score": 78.5,
+  "judged": true,
+  "priority_score": 64.0,
   "needs_check": true,
-  "needs_review": false,
+  "needs_review": true,
   "deadline_date": "2026-10-31",
+  "deadline_precision": "month",
   "deadline_passed_days": null,
-  "last_followup_at": "2026-08-10",
-  "days_since_last_followup": 32,
-  "followup_count": 3,
-  "evidence_count": 6,
-  "article_count": 14,
-  "primary_promise": {
-    "actor_org": "가온시",
-    "action": "달빛지하차도 배수펌프 용량을 2배로 증설한다",
-    "deadline_date": "2026-10-31",
-    "deadline_precision": "month",
-    "strength": "확약"
-  },
-  "trend_sparkline": [41, 9, 3, 0, 1, 0, 2, 0, 0, 1, 0, 0, 1, 0],
-  "disclaimer": "보도가 없다는 사실은 조치가 없었다는 근거가 아니라, 확인이 필요하다는 신호입니다."
+  "last_followup_at": "2026-03-05",
+  "days_since_last_followup": 190,
+  "followup_count": 2,
+  "evidence_count": 2,
+  "article_count": 7,
+  "primary_promise": { "actor_org": "가온시", "action": "…", "deadline_date": "2026-10-31", "deadline_precision": "month", "strength": "확약" },
+  "trend_sparkline": [5, 1, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0],
+  "disclaimer": "보도가 없다는 사실은 …"
 }
 ```
-- `needs_check` = `status ∈ {후속보도 부족, 판단 불가, 새로운 문제 발생}` 또는 기한 경과
-- `deadline_passed_days` : 기한이 지났으면 경과 일수(정수), 아니면 `null`
-- `primary_promise` : 추적 가능한 약속 중 `확약` 우선, 없으면 `계획`, 없으면 `null`
+- **대표 약속(`primary_promise`)** = 기한이 지난 추적 약속(가장 오래 지난 것) > 확약 > 계획. `deadline_date`·`deadline_precision`·`deadline_passed_days` 는 모두 이 약속 기준이라 서로 모순되지 않는다. (우선순위 점수의 '기한 경과 +40' 도 같은 약속.)
+- `needs_check` = `status ∈ {후속보도 부족, 판단 불가, 새로운 문제 발생}` 또는 (기한 경과 AND status ≠ 조치 완료 근거 확인). 완료 사건은 기한이 지나도 확인 대상이 아니다.
+- `needs_review` = 검토 대기 연결 OR 미처리 신고 OR 변경이력(tracker) 표시. 각각 독립적으로 켜지고 꺼진다.
+- `priority_score` 는 **요청 시점** 기준으로 다시 계산한 값(기한 경과·마지막 후속 기사 경과일은 오늘 기준, 추이는 최신 스냅샷).
+- `evidence_count` = 추적 약속의 근거 기사(활성 연결) + 최신 판정이 채택한 신호의 기사. 무관·불명확·해제·검토 대기·삭제 기사는 세지 않는다.
+- `judged=false` 인 사건(수집·연결만 끝남): `status_confidence` null, `priority_score` 0, `needs_check` false.
 
 ## 엔드포인트
 
 ### GET `/api/events`
-쿼리: `status`(5개 중 하나), `region`, `incident_type`(접두 일치, 예 `재해>자연재해`), `needs_check`(`true`/`false`), `sort`(`priority`|`recent`|`occurred`, 기본 `priority`), `page`(기본 1), `size`(기본 20, 최대 100)
+쿼리: `status`(5개 중 하나), `region`, `incident_type`(접두 일치), `needs_check`(`true`/`false`), `sort`(`priority`|`recent`|`occurred`, 기본 `priority`), `page`(기본 1), `size`(기본 20, 최대 100)
+- `recent` 는 마지막 후속 기사일 내림차순이며 후속 기사가 없는 사건은 뒤로 간다.
 ```json
-{
-  "items": [ { "...": "EventCard" } ],
-  "total": 7,
-  "page": 1,
-  "size": 20,
-  "filters": {
-    "statuses": ["조치 완료 근거 확인", "조치 진행 정황 확인", "새로운 문제 발생", "후속보도 부족", "판단 불가"],
-    "regions": ["가온시", "누리군"],
-    "incident_types": ["재해>자연재해>홍수", "사고>산업사고>붕괴"]
-  }
-}
+{ "items": [ { "...": "EventCard" } ], "total": 7, "page": 1, "size": 20,
+  "filters": { "statuses": [...5개...], "regions": ["가온시", "누리군"], "incident_types": ["재해>자연재해>홍수", "사고>산업사고>붕괴"] } }
 ```
 
 ### GET `/api/events/{id}`
 ```json
 {
   "card": { "...": "EventCard" },
-  "summary": "2025년 7월 15일 집중호우로 …(시드 topic_content)",
-  "seed_query": "(\"달빛지하차도\" OR \"지하차도 침수\") AND (\"가온시\" OR \"가온시청\")",
+  "summary": "2025년 7월 15일 집중호우로 …",
+  "seed_query": "(\"달빛지하차도\" OR \"지하차도 침수\" OR \"배수펌프\") AND (\"가온시\" OR \"가온시청\" OR \"가온시장\" OR \"달빛지하차도\")",
   "status_reason": "R4_stale_followup",
-  "status_reason_text": "마지막 후속 기사가 60일 이전이고 완료·진행 신호가 없음",
-  "latest_judgment": {
-    "status": "후속보도 부족",
-    "reason": "R4_stale_followup",
-    "confidence": 0.5,
-    "unresolved_reason": null,
-    "judged_at": "2026-09-11T04:00:12+09:00"
-  },
+  "status_reason_text": "마지막 후속 기사가 190일 전(기준 60일)이고 완료·진행 신호가 없음",
+  "latest_judgment": { "status": "후속보도 부족", "reason": "R4_stale_followup", "confidence": 0.5, "unresolved_reason": "…", "judged_at": "2026-09-11T04:00:12+09:00" },
   "promises": [ { "...": "PromiseOut" } ],
-  "timeline": [
-    { "phase": "발생", "articles": [ { "...": "ArticleOut" } ] },
-    { "phase": "원인조사", "articles": [] },
-    { "phase": "대응발표", "articles": [ { "...": "ArticleOut" } ] },
-    { "phase": "조치진행", "articles": [] },
-    { "phase": "결과확인", "articles": [] },
-    { "phase": "기타", "articles": [ { "...": "ArticleOut" } ] }
-  ],
+  "timeline": [ { "phase": "발생", "articles": [ { "...": "ArticleOut" } ] }, { "phase": "원인조사", "articles": [] }, "… 6개 phase 고정 순서" ],
   "trend": { "...": "TrendOut" },
-  "disclaimer": "보도가 없다는 사실은 …"
+  "disclaimer": "…"
 }
 ```
-- `timeline`은 항상 6개 phase를 이 순서로 모두 포함한다(빈 배열 허용). 각 phase 내부는 발행일 오름차순.
+- `timeline` 은 활성 연결(해제·검토 대기 제외)이고 삭제되지 않은 기사만, 6개 phase 고정 순서, 발행일 오름차순.
+- 판정 이력이 없으면 `latest_judgment` null, `status_reason` null, `status_reason_text` = `아직 상태 판정이 실행되지 않음`.
+- id 는 1 이상 2^31-1 이하. 범위 밖·비활성·없는 사건은 `404 {"detail": "event N not found"}`.
 
 ### GET `/api/events/{id}/evidence`
 ```json
 {
-  "event_id": 1,
-  "title": "가온시 달빛지하차도 침수 사고",
-  "status": "조치 완료 근거 확인",
-  "confidence": 0.82,
-  "rule": {
-    "name": "R2_completion_evidence",
-    "text": "완료 신호 1건(신뢰도 0.82)이 기준 0.7 이상",
-    "thresholds": { "signal_min_conf": 0.6, "completion_min_conf": 0.7, "stale_followup_days": 60 }
-  },
+  "event_id": 1, "title": "…", "status": "조치 완료 근거 확인", "judged": true, "confidence": 0.9,
+  "rule": { "name": "R2_completion_evidence", "text": "완료 신호 1건(최고 신뢰도 0.90)이 기준 0.7 이상", "thresholds": { "signal_min_conf": 0.6, "completion_min_conf": 0.7, "stale_followup_days": 60 } },
   "unresolved_reason": null,
   "signals": [
-    {
-      "id": 11,
-      "signal": "완료",
-      "promise_id": 3,
-      "matches_promise": true,
-      "confidence": 0.82,
-      "evidence_span": "배수펌프 증설 공사를 마치고 이날 가동을 시작했다",
-      "rationale": "완료형 표현과 약속 대상(배수펌프 증설)이 일치",
-      "counted": true,
-      "article": { "...": "ArticleOut" }
-    }
+    { "id": 11, "signal": "완료", "promise_id": 3, "matches_promise": true, "confidence": 0.9,
+      "evidence_span": "전 구간 라이닝 보강을 완료했으며", "rationale": "…", "counted": true, "considered": false, "active": true, "article": { "...": "ArticleOut" } }
   ],
-  "low_confidence_links": [
-    { "article": { "...": "ArticleOut" }, "link_score": 0.47, "link_reason": "region only" }
-  ],
-  "last_followup_at": "2026-08-10",
-  "next_scheduled_run": "2026-09-12T04:00:00+09:00",
+  "low_confidence_links": [ { "article": { "...": "ArticleOut" }, "link_score": 0.47, "link_reason": "facility+facility-title+seed-kw=2" } ],
+  "last_followup_at": "2025-12-22",
+  "next_scheduled_run": null,
   "judged_at": "2026-09-11T04:00:12+09:00",
-  "disclaimer": "보도가 없다는 사실은 …"
+  "disclaimer": "…"
 }
 ```
-- `signal` ∈ `완료` | `진행` | `새로운문제` | `무관` | `불명확`
-- `counted` : 최신 상태 판정의 근거 목록(`StatusJudgment.evidence`)에 실제로 들어간 신호인지. 판정 규칙(R1~R5)이 근거로 채택한 신호만 true 이므로, `matches_promise` 이고 `confidence ≥ signal_min_conf` 인 신호라도 false 일 수 있다
-- `article` : 신호의 기사가 DB에 없으면 null
+- `signals` 는 현재 prompt_version 의 신호만. 해제된 연결의 신호는 빠진다. `active=false` 는 검토 대기 연결이거나 삭제된 기사.
+- `counted` = 최신 판정 규칙(R1~R5)이 근거로 채택한 신호. 일치하고 기준 이상이어도 우선순위가 높은 규칙이 먼저 적용되면 false 다. `considered` = R5 가 참고로 보여 주는 기준 미달 신호.
+- `next_scheduled_run` 은 `SCHEDULER_ENABLED=false` 면 null.
+- 판정 전 사건: `judged=false`, `confidence` null, `rule.text`·`unresolved_reason` = `아직 상태 판정이 실행되지 않음`.
 
-### GET `/api/events/{id}/trend`
-`TrendOut` 그대로.
+### GET `/api/events/{id}/trend` — `TrendOut` 그대로.
 
 ### POST `/api/events/{id}/reports`
-요청
-```json
-{ "type": "wrong_link", "news_id": "01500701.20250716093000001", "comment": "다른 지하차도 기사입니다" }
-```
-- `type` ∈ `wrong_link` | `wrong_status` | `wrong_promise` | `other`, `news_id`는 선택
-응답 `201`
-```json
-{ "id": 5, "event_id": 1, "type": "wrong_link", "created_at": "2026-09-11T15:02:11+09:00" }
-```
+요청 `{ "type": "wrong_link", "news_id": "01500701.20250716093000001", "comment": "다른 지하차도 기사입니다" }`
+- `type` ∈ `wrong_link` | `wrong_status` | `wrong_promise` | `other`. `news_id` 는 선택이며 `\d{8}\.\d+` 형식이고 **이 사건에 연결된 기사**여야 한다(아니면 422). `comment` 는 2000자 이내. 한 사건의 미처리 신고가 50건을 넘으면 429.
+응답 `201 { "id": 5, "event_id": 1, "type": "wrong_link", "created_at": "…" }`. 신고가 생기면 사건의 `needs_review` 가 켜진다.
 
 ### GET `/api/admin/review-queue`
 ```json
 {
   "events": [ { "...": "EventCard (needs_review=true)" } ],
-  "links": [
-    { "event_id": 1, "event_title": "가온시 달빛지하차도 침수 사고", "article": { "...": "ArticleOut" }, "link_score": 0.47, "link_reason": "region only" }
-  ],
-  "reports": [
-    { "id": 5, "event_id": 1, "event_title": "…", "type": "wrong_link", "news_id": "…", "comment": "…", "created_at": "…", "resolved": false }
-  ]
+  "links": [ { "event_id": 1, "event_title": "…", "article": { "...": "ArticleOut" }, "link_score": 0.47, "link_reason": "…" } ],
+  "rejected_links": [ { "...": "같은 형식 — 관리자가 해제한 연결 (되돌리기 대상)" } ],
+  "reports": [ { "id": 5, "event_id": 1, "event_title": "…", "type": "wrong_link", "news_id": "…", "comment": "…", "created_at": "…", "resolved": false } ]
 }
 ```
-- `reports` 는 미처리(`resolved=false`) 신고만 담는다
+- `reports` 는 미처리(`resolved=false`) 신고만.
 
 ### POST `/api/admin/links/{event_id}/{news_id}`
-요청 `{ "action": "confirm" }` 또는 `{ "action": "reject" }`
+요청 `{ "action": "confirm" | "reject" | "restore" }`
 응답 `{ "event_id": 1, "news_id": "…", "link_method": "manual", "confirmed": true, "rejected": false }`
-- reject 는 연결 행을 지우지 않고 `rejected=true` 로 표시한다(`confirmed:false`). 해제된 연결은 타임라인·근거·검토 큐에서 빠지고, 재실행해도 다시 자동 연결되지 않는다
+- `reject` 는 연결 행을 지우지 않고 `rejected=true` 로 표시한다. 해제된 연결은 타임라인·근거·검토 큐에서 빠지고 재실행해도 다시 자동 연결되지 않는다. `restore` 는 해제를 되돌려 검토 큐로 보낸다.
+- 어떤 액션이든 뒤에 **그 사건의 규칙 판정·우선순위·단계를 다시 계산**한다(LLM·외부 API 호출 없음). 그래서 유일한 완료 근거를 해제하면 상태가 즉시 바뀐다.
 
 ### POST `/api/admin/reports/{report_id}/resolve`
-요청 본문 없음. 응답 `{ "id": 5, "resolved": true }` — 없는 id 면 `404`
+요청 본문 없음. 응답 `{ "id": 5, "resolved": true }` — 없는 id 면 404. 처리되면 그 신고 몫의 `needs_review` 가 꺼진다.
 
-### POST `/api/pipeline/run` (개발·시연용, `PIPELINE_API_ENABLED=true`일 때만)
-요청 `{ "stage": "all", "event_id": null }` — `stage` ∈ `discover`|`collect`|`link`|`extract`|`judge`|`all`
-응답 `{ "run_id": 12, "stage": "all", "ok": true, "stats": { "events": 7, "articles": 96, "links": 88, "promises": 9, "signals": 31 }, "duration_ms": 1840 }`
+### POST `/api/admin/events/{event_id}/clear-change-flag`
+변경이력(tracker) 검토를 마쳤을 때 표시를 내린다. 응답 `{ "event_id": 1, "needs_review": false }`.
+
+### POST `/api/pipeline/run` (개발·시연용, `PIPELINE_API_ENABLED=true` 일 때만)
+요청 `{ "stage": "all", "event_id": null }` — `stage` ∈ `discover`|`collect`|`link`|`extract`|`judge`|`tracker`|`all`
+응답 `{ "run_id": 12, "stage": "all", "ok": true, "stats": { "events": 8, "articles": 46, "links": 42, "review": 1, "promises": 8, "signals": 18, "followups": 18 }, "duration_ms": 1840 }`
+- `stats` 는 항상 숫자 요약. 실행 중이면 `409`, 없는 `event_id` 는 `404`, 꺼져 있으면 `403`, 실패는 `500 {"detail": "<예외 클래스>: <첫 줄>"}`(트레이스백은 `pipeline_runs.error` 와 서버 로그에만).
+- `event_id` 를 주면 tracker 단계는 생략된다.
 
 ### GET `/api/meta`
 ```json
@@ -243,17 +202,23 @@
   "service": "미결",
   "bigkinds_mode": "mock",
   "llm_mode": "stub",
-  "llm_model": "claude-opus-5",
+  "llm_model": "stub",
   "embedding_backend": "hash",
-  "event_count": 7,
+  "event_count": 8,
   "today": "2026-09-11",
-  "last_pipeline_run": { "stage": "all", "finished_at": "2026-09-11T14:59:31+09:00", "ok": true, "stats": { "...": "" } },
-  "disclaimer": "보도가 없다는 사실은 …"
+  "today_overridden": true,
+  "scheduler_enabled": false,
+  "warnings": [],
+  "last_pipeline_run": { "stage": "all", "event_id": null, "finished_at": "…", "ok": true, "error_summary": null, "stats": { "...": "" } },
+  "last_run": { "stage": "link", "event_id": 3, "finished_at": "…", "ok": false, "error_summary": "BigKindsError: …", "stats": {} },
+  "disclaimer": "…"
 }
 ```
+- `bigkinds_mode` ∈ `mock` | `record` | `live`. `llm_model` 은 stub 모드면 `"stub"`.
+- `last_pipeline_run` = 마지막으로 **성공한 전체 갱신**(stage `all`/`judge`, 전체 사건). `last_run` = 성공 여부와 무관한 마지막 실행.
+- `today_overridden` 이 true 면 기준일이 `TODAY_OVERRIDE` 로 고정된 상태. `warnings` 는 설정 경고 문장 목록.
 
-### GET `/api/health`
-`{ "ok": true }`
+### GET `/api/health` — `{ "ok": true }`
 
 ## 오류 형식
-`{ "detail": "event 99 not found" }` (FastAPI 기본). 404, 422, 403(`PIPELINE_API_ENABLED=false`).
+`{ "detail": "..." }` (FastAPI 기본). 401(관리자 토큰), 403(파이프라인 API 꺼짐), 404, 409(실행 중), 422, 429, 500(요약 메시지만).

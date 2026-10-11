@@ -1,8 +1,9 @@
 import Link from "next/link";
 import ErrorBox from "@/components/ErrorBox";
 import EventCardView from "@/components/EventCardView";
-import EventFilters, { type FilterState } from "@/components/EventFilters";
+import EventFilters from "@/components/EventFilters";
 import { getEvents, safe } from "@/lib/api";
+import { filterQuery, type FilterState } from "@/lib/filters";
 import { isEventStatus, isSortKey, STATUSES } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
@@ -16,12 +17,7 @@ function first(value: string | string[] | undefined): string | undefined {
 }
 
 function buildHref(filters: FilterState, page: number): string {
-  const qs = new URLSearchParams();
-  if (filters.status) qs.set("status", filters.status);
-  if (filters.region) qs.set("region", filters.region);
-  if (filters.incident_type) qs.set("incident_type", filters.incident_type);
-  if (!filters.needs_check) qs.set("needs_check", "false");
-  if (filters.sort !== "priority") qs.set("sort", filters.sort);
+  const qs = filterQuery(filters);
   if (page > 1) qs.set("page", String(page));
   const s = qs.toString();
   return s ? `/?${s}` : "/";
@@ -58,6 +54,11 @@ export default async function HomePage({ searchParams }: { searchParams: Promise
     ? result.data.filters
     : { statuses: [...STATUSES], regions: [], incident_types: [] };
 
+  // Range text is computed from what was actually returned, not from page*size.
+  const rangeStart = result.ok ? (result.data.page - 1) * result.data.size + 1 : 0;
+  const rangeEnd = result.ok ? rangeStart + result.data.items.length - 1 : 0;
+  const outOfRange = result.ok && result.data.items.length === 0 && result.data.total > 0;
+
   return (
     <div className="flex flex-col gap-5">
       <div>
@@ -80,17 +81,23 @@ export default async function HomePage({ searchParams }: { searchParams: Promise
         <>
           <p className="text-sm text-gray-500">
             총 <span className="font-semibold text-gray-800">{result.data.total}</span>건
-            {result.data.total > result.data.size && (
+            {result.data.total > result.data.size && result.data.items.length > 0 && (
               <>
                 {" "}
-                · {result.data.page}페이지 ({(result.data.page - 1) * result.data.size + 1}–
-                {Math.min(result.data.page * result.data.size, result.data.total)}번째)
+                · {result.data.page}페이지 ({rangeStart}–{rangeEnd}번째)
               </>
             )}
             {filters.needs_check && <span className="ml-2 text-gray-400">확인 필요 사건만 표시 중</span>}
           </p>
 
-          {result.data.items.length === 0 ? (
+          {outOfRange ? (
+            <div className="rounded-lg border border-dashed border-gray-300 bg-white p-10 text-center text-sm text-gray-500">
+              페이지 범위를 벗어났습니다.{" "}
+              <Link href={buildHref(filters, 1)} className="text-blue-700 underline">
+                1페이지로 이동
+              </Link>
+            </div>
+          ) : result.data.items.length === 0 ? (
             <div className="rounded-lg border border-dashed border-gray-300 bg-white p-10 text-center text-sm text-gray-500">
               조건에 맞는 사건이 없습니다.
               {filters.needs_check && (

@@ -11,8 +11,10 @@ export default function Sparkline({ values, width = 150, height = 36, className 
   const padX = 3;
   const padY = 4;
   const n = values.length;
-  const max = Math.max(1, ...values);
   const total = values.reduce((a, b) => a + b, 0);
+  // Displayed max is the real one; the scale denominator is clamped so an all-zero series never divides by 0.
+  const max = n > 0 ? Math.max(...values) : 0;
+  const scaleMax = Math.max(1, max);
 
   if (n === 0) {
     return (
@@ -22,9 +24,17 @@ export default function Sparkline({ values, width = 150, height = 36, className 
     );
   }
 
+  if (max === 0) {
+    return (
+      <span className={`text-xs text-gray-400 ${className}`} title={`발생 이후 월별 보도량 (${n}개월, 보도 없음)`}>
+        보도 없음
+      </span>
+    );
+  }
+
   const stepX = n > 1 ? (width - padX * 2) / (n - 1) : 0;
   const px = (i: number) => padX + i * stepX;
-  const py = (v: number) => height - padY - (v / max) * (height - padY * 2);
+  const py = (v: number) => height - padY - (v / scaleMax) * (height - padY * 2);
   const points = values.map((v, i) => `${px(i).toFixed(1)},${py(v).toFixed(1)}`);
   const linePath = `M${points.join(" L")}`;
   const areaPath = `${linePath} L${px(n - 1).toFixed(1)},${height - padY} L${px(0).toFixed(1)},${height - padY} Z`;

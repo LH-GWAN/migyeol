@@ -29,15 +29,26 @@ def _run(stage: str, settings: Settings) -> None:
     from .embeddings import build_embedding
     from .runner import Pipeline
 
+    from .runner import PipelineBusy
+
     session = session_factory()()
     try:
         Pipeline(session, settings, build_client(settings), build_llm(settings), build_embedding(settings)).run(stage)
+    except PipelineBusy:
+        log.warning("scheduled %s skipped: pipeline busy", stage)
+    except Exception:  # noqa: BLE001
+        log.exception("scheduled %s failed", stage)
     finally:
         session.close()
 
 
 def build_scheduler(settings: Settings) -> BackgroundScheduler:
-    sched = BackgroundScheduler(timezone="Asia/Seoul")
+    # 단일 워커, 동시 실행 금지, misfire 는 1시간까지 늦게라도 실행 (Pipeline 의 전역 Lock 이 2차 방어)
+    sched = BackgroundScheduler(
+        timezone="Asia/Seoul",
+        executors={"default": {"type": "threadpool", "max_workers": 1}},
+        job_defaults={"coalesce": True, "max_instances": 1, "misfire_grace_time": 3600},
+    )
     sched.add_job(_run, CronTrigger(hour=4, minute=0), args=["all", settings], id="daily_refresh", replace_existing=True)
     sched.add_job(_run, CronTrigger(hour=5, minute=0), args=["tracker", settings], id="daily_tracker", replace_existing=True)
     return sched

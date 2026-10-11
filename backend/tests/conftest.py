@@ -7,7 +7,19 @@ import pytest
 
 BACKEND = Path(__file__).resolve().parent.parent
 
-# 테스트는 항상 mock/stub/hash + 고정 날짜로 돈다 (.env 와 무관)
+# 가상 정답셋(fixtures/gold)이 설계된 규칙 임계값. 본선 스윕 결과로 .env 나 config.py 기본값을 바꿔도 이 값은 그대로 둔다.
+FIXTURE_THRESHOLDS = {
+    "LINK_AUTO": "0.55",
+    "LINK_REVIEW": "0.40",
+    "SIGNAL_MIN_CONF": "0.6",
+    "COMPLETION_MIN_CONF": "0.7",
+    "STALE_FOLLOWUP_DAYS": "60",
+    "MAX_ARTICLES_PER_EVENT": "300",
+    "QUOTATION_WINDOW_DAYS": "90",
+    "FOLLOWUP_GRACE_DAYS": "7",
+}
+
+# 테스트는 항상 mock/stub/hash + 고정 날짜 + 가상 픽스처로 돈다 (.env, 실사건 seeds/·gold/ 와 무관)
 os.environ.update(
     {
         "BIGKINDS_MODE": "mock",
@@ -16,6 +28,10 @@ os.environ.update(
         "TODAY_OVERRIDE": "2026-09-11",
         "SCHEDULER_ENABLED": "false",
         "PIPELINE_API_ENABLED": "true",
+        "FIXTURES_DIR": str(BACKEND / "fixtures"),
+        "SEEDS_FILE": str(BACKEND / "fixtures" / "seeds" / "events.yaml"),
+        "GOLD_FILE": str(BACKEND / "fixtures" / "gold" / "events.yaml"),
+        **FIXTURE_THRESHOLDS,
     }
 )
 

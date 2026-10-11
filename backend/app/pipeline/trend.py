@@ -1,7 +1,7 @@
 """키워드 트렌드(time_line) 로 보도량 급감을 정량화한다.
 
 peak_hits  : 월별 최대 기사 수
-recent_mean: 최근 3개월(이번 달 포함) 평균, 빈 달은 0
+recent_mean: 직전 완결 3개월 평균 (진행 중인 이번 달은 부분 월이라 제외; 시리즈가 이번 달뿐이면 그 달), 빈 달은 0
 drop_ratio : 1 - recent_mean / peak_hits
 """
 
@@ -25,6 +25,22 @@ def _month_labels(start: date, end: date) -> list[str]:
     return labels
 
 
+def summarize_series(series: list[dict], today: date) -> dict:
+    peak = max(series, key=lambda s: s["hits"]) if series else None
+    current = today.strftime("%Y%m")
+    completed = [s for s in series if s["label"] != current] or series
+    recent = completed[-3:]
+    recent_mean = round(sum(s["hits"] for s in recent) / len(recent), 2) if recent else 0.0
+    peak_hits = peak["hits"] if peak else 0
+    drop = round(1 - recent_mean / peak_hits, 3) if peak_hits > 0 else 0.0
+    return {
+        "peak_label": peak["label"] if peak else None,
+        "peak_hits": peak_hits,
+        "recent_mean": recent_mean,
+        "drop_ratio": max(0.0, drop),
+    }
+
+
 def compute_trend(client: BigKindsClient, event: Event, today: date) -> dict:
     res = client.time_line(
         TimeLineArgument(
@@ -36,16 +52,4 @@ def compute_trend(client: BigKindsClient, event: Event, today: date) -> dict:
     hits = {p.label: p.hits for p in res.time_line}
     labels = _month_labels(event.occurred_at, today)
     series = [{"label": lb, "hits": int(hits.get(lb, 0))} for lb in labels]
-    peak = max(series, key=lambda s: s["hits"]) if series else None
-    recent = series[-3:] if series else []
-    recent_mean = round(sum(s["hits"] for s in recent) / len(recent), 2) if recent else 0.0
-    peak_hits = peak["hits"] if peak else 0
-    drop = round(1 - recent_mean / peak_hits, 3) if peak_hits > 0 else 0.0
-    return {
-        "interval": "month",
-        "series": series,
-        "peak_label": peak["label"] if peak else None,
-        "peak_hits": peak_hits,
-        "recent_mean": recent_mean,
-        "drop_ratio": max(0.0, drop),
-    }
+    return {"interval": "month", "series": series, **summarize_series(series, today)}

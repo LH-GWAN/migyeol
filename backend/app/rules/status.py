@@ -3,7 +3,8 @@
 유효 신호 = matches_promise AND confidence >= signal_min_conf AND signal ∈ {완료, 진행, 새로운문제}
 
 R1  가장 최근 유효 신호가 새로운문제(≥ completion_min_conf)                       -> 새로운 문제 발생
-R2  완료 신호 ≥ completion_min_conf 1건 이상, 또는 ≥ signal_min_conf 2건 이상      -> 조치 완료 근거 확인
+    (같은 날짜 동률이면 새로운문제를 우선 — 보수적)
+R2  완료 신호 ≥ completion_min_conf 1건 이상, 또는 ≥ signal_min_conf 로 서로 다른 발췌·날짜 2건 이상 -> 조치 완료 근거 확인
 R3  진행 신호 1건 이상                                                          -> 조치 진행 정황 확인
 R4  후속 기사 0건 / 마지막 후속 기사 stale_followup_days 이전 / 기한 경과+완료·진행 없음 -> 후속보도 부족
 R5  그 외                                                                       -> 판단 불가 (+ 사유)
@@ -28,6 +29,7 @@ SIGNAL_NEW_PROBLEM = "새로운문제"
 SIGNAL_UNRELATED = "무관"
 SIGNAL_UNCLEAR = "불명확"
 SIGNALS = (SIGNAL_DONE, SIGNAL_PROGRESS, SIGNAL_NEW_PROBLEM, SIGNAL_UNRELATED, SIGNAL_UNCLEAR)
+POSITIVE_SIGNALS = (SIGNAL_DONE, SIGNAL_PROGRESS, SIGNAL_NEW_PROBLEM)
 
 
 @dataclass(frozen=True)
@@ -73,6 +75,7 @@ class Judgment:
     evidence: list[dict] = field(default_factory=list)
     unresolved_reason: str | None = None
     counted_signal_ids: list[int] = field(default_factory=list)
+    valid_signal_ids: list[int] = field(default_factory=list)  # 유효 신호 전체 (단계 갱신·참고 표시용)
 
 
 def _ev(s: SignalIn) -> dict:
@@ -86,8 +89,18 @@ def _ev(s: SignalIn) -> dict:
     }
 
 
+def is_valid(s: SignalIn, th: Thresholds) -> bool:
+    return s.matches_promise and s.confidence >= th.signal_min_conf and s.signal in POSITIVE_SIGNALS
+
+
 def deadline_passed(promises: list[PromiseIn], today: date) -> bool:
     return any(p.is_trackable and p.deadline_date is not None and p.deadline_date < today for p in promises)
+
+
+def _distinct_evidence(items: list[SignalIn]) -> int:
+    """같은 문장을 전재한 신호는 한 건으로 센다 (정규화한 발췌 + 날짜)."""
+    keys = {(s.evidence_span.replace(" ", ""), s.published_at) for s in items}
+    return len(keys)
 
 
 def judge(
@@ -97,16 +110,14 @@ def judge(
     today: date,
     th: Thresholds = Thresholds(),
 ) -> Judgment:
-    valid = [
-        s
-        for s in signals
-        if s.matches_promise and s.confidence >= th.signal_min_conf and s.signal in (SIGNAL_DONE, SIGNAL_PROGRESS, SIGNAL_NEW_PROBLEM)
-    ]
+    valid = [s for s in signals if is_valid(s, th)]
+    valid_ids = [s.id for s in valid if s.id is not None]
     done = [s for s in valid if s.signal == SIGNAL_DONE]
     strong_done = [s for s in done if s.confidence >= th.completion_min_conf]
     progress = [s for s in valid if s.signal == SIGNAL_PROGRESS]
     problems = [s for s in valid if s.signal == SIGNAL_NEW_PROBLEM]
-    latest = max(valid, key=lambda s: s.published_at or date.min) if valid else None
+    # 동률(같은 날짜)이면 새로운문제 > 높은 신뢰도 순 — 입력 순서에 좌우되지 않는다
+    latest = max(valid, key=lambda s: (s.published_at or date.min, s.signal == SIGNAL_NEW_PROBLEM, s.confidence)) if valid else None
     last_followup = max(followup_dates) if followup_dates else None
     trackable = [p for p in promises if p.is_trackable]
     passed = deadline_passed(promises, today)
@@ -123,14 +134,15 @@ def judge(
             confidence=mean_conf(problems),
             evidence=[_ev(s) for s in problems],
             counted_signal_ids=[s.id for s in problems if s.id is not None],
+            valid_signal_ids=valid_ids,
         )
     # R2
-    if strong_done or len(done) >= 2:
+    if strong_done or _distinct_evidence(done) >= 2:
         counted = strong_done or done
         if strong_done:
             text = f"완료 신호 {len(strong_done)}건(최고 신뢰도 {max(s.confidence for s in strong_done):.2f})이 기준 {th.completion_min_conf} 이상"
         else:
-            text = f"완료 신호 {len(done)}건이 기준 {th.signal_min_conf} 이상 (2건 이상 규칙)"
+            text = f"서로 다른 완료 신호 {_distinct_evidence(done)}건이 기준 {th.signal_min_conf} 이상 (2건 이상 규칙)"
         return Judgment(
             status=STATUS_DONE,
             reason="R2_completion_evidence",
@@ -138,6 +150,7 @@ def judge(
             confidence=mean_conf(counted),
             evidence=[_ev(s) for s in counted],
             counted_signal_ids=[s.id for s in counted if s.id is not None],
+            valid_signal_ids=valid_ids,
         )
     # R3
     if progress:
@@ -148,6 +161,7 @@ def judge(
             confidence=mean_conf(progress),
             evidence=[_ev(s) for s in progress],
             counted_signal_ids=[s.id for s in progress if s.id is not None],
+            valid_signal_ids=valid_ids,
         )
     # R4
     if not followup_dates:
@@ -157,6 +171,7 @@ def judge(
             reason_text="사건 발생 이후 조치와 관련된 후속 기사가 수집되지 않음",
             confidence=0.5,
             unresolved_reason="후속 기사 0건",
+            valid_signal_ids=valid_ids,
         )
     days_since = (today - last_followup).days if last_followup else None
     if days_since is not None and days_since >= th.stale_followup_days:
@@ -166,6 +181,7 @@ def judge(
             reason_text=f"마지막 후속 기사가 {days_since}일 전(기준 {th.stale_followup_days}일)이고 완료·진행 신호가 없음",
             confidence=0.5,
             unresolved_reason=f"마지막 후속 기사 {last_followup.isoformat()} 이후 관련 보도 없음",
+            valid_signal_ids=valid_ids,
         )
     if passed and not done and not progress:
         return Judgment(
@@ -174,12 +190,18 @@ def judge(
             reason_text="발표된 기한이 지났으나 완료·진행 근거가 보도에서 확인되지 않음",
             confidence=0.5,
             unresolved_reason="기한 경과, 완료·진행 신호 없음",
+            valid_signal_ids=valid_ids,
         )
-    # R5
+    # R5 — 참고 신호(evidence)는 보여 주되 채택(counted)하지는 않는다
+    considered: list[SignalIn] = []
     if not trackable:
         why = "추적 가능한 약속(확약·계획)이 인용문에서 추출되지 않음"
     elif done:
-        why = f"완료 신호 {len(done)}건이 있으나 신뢰도({max(s.confidence for s in done):.2f})가 기준 {th.completion_min_conf} 미만이고 단건"
+        considered = done
+        why = f"완료 신호 {len(done)}건이 있으나 신뢰도({max(s.confidence for s in done):.2f})가 기준 {th.completion_min_conf} 미만이고 서로 다른 근거 2건이 안 됨"
+    elif problems:
+        considered = problems
+        why = f"새로운 문제 신호 {len(problems)}건이 있으나 신뢰도({max(s.confidence for s in problems):.2f})가 기준 {th.completion_min_conf} 미만"
     else:
         why = f"후속 기사 {len(followup_dates)}건이 있으나 조치와 관련된 유효 신호(신뢰도 {th.signal_min_conf} 이상)가 없음"
     return Judgment(
@@ -187,7 +209,8 @@ def judge(
         reason="R5_undetermined",
         reason_text=why,
         confidence=0.5,
-        evidence=[_ev(s) for s in done],
+        evidence=[_ev(s) for s in considered],
         unresolved_reason=why,
         counted_signal_ids=[],
+        valid_signal_ids=valid_ids,
     )

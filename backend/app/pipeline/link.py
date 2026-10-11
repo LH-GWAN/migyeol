@@ -1,31 +1,35 @@
 """3. 사건–기사 연결 (LLM 사용 금지) — 규칙 게이트 + 임베딩 유사도.
 
-게이트(필수): 발행일 ≥ 발생일-1일 AND (지역 OR 시설 OR 기관 일치) AND (시설명 일치 OR 사건분류 계열 일치 OR 시드 핵심어 2개 이상)
-  ※ 사건분류 태그가 없는 착공·완료 후속 기사는 시설명으로만 잡히므로 시설명 일치를 주제 조건으로 인정한다.
-    시설명만 있고 지역·기관이 없으면 강한 일치가 아니므로 임베딩 점수가 결정한다.
+후보 = 수집 단계가 이 사건을 위해 가져온 기사(EventCandidate) ∪ 기존 연결. 로컬 질의 재매칭은 하지 않는다.
+
+게이트(필수): 발행일 ≥ 발생일-1일 AND (지역 OR 시설 OR 기관 일치) AND (시설명 일치 OR 사건분류 계열 일치 OR 핵심어·연관어 2개 이상 OR 약속 행동 키워드 2개 이상)
 판정:
-  - 강한 규칙 일치(시설명이 제목에 있음 / 시설명 + 지역·기관 / 지역·기관 + 약속 행동 키워드 2개) -> 자동 연결 (rule)
-  - 게이트 통과 AND score ≥ LINK_AUTO                     -> 자동 연결 (embedding)
-  - 게이트 통과 AND LINK_REVIEW ≤ score < LINK_AUTO       -> 연결하되 needs_review (검토 큐)
-  - 그 외                                                 -> 폐기
-같은 지역의 다른 시드 시설명이 본문에 있고 이 사건 시설명이 없으면 무조건 검토 큐로 보낸다.
-관리자가 confirmed / rejected 로 표시한 연결은 재평가하지 않는다.
+  - 강한 규칙 일치                                            -> 자동 연결 (rule)
+      · 시설명이 제목에 있고 (지역·기관 또는 사건분류) 일치
+      · 시설명 + 지역·기관
+      · 책임기관 + 약속 행동 키워드 2개, 또는 지역 + 약속 행동 키워드 2개 + (시설명 또는 시드 고유 핵심어 1개)
+  - 게이트 통과 AND score ≥ LINK_AUTO                         -> 자동 연결 (embedding)
+  - 게이트 통과 AND LINK_REVIEW ≤ score < LINK_AUTO           -> 연결하되 needs_review (검토 큐)
+  - 그 외                                                     -> 폐기 (기존 자동 연결이면 삭제)
+같은 지역의 다른 시드 시설명이 본문에 있고 이 사건 시설명이 없으면 score ≥ LINK_REVIEW 일 때만 검토 큐, 아니면 폐기.
+한 기사가 여러 사건의 자동 연결에 들어가면 점수가 가장 높은 사건만 유지하고 나머지는 검토 큐로 보낸다.
+관리자가 confirmed / rejected / manual 로 표시한 연결은 재평가하지 않는다.
 """
 
 from __future__ import annotations
 
 import logging
 import re
-from datetime import date, timedelta
+from datetime import timedelta
 
 import numpy as np
 from sqlalchemy.orm import Session
 
-from ..bigkinds.query import Query
 from ..config import Settings
-from ..db.models import Article, Event, EventArticle
+from ..db.models import Article, Event, EventArticle, EventCandidate
 from .collect import article_text
-from .embeddings import EmbeddingBackend, cosine, from_bytes, to_bytes
+from .embeddings import EmbeddingBackend, cosine, from_bytes, needs_recompute, to_bytes
+from .review import recompute_needs_review
 from .seeds import seed_from_event
 
 log = logging.getLogger("migyeol.link")
@@ -56,8 +60,12 @@ def gate(event: Event, article: Article) -> tuple[bool, list[str]]:
     prefix = incident_prefix(event.incident_type)
     if any(c.startswith(prefix) for c in (article.category_incident or [])):
         reasons.append("incident")
-    kws = [k for k in [event.facility, *(event.keywords or []), *(event.expansions or [])] if k]
-    hits = sum(1 for k in dict.fromkeys(kws) if k in text)
+    seed_kws = [k for k in [event.facility, *(event.keywords or [])] if k]
+    seed_hits = sum(1 for k in dict.fromkeys(seed_kws) if k in text)
+    if seed_hits >= 1:
+        reasons.append(f"seed-kw={seed_hits}")
+    kws = [*seed_kws, *(event.expansions or [])]
+    hits = sum(1 for k in dict.fromkeys(kws) if k and k in text)
     if hits >= 2:
         reasons.append(f"kw={hits}")
     p_hits = sum(1 for k in dict.fromkeys(event.promise_terms or []) if k in text)
@@ -67,23 +75,35 @@ def gate(event: Event, article: Article) -> tuple[bool, list[str]]:
     return (scope_ok and topic_ok), reasons
 
 
+def is_strong(reasons: list[str]) -> bool:
+    scoped = "region" in reasons or "org" in reasons
+    has_facility = "facility" in reasons
+    seed_hit = any(r.startswith("seed-kw=") for r in reasons)
+    promise_hit = any(r.startswith("promise-kw=") for r in reasons)
+    if "facility-title" in reasons and (scoped or "incident" in reasons):
+        return True
+    if has_facility and scoped:
+        return True
+    if "org" in reasons and promise_hit:
+        return True  # 책임기관 명의 + 약속 행동 키워드 2개 (일반어는 terms._STOP 에서 걸러진다)
+    return scoped and promise_hit and (has_facility or seed_hit)
+
+
 def initial_phase(event: Event, article: Article) -> str:
     if article.published_at is not None and (article.published_at - event.occurred_at).days <= 3:
         return "발생"
-    if _INVESTIGATION_RE.search(article.title or ""):
+    if _INVESTIGATION_RE.search((article.title or "") + " " + (article.hilight or "")):
         return "원인조사"
     return "기타"
 
 
 def candidate_articles(session: Session, event: Event) -> list[Article]:
-    """수집 단계와 무관하게 재실행 가능하도록 DB 의 기사 중 시드 질의와 맞는 것을 후보로 삼는다."""
-    q = Query(event.seed_query or seed_from_event(event).base_query())
-    linked = {l.news_id for l in event.links}
-    out = []
-    for a in session.query(Article).all():
-        if a.news_id in linked or q.matches(article_text(a)):
-            out.append(a)
-    return out
+    """후보 = 이 사건을 위해 수집한 기사(EventCandidate) ∪ 기존 연결."""
+    ids = {c.news_id for c in session.query(EventCandidate).filter_by(event_id=event.id).all()}
+    ids |= {l.news_id for l in event.links}
+    if not ids:
+        return []
+    return session.query(Article).filter(Article.news_id.in_(ids)).all()
 
 
 def link_event(
@@ -97,7 +117,7 @@ def link_event(
     seed_vec = embedder.encode([seed_from_event(event).seed_text()])[0]
     existing = {l.news_id: l for l in event.links}
     others = [f for f in (other_facilities or []) if f and f != event.facility]
-    stats = {"event": event.key, "candidates": 0, "linked": 0, "review": 0, "dropped": 0, "skipped": 0}
+    stats = {"event": event.key, "candidates": 0, "linked": 0, "review": 0, "dropped": 0, "removed": 0, "skipped": 0}
 
     for art in candidate_articles(session, event):
         stats["candidates"] += 1
@@ -105,24 +125,33 @@ def link_event(
         if link is not None and (link.confirmed or link.rejected or link.link_method == "manual"):
             stats["skipped"] += 1
             continue
+
+        def drop() -> None:
+            # 이번 실행의 게이트·임계값을 통과하지 못한 자동 연결은 남기지 않는다 (시드 수정·질의 변화 반영)
+            if link is not None:
+                event.links.remove(link)
+                session.delete(link)
+                existing.pop(art.news_id, None)
+                stats["removed"] += 1
+            else:
+                stats["dropped"] += 1
+
         ok, reasons = gate(event, art)
         if not ok:
-            stats["dropped"] += 1
+            drop()
             continue
-        if art.embedding is None or art.embedding_backend != embedder.name:
+        if needs_recompute(art.embedding, art.embedding_backend, embedder):
             art.embedding = to_bytes(embedder.encode([article_text(art)])[0])
             art.embedding_backend = embedder.name
-        score = round(cosine(from_bytes(art.embedding), np.asarray(seed_vec)), 3)
+        score = cosine(from_bytes(art.embedding), np.asarray(seed_vec))
         text = article_text(art)
-        scoped = "region" in reasons or "org" in reasons
-        strong = (
-            "facility-title" in reasons
-            or ("facility" in reasons and scoped)
-            or (scoped and any(r.startswith("promise-kw=") for r in reasons))
-        )
+        strong = is_strong(reasons)
         other_hit = any(f in text for f in others) and "facility" not in reasons
 
         if other_hit:
+            if score < settings.link_review:
+                drop()
+                continue
             decision, method, review = "review", "embedding", True
             reasons.append("other-facility")
         elif strong or score >= settings.link_auto:
@@ -130,7 +159,7 @@ def link_event(
         elif score >= settings.link_review:
             decision, method, review = "review", "embedding", True
         else:
-            stats["dropped"] += 1
+            drop()
             continue
 
         if link is None:
@@ -138,19 +167,56 @@ def link_event(
             event.links.append(link)
             existing[art.news_id] = link
         link.link_method = method
-        link.link_score = score
+        link.link_score = round(score, 3)
         link.link_reason = "+".join(reasons)
         link.needs_review = review
         if link.phase in ("발생", "원인조사", "기타"):
             link.phase = initial_phase(event, art)
         stats["linked" if decision == "link" else "review"] += 1
 
-    event.needs_review = any(l.needs_review for l in existing.values() if not l.rejected)
+    recompute_needs_review(session, event)
     session.commit()
     log.info("link %s", stats)
     return stats
 
 
-def link_all(session: Session, events: list[Event], settings: Settings, embedder: EmbeddingBackend) -> list[dict]:
-    facilities = [e.facility for e in events]
-    return [link_event(session, e, settings, embedder, other_facilities=facilities) for e in events]
+def resolve_multi_event_links(session: Session, events: list[Event]) -> int:
+    """한 기사가 여러 사건에 자동 연결되면 점수가 가장 높은 사건만 유지하고 나머지는 검토 큐로 보낸다."""
+    by_news: dict[str, list[EventArticle]] = {}
+    for ev in events:
+        session.refresh(ev)
+        for l in ev.links:
+            if l.rejected or l.confirmed or l.link_method == "manual":
+                continue
+            by_news.setdefault(l.news_id, []).append(l)
+    changed = 0
+    for links in by_news.values():
+        if len(links) < 2:
+            continue
+        best = max(links, key=lambda l: l.link_score)
+        for l in links:
+            if l is best or l.needs_review:
+                continue
+            l.needs_review = True
+            if "multi-event" not in (l.link_reason or ""):
+                l.link_reason = (l.link_reason or "") + "+multi-event"
+            changed += 1
+    for ev in events:
+        recompute_needs_review(session, ev)
+    session.commit()
+    return changed
+
+
+def link_all(
+    session: Session,
+    events: list[Event],
+    settings: Settings,
+    embedder: EmbeddingBackend,
+    all_facilities: list[str] | None = None,
+) -> list[dict]:
+    facilities = all_facilities if all_facilities is not None else [e.facility for e in events]
+    stats = [link_event(session, e, settings, embedder, other_facilities=facilities) for e in events]
+    multi = resolve_multi_event_links(session, events)
+    if stats:
+        stats[0]["multi_event_review"] = multi
+    return stats

@@ -7,7 +7,15 @@ import ErrorBox from "@/components/ErrorBox";
 import ReportResolveButton from "@/components/ReportResolveButton";
 import StatusBadge from "@/components/StatusBadge";
 import { getReviewQueue, safe } from "@/lib/api";
-import { formatDate, formatDateTime, formatDaysAgo, formatPercent, formatScore, REPORT_TYPE_LABELS } from "@/lib/format";
+import {
+  formatDate,
+  formatDateTime,
+  formatDaysAgo,
+  formatPercent,
+  formatScore,
+  REPORT_TYPE_LABELS,
+  showsDeadlinePassed,
+} from "@/lib/format";
 
 export const dynamic = "force-dynamic";
 
@@ -66,7 +74,7 @@ export default async function AdminPage() {
                         <td className="py-3 pr-3">{c.priority_score.toFixed(1)}</td>
                         <td className="py-3 pr-3">
                           {c.deadline_date ? formatDate(c.deadline_date, c.primary_promise?.deadline_precision ?? "day") : "-"}
-                          {c.deadline_passed_days !== null && (
+                          {showsDeadlinePassed(c.status, c.deadline_passed_days) && (
                             <span className="ml-1 text-xs font-semibold text-red-700">경과 {c.deadline_passed_days}일</span>
                           )}
                         </td>
@@ -91,7 +99,8 @@ export default async function AdminPage() {
               저신뢰 연결 <span className="text-sm font-normal text-gray-500">{result.data.links.length}건</span>
             </h2>
             <p className="mt-1 text-xs text-gray-500">
-              확정하면 수동 연결(manual)로 기록되고, 해제하면 연결이 삭제됩니다.
+              확정하면 수동 연결(manual)로 기록됩니다. 해제하면 이 사건에서 제외되며 자동 재연결되지 않습니다(아래 「해제된
+              연결」에서 되돌릴 수 있음).
             </p>
             {result.data.links.length === 0 ? (
               <p className="mt-3 text-sm text-gray-500">검토할 저신뢰 연결이 없습니다.</p>
@@ -136,6 +145,57 @@ export default async function AdminPage() {
             )}
           </section>
 
+          {/* 2b. Rejected links (restorable) */}
+          <section className="rounded-lg border border-gray-200 bg-white p-5">
+            <h2 className="text-base font-bold text-gray-900">
+              해제된 연결 <span className="text-sm font-normal text-gray-500">{result.data.rejected_links.length}건</span>
+            </h2>
+            <p className="mt-1 text-xs text-gray-500">
+              관리자가 해제한 연결입니다. 타임라인·근거·검토 큐에서 빠져 있으며, 되돌리면 다시 이 사건의 기사로 포함됩니다.
+            </p>
+            {result.data.rejected_links.length === 0 ? (
+              <p className="mt-3 text-sm text-gray-500">해제된 연결이 없습니다.</p>
+            ) : (
+              <div className="mt-3 overflow-x-auto">
+                <table className="w-full min-w-[760px] border-collapse text-sm">
+                  <thead>
+                    <tr className="border-b border-gray-200 text-left text-xs text-gray-500">
+                      <th className="py-2 pr-3 font-semibold">사건</th>
+                      <th className="py-2 pr-3 font-semibold">기사</th>
+                      <th className="py-2 pr-3 font-semibold">점수</th>
+                      <th className="py-2 pr-3 font-semibold">통과한 규칙</th>
+                      <th className="py-2 font-semibold">처리</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {result.data.rejected_links.map((l) => (
+                      <tr key={`${l.event_id}-${l.article.news_id}`} className="border-b border-gray-100 align-top">
+                        <td className="py-3 pr-3">
+                          <Link href={`/events/${l.event_id}/evidence`} className="text-gray-900 hover:underline">
+                            {l.event_title}
+                          </Link>
+                          <p className="text-xs text-gray-400">#{l.event_id}</p>
+                        </td>
+                        <td className="py-3 pr-3">
+                          <ArticleLink article={l.article} className="text-sm" />
+                          <div className="mt-0.5">
+                            <ArticleMeta article={l.article} />
+                          </div>
+                          <p className="mt-0.5 font-mono text-[11px] text-gray-400">{l.article.news_id}</p>
+                        </td>
+                        <td className="py-3 pr-3 font-semibold">{formatScore(l.link_score)}</td>
+                        <td className="py-3 pr-3 font-mono text-xs text-gray-600">{l.link_reason || "-"}</td>
+                        <td className="py-3">
+                          <AdminLinkActions eventId={l.event_id} newsId={l.article.news_id} mode="rejected" />
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </section>
+
           {/* 3. Reports */}
           <section className="rounded-lg border border-gray-200 bg-white p-5">
             <h2 className="text-base font-bold text-gray-900">
@@ -171,7 +231,7 @@ export default async function AdminPage() {
                           <span className="ml-1 font-mono text-[11px] text-gray-400">({r.type})</span>
                         </td>
                         <td className="py-3 pr-3 font-mono text-[11px]">{r.news_id ?? "-"}</td>
-                        <td className="py-3 pr-3 text-xs leading-relaxed">{r.comment ?? "-"}</td>
+                        <td className="py-3 pr-3 text-xs leading-relaxed">{r.comment?.trim() ? r.comment : "-"}</td>
                         <td className="py-3 pr-3 text-xs">{formatDateTime(r.created_at)}</td>
                         <td className="py-3 text-xs">
                           {r.resolved ? (

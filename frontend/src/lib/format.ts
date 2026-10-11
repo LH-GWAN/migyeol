@@ -1,5 +1,24 @@
 import type { DeadlinePrecision, Phase, ReportType, SignalKind, Strength } from "./types";
 
+/** Route param -> positive integer id (max 10 digits). null for anything else ("abc", "0", "1e3", "-1"). */
+export function parseId(raw: string | undefined): number | null {
+  if (!raw || !/^[1-9]\d{0,9}$/.test(raw)) return null;
+  return Number(raw);
+}
+
+/**
+ * Whether the red "기한 경과" chip should be shown.
+ * Once completion evidence is confirmed the elapsed deadline is no longer a problem, so the
+ * chip is hidden for status "조치 완료 근거 확인" (card, detail header, admin table, PromiseCard).
+ * `passed` is either EventCard.deadline_passed_days (number | null) or PromiseOut.deadline_passed (boolean).
+ */
+export function showsDeadlinePassed(status: string, passed: number | boolean | null | undefined): boolean {
+  if (status === "조치 완료 근거 확인") return false;
+  if (passed === null || passed === undefined || passed === false) return false;
+  if (typeof passed === "number") return !Number.isNaN(passed);
+  return true;
+}
+
 /** Split "YYYY-MM-DD..." without touching the Date object (avoids timezone shifts). */
 function parseYmd(iso: string): { y: number; m: number; d: number } | null {
   const match = /^(\d{4})-(\d{2})-(\d{2})/.exec(iso);

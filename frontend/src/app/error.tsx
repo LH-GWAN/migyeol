@@ -2,17 +2,21 @@
 
 import Link from "next/link";
 
-/** Route-level error boundary: keeps the layout and shows a Korean message instead of a crash. */
-export default function RouteError({ error, reset }: { error: Error & { digest?: string }; reset: () => void }) {
+/**
+ * Route-level error boundary (Next 16: `{ error, retry }`).
+ * Keeps the layout and shows a fixed Korean message; only the digest is exposed so internal
+ * error text never reaches the screen.
+ */
+export default function RouteError({ error, retry }: { error: Error & { digest?: string }; retry: () => void }) {
   return (
     <div role="alert" className="rounded-lg border border-red-200 bg-red-50 p-6 text-sm text-red-900">
       <p className="font-semibold">페이지를 표시하는 중 문제가 발생했습니다.</p>
-      <p className="mt-1 break-all font-mono text-xs text-red-700/80">{error.message}</p>
+      <p className="mt-1 text-red-800/90">잠시 후 다시 시도해 주세요. 문제가 계속되면 아래 코드를 함께 알려주세요.</p>
       {error.digest && <p className="mt-1 font-mono text-[11px] text-red-600/70">digest: {error.digest}</p>}
       <div className="mt-4 flex gap-2">
         <button
           type="button"
-          onClick={reset}
+          onClick={() => retry()}
           className="rounded-md bg-gray-900 px-3 py-1.5 text-xs font-semibold text-white hover:bg-gray-700"
         >
           다시 시도

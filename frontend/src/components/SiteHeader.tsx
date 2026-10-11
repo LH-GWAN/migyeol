@@ -1,10 +1,28 @@
 import Link from "next/link";
 import { getMeta, safe, USE_MOCK } from "@/lib/api";
 import { formatDateTime } from "@/lib/format";
+import type { BigKindsMode } from "@/lib/types";
+
+/** Data-source badge per bigkinds_mode. Unknown values fall back to a neutral "알 수 없음". */
+function modeBadge(mode: BigKindsMode | string): { label: string; className: string } {
+  switch (mode) {
+    case "mock":
+      return { label: "mock(가상)", className: "bg-orange-100 text-orange-800" };
+    case "record":
+      return { label: "live(녹화 재생)", className: "bg-green-100 text-green-800" };
+    case "live":
+      return { label: "live", className: "bg-green-100 text-green-800" };
+    default:
+      return { label: "알 수 없음", className: "bg-gray-100 text-gray-600" };
+  }
+}
 
 /** Service header: name, tagline, nav, data source + last refresh from GET /api/meta. */
 export default async function SiteHeader() {
   const meta = await safe(getMeta());
+  const badge = meta.ok ? modeBadge(meta.data.bigkinds_mode) : null;
+  const lastRun = meta.ok ? meta.data.last_run : null;
+  const lastRunFailed = lastRun !== null && lastRun.ok === false;
 
   return (
     <header className="border-b border-gray-200 bg-white">
@@ -26,26 +44,33 @@ export default async function SiteHeader() {
         </nav>
 
         <div className="ml-auto text-right text-xs leading-relaxed text-gray-500">
-          {meta.ok ? (
+          {meta.ok && badge ? (
             <>
-              <p>
-                데이터: 빅카인즈 API{" "}
-                <span
-                  className={`rounded px-1.5 py-0.5 font-mono font-semibold ${
-                    meta.data.bigkinds_mode === "live" ? "bg-green-100 text-green-800" : "bg-amber-100 text-amber-800"
-                  }`}
-                >
-                  {meta.data.bigkinds_mode}
-                </span>
-                {USE_MOCK && <span className="ml-1 text-gray-400">(프런트 목 데이터)</span>}
+              <p className="flex flex-wrap items-center justify-end gap-1.5">
+                <span>데이터: 빅카인즈 API</span>
+                <span className={`rounded px-1.5 py-0.5 font-mono font-semibold ${badge.className}`}>{badge.label}</span>
+                {meta.data.today_overridden && (
+                  <span
+                    className="rounded border border-violet-200 bg-violet-50 px-1.5 py-0.5 font-mono font-semibold text-violet-800"
+                    title="백엔드가 오늘 날짜를 고정값으로 계산합니다(시연·재현용)"
+                  >
+                    기준일 고정 {meta.data.today}
+                  </span>
+                )}
+                {USE_MOCK && <span className="text-gray-400">(프런트 목 데이터)</span>}
               </p>
               <p>
                 마지막 갱신{" "}
                 <time dateTime={meta.data.last_pipeline_run?.finished_at ?? undefined}>
                   {meta.data.last_pipeline_run ? formatDateTime(meta.data.last_pipeline_run.finished_at) : "기록 없음"}
                 </time>
-                {meta.data.last_pipeline_run && !meta.data.last_pipeline_run.ok && (
-                  <span className="ml-1 text-red-600">(실패)</span>
+                {lastRunFailed && lastRun && (
+                  <span
+                    className="ml-1 text-red-600"
+                    title={`최근 실행 실패: ${lastRun.stage}${lastRun.event_id !== null ? ` (사건 #${lastRun.event_id})` : ""} · ${formatDateTime(lastRun.finished_at)}${lastRun.error_summary ? ` · ${lastRun.error_summary}` : ""}`}
+                  >
+                    (실패)
+                  </span>
                 )}
                 <span className="ml-2 text-gray-400">· 사건 {meta.data.event_count}건</span>
               </p>

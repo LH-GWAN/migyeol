@@ -2,12 +2,16 @@
 
 LLM_MODE=stub : fixtures/llm/stub_answers.json 재생 (키 불필요, 예선·테스트용)
 LLM_MODE=live : Anthropic Messages API, client.messages.parse(output_format=<pydantic>) 로 구조화 출력
+
+실패(한도 초과·서버 오류·파싱 실패·스텁 미스)는 결과를 지어내지 않고 LLMFailure 를 올린다.
+호출자는 그 항목을 저장하지 않고 다음 실행에서 다시 시도한다. 키·권한·모델 ID 오류는 모든 호출이 똑같이 실패하므로 그대로 전파한다.
 """
 
 from __future__ import annotations
 
 import json
 import logging
+import re
 from pathlib import Path
 from typing import Any, Protocol, TypeVar
 
@@ -20,8 +24,14 @@ log = logging.getLogger("migyeol.llm")
 
 PROMPTS_DIR = Path(__file__).resolve().parent / "prompts"
 PROMPT_VERSIONS = {"promise": "promise_v1", "followup": "followup_v1"}
+MAX_SPAN_CHARS = 100
+_FUTURE_RE = re.compile(r"(예정|목표|계획|방침|추진하|할\s*것|마무리할|완료하겠)")
 
 T = TypeVar("T", bound=BaseModel)
+
+
+class LLMFailure(RuntimeError):
+    """이 항목만 실패 — 저장하지 않고 다음 실행에서 재시도한다."""
 
 
 def load_prompt(name: str) -> str:
@@ -38,7 +48,8 @@ class LLMClient(Protocol):
 
 
 class StubLLM:
-    """픽스처 정답을 돌려주는 대역. key 는 fixture 생성기가 정한 식별자 (promise: 'news_id||source||quotation', followup: 'event_key||news_id')."""
+    """픽스처 정답을 돌려주는 대역. key 는 fixture 생성기가 정한 식별자 (promise: 'news_id||source||quotation', followup: 'event_key||news_id').
+    정답이 없으면 LLMFailure — 실패 행을 캐시하지 않는다."""
 
     mode = "stub"
     model = "stub"
@@ -54,16 +65,14 @@ class StubLLM:
         raw = self.answers.get("promises", {}).get(key)
         if raw is None:
             self.misses.append(f"promise:{key}")
-            return PromiseExtraction(
-                is_promise=False, actor_raw=inp.source, strength="해당없음", confidence=0.0, rationale="stub: 정답 없음"
-            )
+            raise LLMFailure(f"stub 정답 없음: promise {key}")
         return PromiseExtraction.model_validate(raw)
 
     def classify_followup(self, inp: FollowupInput, *, key: str = "") -> FollowupSignal:
         raw = self.answers.get("signals", {}).get(key)
         if raw is None:
             self.misses.append(f"signal:{key}")
-            return FollowupSignal(signal="불명확", matches_promise=False, confidence=0.0, rationale="stub: 정답 없음")
+            raise LLMFailure(f"stub 정답 없음: signal {key}")
         data = dict(raw)
         # 픽스처는 promise_index(약속 순번)로 저장한다 -> 입력의 실제 promise id 로 치환
         idx = data.pop("promise_index", None)
@@ -90,7 +99,7 @@ class AnthropicLLM:
         self.model = settings.llm_model
         self._system_promise = load_prompt(PROMPT_VERSIONS["promise"])
         self._system_followup = load_prompt(PROMPT_VERSIONS["followup"])
-        self.usage: dict[str, int] = {"input_tokens": 0, "output_tokens": 0, "cache_read_input_tokens": 0, "calls": 0}
+        self.usage: dict[str, int] = {"input_tokens": 0, "output_tokens": 0, "cache_read_input_tokens": 0, "calls": 0, "failures": 0}
 
     def _parse(self, system_text: str, payload: BaseModel, output_model: type[T], effort: str) -> T:
         import anthropic
@@ -117,7 +126,7 @@ class AnthropicLLM:
                     self.usage["output_tokens"] += getattr(usage, "output_tokens", 0) or 0
                     self.usage["cache_read_input_tokens"] += getattr(usage, "cache_read_input_tokens", 0) or 0
                 if getattr(resp, "stop_reason", None) == "refusal":
-                    raise RuntimeError(f"LLM refusal: {getattr(resp, 'stop_details', None)}")
+                    raise LLMFailure(f"LLM refusal: {getattr(resp, 'stop_details', None)}")
                 parsed = resp.parsed_output
                 if parsed is None:
                     raise ValidationError.from_exception_data("parsed_output is None", [])
@@ -130,23 +139,24 @@ class AnthropicLLM:
                 raise
             except anthropic.APIError as exc:
                 # 한도 초과·서버·연결 오류(SDK 재시도 후에도 실패)는 이 항목만 실패 처리하고 다음 항목으로 넘어간다
-                raise RuntimeError(f"LLM API error: {exc}") from exc
-        raise RuntimeError(f"LLM structured output failed after retry: {last_exc}")
+                self.usage["failures"] += 1
+                raise LLMFailure(f"LLM API error: {type(exc).__name__}") from exc
+        self.usage["failures"] += 1
+        raise LLMFailure(f"LLM structured output failed after retry: {type(last_exc).__name__}")
 
     def extract_promise(self, inp: PromiseInput, *, key: str = "") -> PromiseExtraction:
         try:
             return self._parse(self._system_promise, inp, PromiseExtraction, effort="medium")
-        except RuntimeError as exc:
+        except LLMFailure as exc:
             log.error("extract_promise failed (%s): %s", key, exc)
-            return PromiseExtraction(is_promise=False, actor_raw=inp.source, strength="해당없음", confidence=0.0, rationale=f"오류: {exc}"[:200])
+            raise
 
     def classify_followup(self, inp: FollowupInput, *, key: str = "") -> FollowupSignal:
         try:
-            sig = self._parse(self._system_followup, inp, FollowupSignal, effort="low")
-        except RuntimeError as exc:
+            return self._parse(self._system_followup, inp, FollowupSignal, effort="low")
+        except LLMFailure as exc:
             log.error("classify_followup failed (%s): %s", key, exc)
-            return FollowupSignal(signal="불명확", matches_promise=False, confidence=0.0, rationale=f"오류: {exc}"[:200])
-        return sig
+            raise
 
 
 def build_llm(settings: Settings) -> LLMClient:
@@ -155,19 +165,36 @@ def build_llm(settings: Settings) -> LLMClient:
     return AnthropicLLM(settings)
 
 
-def validate_span(signal: FollowupSignal, inp: FollowupInput) -> FollowupSignal:
-    """evidence_span 은 반드시 입력의 부분 문자열이어야 한다. 아니면 불명확 처리."""
-    if not signal.evidence_span:
-        return signal
-    hay = " ".join([inp.article_title, inp.hilight, *inp.quotations]).replace("\n", " ")
-    span = signal.evidence_span.strip()
-    if span in hay or span.replace(" ", "") in hay.replace(" ", ""):
-        return signal
+def _demote(signal: FollowupSignal, why: str) -> FollowupSignal:
     return signal.model_copy(
         update={
             "signal": "불명확",
             "matches_promise": False,
             "confidence": min(signal.confidence, 0.3),
-            "rationale": f"근거 문장이 입력에서 확인되지 않아 불명확 처리 (원 판정: {signal.signal})",
+            "rationale": f"{why} (원 판정: {signal.signal})",
         }
     )
+
+
+def validate_span(signal: FollowupSignal, inp: FollowupInput) -> FollowupSignal:
+    """후속 신호 코드 가드.
+
+    - 완료·진행·새로운문제는 발췌 문장(≤100자)이 입력의 부분 문자열이어야 한다. 없거나 길거나 입력에 없으면 불명확.
+    - 발췌가 '예정·목표·계획' 같은 미래 표현이면 완료가 아니라 진행으로 낮춘다 (프롬프트만 믿지 않는다).
+    - 무관·불명확은 빈 발췌를 허용한다.
+    """
+    span = (signal.evidence_span or "").strip()
+    if signal.signal in ("무관", "불명확"):
+        if not span:
+            return signal
+    else:
+        if not span:
+            return _demote(signal, "근거 발췌 문장이 없어 불명확 처리")
+        if len(span) > MAX_SPAN_CHARS:
+            return _demote(signal, f"발췌가 {MAX_SPAN_CHARS}자를 넘어 불명확 처리")
+    hay = " ".join([inp.article_title, inp.hilight, *inp.quotations]).replace("\n", " ")
+    if not (span in hay or span.replace(" ", "") in hay.replace(" ", "")):
+        return _demote(signal, "근거 문장이 입력에서 확인되지 않아 불명확 처리")
+    if signal.signal == "완료" and _FUTURE_RE.search(span):
+        return signal.model_copy(update={"signal": "진행", "rationale": f"발췌가 예정·목표 표현이라 완료가 아닌 진행으로 조정 — {signal.rationale}"})
+    return signal

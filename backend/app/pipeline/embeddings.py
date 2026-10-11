@@ -2,6 +2,8 @@
 
 EMBEDDING_BACKEND=st   : sentence-transformers (jhgan/ko-sroberta-multitask 등), `pip install -e ".[embeddings]"`
 EMBEDDING_BACKEND=hash : 문자 2~3-gram 해싱 (의존성 없음, 예선·테스트 기본값)
+
+name 에 모델명이 들어가므로(st:<model>) 모델을 바꾸면 저장된 벡터가 자동으로 재계산된다.
 """
 
 from __future__ import annotations
@@ -25,10 +27,9 @@ class EmbeddingBackend(Protocol):
 
 
 class HashEmbedding:
-    name = "hash"
-
     def __init__(self, dim: int = 4096):
         self.dim = dim
+        self.name = f"hash:{dim}"
 
     @staticmethod
     def _grams(text: str) -> list[str]:
@@ -50,13 +51,12 @@ class HashEmbedding:
 
 
 class SentenceTransformerEmbedding:
-    name = "st"
-
     def __init__(self, model_name: str):
         from sentence_transformers import SentenceTransformer  # lazy import (무거움)
 
         self.model = SentenceTransformer(model_name)
         self.model_name = model_name
+        self.name = f"st:{model_name}"
         self.dim = int(self.model.get_sentence_embedding_dimension() or 768)
 
     def encode(self, texts: list[str]) -> np.ndarray:
@@ -83,3 +83,10 @@ def to_bytes(vec: np.ndarray) -> bytes:
 
 def from_bytes(raw: bytes) -> np.ndarray:
     return np.frombuffer(raw, dtype=np.float32)
+
+
+def needs_recompute(stored: bytes | None, stored_backend: str | None, embedder: EmbeddingBackend) -> bool:
+    """백엔드·모델이 다르거나 차원이 다르면 다시 계산한다."""
+    if stored is None or stored_backend != embedder.name:
+        return True
+    return len(from_bytes(stored)) != embedder.dim

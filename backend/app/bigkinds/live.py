@@ -1,4 +1,8 @@
-"""실제 빅카인즈 OpenAPI 호출 클라이언트 (HTTPS POST, JSON)."""
+"""실제 빅카인즈 OpenAPI 호출 클라이언트 (HTTPS POST, JSON).
+
+- 재시도: 타임아웃·전송 오류·429/5xx 만, 지수 백오프(429 는 Retry-After 우선). 그 밖의 4xx 는 즉시 BigKindsError.
+- 비JSON 응답, envelope 검증 실패, result != 0 도 모두 BigKindsError 로 통일한다 (파이프라인이 사건 단위로 잡는다).
+"""
 
 from __future__ import annotations
 
@@ -8,6 +12,7 @@ import time
 from typing import Any
 
 import httpx
+from pydantic import ValidationError
 
 from .protocol import DEFAULT_NEWS_FIELDS, BigKindsError
 from .schemas import (
@@ -50,8 +55,9 @@ class LiveBigKindsClient:
         timeout: float = 30.0,
         max_retries: int = 3,
         http: httpx.Client | None = None,
+        require_key: bool = True,
     ):
-        if not access_key:
+        if require_key and not access_key:
             raise ValueError("BIGKINDS_ACCESS_KEY 가 비어 있습니다 (.env 확인)")
         self.access_key = access_key
         self.base_url = base_url.rstrip("/")
@@ -60,6 +66,9 @@ class LiveBigKindsClient:
         self._http = http or httpx.Client(timeout=timeout, headers={"Content-Type": "application/json; charset=utf-8"})
         self._last_call = 0.0
         self.call_log: list[dict[str, Any]] = []
+
+    def close(self) -> None:
+        self._http.close()
 
     # ------------------------------------------------------------------ core
     def _throttle(self) -> None:
@@ -70,7 +79,9 @@ class LiveBigKindsClient:
             time.sleep(wait)
 
     def _call(self, endpoint: str, argument: dict[str, Any]) -> dict[str, Any]:
-        """POST {access_key, argument} -> return_object. 429/5xx/타임아웃은 지수 백오프로 재시도."""
+        """POST {access_key, argument} -> return_object."""
+        if not self.access_key:
+            raise BigKindsError(endpoint, None, "access_key 없음 (replay_only 녹화 미스)")
         body = {"access_key": self.access_key, "argument": argument}
         url = f"{self.base_url}{endpoint}"
         last_exc: Exception | None = None
@@ -79,36 +90,61 @@ class LiveBigKindsClient:
             started = time.monotonic()
             try:
                 resp = self._http.post(url, content=json.dumps(body, ensure_ascii=False).encode("utf-8"))
-                self._last_call = time.monotonic()
-                elapsed_ms = int((self._last_call - started) * 1000)
-                if resp.status_code in _RETRY_STATUS:
-                    raise httpx.HTTPStatusError(f"status {resp.status_code}", request=resp.request, response=resp)
-                resp.raise_for_status()
-                payload = resp.json()
-                env = ApiEnvelope.model_validate(payload)
-                self._log_call(endpoint, argument, env, elapsed_ms)
-                if env.result != 0:
-                    raise BigKindsError(endpoint, env.result, payload)
-                return env.return_object
-            except (httpx.TimeoutException, httpx.HTTPStatusError, httpx.TransportError) as exc:
+            except (httpx.TimeoutException, httpx.TransportError) as exc:
                 last_exc = exc
-                backoff = 0.5 * (2**attempt)
-                log.warning("bigkinds %s attempt %d failed (%s); retry in %.1fs", endpoint, attempt + 1, exc, backoff)
-                time.sleep(backoff)
-        raise BigKindsError(endpoint, None, repr(last_exc))
+                self._last_call = time.monotonic()
+                self._backoff(endpoint, attempt, exc, None)
+                continue
+            self._last_call = time.monotonic()
+            elapsed_ms = int((self._last_call - started) * 1000)
+            if resp.status_code in _RETRY_STATUS:
+                last_exc = httpx.HTTPStatusError(f"status {resp.status_code}", request=resp.request, response=resp)
+                self._backoff(endpoint, attempt, last_exc, resp)
+                continue
+            if resp.status_code >= 400:
+                raise BigKindsError(endpoint, resp.status_code, resp.text[:300])
+            try:
+                payload = resp.json()
+            except ValueError as exc:
+                raise BigKindsError(endpoint, resp.status_code, f"non-JSON response: {resp.text[:300]}") from exc
+            try:
+                env = ApiEnvelope.model_validate(payload)
+            except ValidationError as exc:
+                raise BigKindsError(endpoint, None, f"envelope 검증 실패: {exc.errors()[:2]} payload={str(payload)[:200]}") from exc
+            self._log_call(endpoint, argument, env, elapsed_ms)
+            if env.result != 0:
+                raise BigKindsError(endpoint, env.result, payload)
+            return env.return_object
+        raise BigKindsError(endpoint, None, f"재시도 {self.max_retries + 1}회 실패: {last_exc!r}")
+
+    def _backoff(self, endpoint: str, attempt: int, exc: Exception, resp: httpx.Response | None) -> None:
+        if attempt >= self.max_retries:
+            return  # 마지막 시도 뒤에는 기다리지 않는다
+        wait = 0.5 * (2**attempt)
+        if resp is not None and resp.status_code == 429:
+            ra = resp.headers.get("Retry-After")
+            if ra and ra.isdigit():
+                wait = max(wait, float(ra))
+        log.warning("bigkinds %s attempt %d failed (%s); retry in %.1fs", endpoint, attempt + 1, exc, wait)
+        time.sleep(wait)
 
     def _log_call(self, endpoint: str, argument: dict[str, Any], env: ApiEnvelope, elapsed_ms: int) -> None:
         ro = env.return_object or {}
+        if isinstance(argument.get("news_ids"), list):
+            q: Any = f"{len(argument['news_ids'])} ids"
+        else:
+            q = argument.get("query") or argument.get("date") or argument.get("from")
         summary = {
             "endpoint": endpoint,
-            "query": argument.get("query") or argument.get("date") or argument.get("news_ids", "")[:3]
-            if isinstance(argument.get("news_ids"), list)
-            else argument.get("query") or argument.get("date") or argument.get("from"),
+            "query": q,
             "total_hits": ro.get("total_hits", ro.get("total_count")),
             "n": len(ro.get("documents") or ro.get("topics") or ro.get("nodes") or ro.get("time_line") or ro.get("dataList") or []),
             "elapsed_ms": elapsed_ms,
             "keys": sorted(ro.keys()),
         }
+        docs = ro.get("documents")
+        if isinstance(docs, list) and docs and isinstance(docs[0], dict):
+            summary["document_keys"] = sorted(docs[0].keys())  # 첫 실호출에서 실제 반환 필드 확인용
         self.call_log.append(summary)
         log.info("bigkinds %s", summary)
 

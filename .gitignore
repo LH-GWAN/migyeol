@@ -9,8 +9,8 @@ __pycache__/
 .venv/
 .pytest_cache/
 .ruff_cache/
-backend/data/*.db
-backend/data/*.db-journal
+backend/data/*
+!backend/data/.gitkeep
 backend/fixtures/bigkinds/recordings/
 
 # node

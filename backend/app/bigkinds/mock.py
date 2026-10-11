@@ -191,7 +191,7 @@ class MockBigKindsClient:
                 if kw.lower() in qterms or any(t in kw.lower() for t in qterms):
                     continue
                 counter[kw] += 1
-        top = counter.most_common(30)
+        top = sorted(counter.items(), key=lambda kv: (-kv[1], kv[0]))[:30]
         peak = top[0][1] if top else 1
         nodes = [{"id": i + 2, "name": name, "level": 3, "weight": round(2.0 * c / peak, 2)} for i, (name, c) in enumerate(top)]
         self._log("/word_cloud", arg.argument(), len(nodes), len(docs))
@@ -212,8 +212,8 @@ class MockBigKindsClient:
 
     def search_quotation(self, arg: QuotationSearchArgument) -> QuotationSearchResult:
         def qtext(doc: dict[str, Any], scope: str = "all") -> str:
-            art = self._by_id.get(doc["news_id"], {})
-            return " ".join([doc.get("source", ""), doc.get("quotation", ""), art.get("title", ""), art.get("content", "")])
+            # 실서버가 인용문 텍스트만 검색한다고 보수적으로 가정한다 (첫 실호출에서 확인 — ARCHITECTURE "지침서와 실제 응답 차이")
+            return " ".join([doc.get("source", ""), doc.get("quotation", "")])
 
         docs, query = self._search_docs(self.quotations, arg, qtext)
         docs = self._sort(docs, arg.sort, query, qtext)

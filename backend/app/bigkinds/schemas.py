@@ -3,14 +3,19 @@
 - 요청 본문: {"access_key": ..., "argument": {...}}
 - 응답 본문: {"result": 0, "return_object": {...}}
 - published_at.until 은 해당 일자를 제외한다 (from 은 포함).
+- 응답의 null/타입 불일치는 관대하게 받는다 (문자열 None -> "", 리스트 None -> [], str -> [str]).
 """
 
 from __future__ import annotations
 
-from datetime import date, datetime
+import logging
+from datetime import date, datetime, timedelta, timezone
 from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+
+log = logging.getLogger("migyeol.bigkinds")
+KST = timezone(timedelta(hours=9))
 
 # ---------------------------------------------------------------------------
 # 요청
@@ -154,22 +159,60 @@ class ChangeTrackerArgument(BaseModel):
 
 
 def parse_published(value: str | None) -> date | None:
-    """'2019-03-14T00:00:00.000+09:00' / '20190314' / '2019-03-14' -> date"""
+    """'2019-03-14T00:00:00.000+09:00' / '20190314' / '2019-03-14' -> KST 기준 date. 실패하면 None (예외를 던지지 않는다)."""
     if not value:
         return None
-    v = value.strip()
-    if len(v) == 8 and v.isdigit():
-        return date(int(v[:4]), int(v[4:6]), int(v[6:8]))
+    v = str(value).strip()
     try:
-        return datetime.fromisoformat(v.replace("Z", "+00:00")).date()
+        if len(v) == 8 and v.isdigit():
+            return date(int(v[:4]), int(v[4:6]), int(v[6:8]))
+        dt = datetime.fromisoformat(v.replace("Z", "+00:00"))
+        if dt.tzinfo is not None:
+            dt = dt.astimezone(KST)
+        return dt.date()
     except ValueError:
-        return date.fromisoformat(v[:10])
+        try:
+            return date.fromisoformat(v[:10])
+        except ValueError:
+            log.warning("published_at 파싱 실패: %r", value)
+            return None
 
 
-class NewsDocument(BaseModel):
-    """2.3 출력 결과 documents[] — fields 에 지정한 값만 채워진다."""
+def _none_to_str(v: Any) -> Any:
+    return "" if v is None else v
+
+
+def _to_str_list(v: Any) -> list[str]:
+    if v is None or v == "":
+        return []
+    if isinstance(v, str):
+        return [s.strip() for s in v.replace("|", ",").split(",") if s.strip()]
+    if isinstance(v, (list, tuple)):
+        return [str(x) for x in v if x is not None and str(x).strip()]
+    return [str(v)]
+
+
+class _Lenient(BaseModel):
+    """응답 문서 공통: null 문자열 -> "", null/문자열 리스트 -> [str]."""
 
     model_config = ConfigDict(extra="allow")
+
+    @field_validator("*", mode="before")
+    @classmethod
+    def _lenient(cls, v: Any, info):
+        field = cls.model_fields.get(info.field_name)
+        if field is None:
+            return v
+        ann = str(field.annotation)
+        if ann.startswith("list"):
+            return _to_str_list(v)
+        if v is None and ann in ("<class 'str'>", "str"):
+            return ""
+        return v
+
+
+class NewsDocument(_Lenient):
+    """2.3 출력 결과 documents[] — fields 에 지정한 값만 채워진다."""
 
     news_id: str
     title: str = ""
@@ -190,15 +233,21 @@ class NewsDocument(BaseModel):
     printing_page: str | None = None
     tms_raw_stream: str | None = None
 
+    @field_validator("news_id", mode="before")
+    @classmethod
+    def _news_id_str(cls, v: Any) -> str:
+        return str(v)
+
     @property
     def published_date(self) -> date | None:
         return parse_published(self.published_at)
 
     @property
     def keywords(self) -> list[str]:
+        """tms_raw_stream 의 명사 키워드 — 순서 유지 중복 제거."""
         if not self.tms_raw_stream:
             return []
-        return [k.strip() for k in self.tms_raw_stream.split("\n") if k.strip()]
+        return list(dict.fromkeys(k.strip() for k in self.tms_raw_stream.split("\n") if k.strip()))
 
     @property
     def provider_code(self) -> str:
@@ -209,10 +258,31 @@ class NewsSearchResult(BaseModel):
     total_hits: int = 0
     documents: list[NewsDocument] = Field(default_factory=list)
 
+    @field_validator("total_hits", mode="before")
+    @classmethod
+    def _hits(cls, v: Any) -> int:
+        try:
+            return int(v or 0)
+        except (TypeError, ValueError):
+            return 0
 
-class IssueTopic(BaseModel):
-    model_config = ConfigDict(extra="allow")
-    topic: str
+    @field_validator("documents", mode="before")
+    @classmethod
+    def _docs(cls, v: Any) -> list:
+        """깨진 문서 하나가 응답 전체를 막지 않게, 검증 실패 문서는 건너뛰고 경고한다."""
+        if not v:
+            return []
+        out = []
+        for raw in v:
+            try:
+                out.append(NewsDocument.model_validate(raw))
+            except Exception as exc:  # noqa: BLE001
+                log.warning("news document 건너뜀 (%s): %s", exc, str(raw)[:120])
+        return out
+
+
+class IssueTopic(_Lenient):
+    topic: str = ""
     topic_rank: int = 0
     topic_keyword: str = ""
     topic_content: str = ""
@@ -228,17 +298,26 @@ class IssueRankingResult(BaseModel):
     date: str = ""
     topics: list[IssueTopic] = Field(default_factory=list)
 
+    @field_validator("topics", mode="before")
+    @classmethod
+    def _topics(cls, v: Any) -> list:
+        return v or []
 
-class WordCloudNode(BaseModel):
-    model_config = ConfigDict(extra="allow")
+
+class WordCloudNode(_Lenient):
     id: int = 0
-    name: str
+    name: str = ""
     level: int = 0
     weight: float = 0.0
 
 
 class WordCloudResult(BaseModel):
     nodes: list[WordCloudNode] = Field(default_factory=list)
+
+    @field_validator("nodes", mode="before")
+    @classmethod
+    def _nodes(cls, v: Any) -> list:
+        return v or []
 
 
 class TimeLinePoint(BaseModel):
@@ -250,11 +329,14 @@ class TimeLineResult(BaseModel):
     total_hits: int = 0
     time_line: list[TimeLinePoint] = Field(default_factory=list)
 
+    @field_validator("time_line", mode="before")
+    @classmethod
+    def _tl(cls, v: Any) -> list:
+        return v or []
 
-class QuotationDocument(BaseModel):
+
+class QuotationDocument(_Lenient):
     """8.3 출력 결과 documents[] — source(발언 주체), quotation(발언 내용)이 핵심."""
-
-    model_config = ConfigDict(extra="allow")
 
     news_id: str
     published_at: str | None = None
@@ -268,6 +350,11 @@ class QuotationDocument(BaseModel):
     title: str | None = None
     byline: str | None = None
 
+    @field_validator("news_id", mode="before")
+    @classmethod
+    def _news_id_str(cls, v: Any) -> str:
+        return str(v)
+
     @property
     def published_date(self) -> date | None:
         return parse_published(self.published_at or self.date)
@@ -277,12 +364,32 @@ class QuotationSearchResult(BaseModel):
     total_hits: int = 0
     documents: list[QuotationDocument] = Field(default_factory=list)
 
+    @field_validator("total_hits", mode="before")
+    @classmethod
+    def _hits(cls, v: Any) -> int:
+        try:
+            return int(v or 0)
+        except (TypeError, ValueError):
+            return 0
 
-class ChangeTrackerItem(BaseModel):
-    model_config = ConfigDict(extra="allow")
+    @field_validator("documents", mode="before")
+    @classmethod
+    def _docs(cls, v: Any) -> list:
+        if not v:
+            return []
+        out = []
+        for raw in v:
+            try:
+                out.append(QuotationDocument.model_validate(raw))
+            except Exception as exc:  # noqa: BLE001
+                log.warning("quotation document 건너뜀 (%s): %s", exc, str(raw)[:120])
+        return out
+
+
+class ChangeTrackerItem(_Lenient):
     media_id: str = ""
-    newsitem_id: str
-    news_status: Literal["Update", "Cancelled"] | str = "Update"
+    newsitem_id: str = ""
+    news_status: str = "Update"  # Update | Cancelled
     insert_dt: str | None = None
     update_dt: str | None = None
     pub_date: str | None = None
@@ -295,10 +402,22 @@ class ChangeTrackerResult(BaseModel):
     message: str = "OK"
     items: list[ChangeTrackerItem] = Field(default_factory=list)
 
-    @field_validator("total_count", "size", mode="before")
+    @field_validator("total_count", mode="before")
     @classmethod
-    def _to_int(cls, v: Any) -> int:
-        return int(v) if v not in (None, "") else 0
+    def _count(cls, v: Any) -> int:
+        try:
+            return int(v) if v not in (None, "") else 0
+        except (TypeError, ValueError):
+            return 0
+
+    @field_validator("size", mode="before")
+    @classmethod
+    def _size(cls, v: Any) -> int:
+        try:
+            n = int(v) if v not in (None, "") else 3000
+        except (TypeError, ValueError):
+            n = 3000
+        return n if n > 0 else 3000  # 0 이면 tracker 페이징이 끝나지 않는다
 
     @model_validator(mode="before")
     @classmethod
@@ -306,7 +425,7 @@ class ChangeTrackerResult(BaseModel):
         # 지침서 형식: {"dataList": [{"data": {...}}, ...]}
         if isinstance(data, dict) and "dataList" in data and "items" not in data:
             data = dict(data)
-            data["items"] = [row.get("data", row) for row in data.pop("dataList") or []]
+            data["items"] = [row.get("data", row) for row in (data.pop("dataList") or []) if isinstance(row, dict)]
         return data
 
 
@@ -315,3 +434,8 @@ class ApiEnvelope(BaseModel):
     return_object: dict[str, Any] = Field(default_factory=dict)
     reason: str | None = None
     message: str | None = None
+
+    @field_validator("return_object", mode="before")
+    @classmethod
+    def _ro(cls, v: Any) -> dict:
+        return v if isinstance(v, dict) else {}

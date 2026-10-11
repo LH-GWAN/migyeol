@@ -1,5 +1,5 @@
 import { formatDate, formatYearMonth } from "@/lib/format";
-import type { TrendOut } from "@/lib/types";
+import type { DeadlinePrecision, TrendOut } from "@/lib/types";
 
 interface Props {
   trend: TrendOut;
@@ -9,6 +9,7 @@ interface Marker {
   key: "occurred_at" | "deadline_date" | "today";
   label: string;
   date: string;
+  precision: DeadlinePrecision;
   x: number;
   color: string;
   dash?: string;
@@ -22,20 +23,21 @@ function daysInMonth(y: number, m: number): number {
   return new Date(Date.UTC(y, m, 0)).getUTCDate();
 }
 
-/** X position of an ISO date inside the monthly band layout; clamps to the edges when outside. */
-function markerX(date: string, labels: string[], x0: number, band: number): number | null {
+/**
+ * Where an ISO date falls relative to the monthly band layout.
+ * `labels` is a contiguous month range (YYYYMM), so a date is either inside it, before it, or after it.
+ */
+function locate(date: string, labels: string[], x0: number, band: number): { x: number } | "before" | "after" | null {
   const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(date);
   if (!m || labels.length === 0) return null;
   const ym = `${m[1]}${m[2]}`;
+  if (ym < labels[0]) return "before";
+  if (ym > labels[labels.length - 1]) return "after";
   const idx = labels.indexOf(ym);
-  if (idx === -1) {
-    if (ym < labels[0]) return x0;
-    if (ym > labels[labels.length - 1]) return x0 + labels.length * band;
-    return null;
-  }
+  if (idx === -1) return null; // non-contiguous series (not expected from the backend)
   const day = Number(m[3]) || 1;
   const dim = daysInMonth(Number(m[1]), Number(m[2]));
-  return x0 + idx * band + ((day - 1) / dim) * band;
+  return { x: x0 + idx * band + ((day - 1) / dim) * band };
 }
 
 /** Monthly bar chart with vertical markers for 발생일 / 약속 기한 / 오늘. */
@@ -55,46 +57,50 @@ export default function TrendChart({ trend }: Props) {
   const plotH = H - PAD.top - PAD.bottom;
   const band = plotW / n;
   const barW = Math.max(4, Math.min(band * 0.62, 40));
-  const maxHits = Math.max(1, ...series.map((p) => p.hits));
-  const yOf = (v: number) => PAD.top + plotH - (v / maxHits) * plotH;
-  const ticks = Array.from(new Set([0, Math.round(maxHits / 2), maxHits]));
+  // Displayed max is the real one; the scale denominator is clamped so an all-zero series still lays out.
+  const maxHits = Math.max(...series.map((p) => p.hits));
+  const scaleMax = Math.max(1, maxHits);
+  const noReports = maxHits === 0;
+  const yOf = (v: number) => PAD.top + plotH - (v / scaleMax) * plotH;
+  const ticks = noReports ? [0] : Array.from(new Set([0, Math.round(maxHits / 2), maxHits]));
   const labelEvery = n <= 12 ? 1 : Math.ceil(n / 12);
 
-  const rawMarkers: Array<Omit<Marker, "x"> & { x: number | null }> = [
-    trend.markers.occurred_at
-      ? {
-          key: "occurred_at",
-          label: "발생",
-          date: trend.markers.occurred_at,
-          color: "#111827",
-          x: markerX(trend.markers.occurred_at, labels, PAD.left, band),
-        }
-      : null,
-    trend.markers.deadline_date
-      ? {
-          key: "deadline_date",
-          label: "약속 기한",
-          date: trend.markers.deadline_date,
-          color: "#ea580c",
-          dash: "5 4",
-          x: markerX(trend.markers.deadline_date, labels, PAD.left, band),
-        }
-      : null,
-    trend.markers.today
-      ? {
-          key: "today",
-          label: "오늘",
-          date: trend.markers.today,
-          color: "#2563eb",
-          dash: "2 3",
-          x: markerX(trend.markers.today, labels, PAD.left, band),
-        }
-      : null,
-  ].filter((m): m is Omit<Marker, "x"> & { x: number | null } => m !== null);
+  const { occurred_at, deadline_date, deadline_precision, today } = trend.markers;
+  const deadlinePrecision: DeadlinePrecision = deadline_precision ?? "day";
 
-  const markers: Marker[] = rawMarkers
-    .filter((m): m is Marker => m.x !== null)
-    .sort((a, b) => a.x - b.x);
+  const markers: Marker[] = [];
+  let deadlineOutside: "before" | "after" | null = null;
+
+  if (occurred_at) {
+    const loc = locate(occurred_at, labels, PAD.left, band);
+    // The series starts at the incident month, so "before" only happens with a trimmed series: clamp to the left edge.
+    const x = loc === "before" ? PAD.left : loc !== null && loc !== "after" ? loc.x : null;
+    if (x !== null) markers.push({ key: "occurred_at", label: "발생", date: occurred_at, precision: "day", color: "#111827", x });
+  }
+  if (deadline_date && deadlinePrecision !== "none") {
+    const loc = locate(deadline_date, labels, PAD.left, band);
+    if (loc === "before" || loc === "after") {
+      // Outside the series: never fake a position at the chart edge; say so in the legend instead.
+      deadlineOutside = loc;
+    } else if (loc !== null) {
+      markers.push({
+        key: "deadline_date",
+        label: "약속 기한",
+        date: deadline_date,
+        precision: deadlinePrecision,
+        color: "#ea580c",
+        dash: "5 4",
+        x: loc.x,
+      });
+    }
+  }
+  if (today) {
+    const loc = locate(today, labels, PAD.left, band);
+    // "today" after the last month means the series simply has not caught up yet: pin it to the right edge.
+    const x = loc === "after" ? PAD.left + plotW : loc !== null && loc !== "before" ? loc.x : null;
+    if (x !== null) markers.push({ key: "today", label: "오늘", date: today, precision: "day", color: "#2563eb", dash: "2 3", x });
+  }
+  markers.sort((a, b) => a.x - b.x);
 
   // Alternate label heights when two markers sit close together.
   const labelY: number[] = [];
@@ -103,6 +109,8 @@ export default function TrendChart({ trend }: Props) {
     labelY.push(prev && m.x - prev.x < 60 && labelY[i - 1] === 14 ? 26 : 14);
   });
 
+  const rangeText = `${formatYearMonth(labels[0])} ~ ${formatYearMonth(labels[n - 1])}`;
+
   return (
     <figure>
       <div className="overflow-x-auto">
@@ -110,7 +118,7 @@ export default function TrendChart({ trend }: Props) {
           viewBox={`0 0 ${W} ${H}`}
           className="h-auto w-full min-w-[520px]"
           role="img"
-          aria-label={`월별 보도량 추이 (${formatYearMonth(labels[0])} ~ ${formatYearMonth(labels[n - 1])}, 최대 ${maxHits}건)`}
+          aria-label={`월별 보도량 추이 (${rangeText}, ${noReports ? "보도 없음" : `최대 ${maxHits}건`})`}
         >
           <title>월별 보도량 추이</title>
           {/* y grid + ticks */}
@@ -122,6 +130,11 @@ export default function TrendChart({ trend }: Props) {
               </text>
             </g>
           ))}
+          {noReports && (
+            <text x={PAD.left + plotW / 2} y={PAD.top + plotH / 2} textAnchor="middle" fontSize={13} fill="#9ca3af">
+              보도 없음
+            </text>
+          )}
           {/* bars */}
           {series.map((p, i) => {
             const x = PAD.left + i * band + (band - barW) / 2;
@@ -182,13 +195,19 @@ export default function TrendChart({ trend }: Props) {
               className="inline-block h-3 w-0 border-l-2"
               style={{ borderColor: m.color, borderStyle: m.dash ? "dashed" : "solid" }}
             />
-            {m.label} {formatDate(m.date)}
+            {m.label} {formatDate(m.date, m.precision)}
           </span>
         ))}
-        {rawMarkers.filter((m) => m.x === null).length > 0 && <span className="text-gray-400">(일부 표식은 기간 밖)</span>}
+        {deadlineOutside && deadline_date && (
+          <span className="inline-flex items-center gap-1.5 text-orange-700">
+            <span aria-hidden className="inline-block h-3 w-0 border-l-2 border-dashed border-orange-600" />
+            약속 기한 → {formatDate(deadline_date, deadlinePrecision === "day" ? "month" : deadlinePrecision)} (차트 범위 밖)
+          </span>
+        )}
         <span className="ml-auto text-gray-500">
-          최고 {trend.peak_hits}건{trend.peak_label ? ` (${formatYearMonth(trend.peak_label)})` : ""} · 최근 평균{" "}
-          {trend.recent_mean}건 · 감소율 {Math.round(trend.drop_ratio * 100)}%
+          {noReports
+            ? "보도 없음"
+            : `최고 ${trend.peak_hits}건${trend.peak_label ? ` (${formatYearMonth(trend.peak_label)})` : ""} · 최근 평균 ${trend.recent_mean}건 · 감소율 ${Math.round(trend.drop_ratio * 100)}%`}
         </span>
       </figcaption>
     </figure>

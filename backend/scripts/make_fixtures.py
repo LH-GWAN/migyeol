@@ -1,14 +1,14 @@
 """예선용 픽스처 생성기.
 
 지침서(newstore V1.0) 응답 스키마를 필드명·타입·중첩 구조까지 그대로 따르는 **가상 사건** 코퍼스를 만든다.
-- 가상 지명·기관·시설(가온시, 누리군 …). 실존 사건·인물의 발언을 지어내지 않는다. 모든 문서에 "_fixture": true.
+- 가상 지명·기관·시설(가온시, 누리군, 누리철도공사 …). 실존 사건·인물·기관의 발언을 지어내지 않는다. 모든 문서에 "_fixture": true.
 - 8개 사건이 5개 상태를 모두 만들도록 설계했다 (아래 EVENTS 의 expected_status).
 
-산출물:
+산출물 (모두 fixtures/ 아래 — 실사건용 seeds/·gold/ 는 건드리지 않는다):
   fixtures/bigkinds/articles.json, quotations.json, issues.json, change_tracker.json
   fixtures/llm/stub_answers.json      (LLM_MODE=stub 정답)
-  seeds/events.yaml                   (추적 대상 시드)
-  gold/events.yaml                    (정답 데이터셋 — 픽스처 기준)
+  fixtures/seeds/events.yaml          (가상 사건 시드 — mock 모드·테스트)
+  fixtures/gold/events.yaml           (정답 데이터셋 — 픽스처 기준)
 """
 
 from __future__ import annotations
@@ -167,8 +167,8 @@ EVENTS = [
               "response", inc="사고>산업사고>붕괴",
               quotes=[("누리군수", "올해 연말까지 해맞이터널 전 구간 보강공사를 마치고 재개통하겠다",
                        P("누리군", "해맞이터널 전 구간 보강공사를 마치고 재개통한다", "올해 연말까지", "2025-12-31", "year", "확약", 0.93, "기한(연말)과 행동이 명시된 확약", "누리군수"))]),
-            A(20, "경남도민일보", "해맞이터널 붕괴 원인 '콘크리트 박리·배수 불량'… 국토부 조사 결과",
-              "국토교통부 사고조사위원회는 해맞이터널 붕괴 원인을 노후 콘크리트 박리와 배수 불량으로 결론지었다. 위원회는 전국 노후 터널 점검을 권고했다.",
+            A(20, "경남도민일보", "해맞이터널 붕괴 원인 '콘크리트 박리·배수 불량'… 조사위 조사 결과",
+              "누리도 사고조사위원회는 해맞이터널 붕괴 원인을 노후 콘크리트 박리와 배수 불량으로 결론지었다. 위원회는 전국 노후 터널 점검을 권고했다.",
               "investigation", inc="사고>산업사고>붕괴",
               signal=S("무관", None, False, "", 0.85, "원인 조사 결과 보도로 보강공사 진행 여부와 무관")),
             A(69, "KBS", "누리군 해맞이터널 보강공사 착공… 12월 재개통 목표",
@@ -239,8 +239,8 @@ EVENTS = [
         "incident_type": "사고>교통사고>철도사고",
         "region": "누리군",
         "facility": "누리선",
-        "responsible_org": "한국철도공사",
-        "org_aliases": ["코레일", "철도공사"],
+        "responsible_org": "누리철도공사",
+        "org_aliases": ["누리철도", "철도공사"],
         "keywords": ["화물열차 탈선", "누리선"],
         "occurred_at": "2025-11-08",
         "summary": "2025년 11월 8일 누리군 누리선 구간에서 화물열차 6량이 탈선해 인근 주택으로 컨테이너가 떨어졌다. 노후 선로 균열이 원인으로 지목됐다.",
@@ -253,16 +253,16 @@ EVENTS = [
               "누리선 화물열차 탈선 사고 원인이 선로 균열로 파악됐다. 사고 구간은 1980년대 부설된 노후 선로로 교체 시기가 지났다는 지적이 나온다.",
               "initial", inc="사고>교통사고>철도사고"),
             A(3, "부산일보", "철도공사 \"누리선 노후 선로 교체 추진\"… 시점은 안 밝혀",
-              "한국철도공사는 11일 누리선 탈선 구간을 포함한 노후 선로 교체를 추진하겠다고 밝혔다. 다만 구체적인 교체 시점과 예산은 제시하지 않았다.",
+              "누리철도공사는 11일 누리선 탈선 구간을 포함한 노후 선로 교체를 추진하겠다고 밝혔다. 다만 구체적인 교체 시점과 예산은 제시하지 않았다.",
               "response", inc="사고>교통사고>철도사고",
-              quotes=[("한국철도공사 관계자", "누리선 탈선 구간을 포함한 노후 선로 교체를 추진하겠다",
-                       P("한국철도공사", "누리선 노후 선로를 교체한다", None, None, "none", "계획", 0.82, "행동은 구체적이나 기한이 없음", "한국철도공사 관계자"))]),
-            A(30, "KBS", "항공철도사고조사위 \"누리선 탈선, 선로 피로 균열이 원인\"",
-              "항공철도사고조사위원회는 누리선 화물열차 탈선 사고의 원인을 선로 피로 균열로 결론지었다.",
+              quotes=[("누리철도공사 관계자", "누리선 탈선 구간을 포함한 노후 선로 교체를 추진하겠다",
+                       P("누리철도공사", "누리선 노후 선로를 교체한다", None, None, "none", "계획", 0.82, "행동은 구체적이나 기한이 없음", "누리철도공사 관계자"))]),
+            A(30, "KBS", "누리철도사고조사위 \"누리선 탈선, 선로 피로 균열이 원인\"",
+              "누리철도사고조사위원회는 누리선 화물열차 탈선 사고의 원인을 선로 피로 균열로 결론지었다.",
               "investigation", inc="사고>교통사고>철도사고",
               signal=S("무관", None, False, "", 0.85, "사고 원인 조사 결과")),
             A(193, "경남도민일보", "누리선 노후 선로 교체 공사 착공… 8km 구간 내년 완료",
-              "한국철도공사가 20일 누리선 노후 선로 교체 공사에 착공했다. 탈선 구간을 포함한 8km 구간이 대상이며 내년 상반기 완료가 목표다.",
+              "누리철도공사가 20일 누리선 노후 선로 교체 공사에 착공했다. 탈선 구간을 포함한 8km 구간이 대상이며 내년 상반기 완료가 목표다.",
               "progress", inc=None, cat=["지역>경남", "경제>산업_기업"],
               signal=S("진행", 0, True, "누리선 노후 선로 교체 공사에 착공했다", 0.85, "착공 보도, 약속 대상과 일치")),
         ],
@@ -317,7 +317,7 @@ EVENTS = [
               "3일 새벽 집중호우로 누리군 청솔산 자락에서 산사태가 발생해 주택 5채가 매몰됐다. 1명이 숨지고 3명이 구조됐으며 주민 60여 명이 대피했다.",
               "initial", inc="재해>자연재해>눈사태_산사태", hour=7),
             A(1, "KBS", "청솔산 산사태 지역, 산사태 취약지역 지정 안 돼 있었다",
-              "산사태가 난 누리군 청솔산 자락은 산림청 산사태 취약지역으로 지정되지 않아 사방시설이 전혀 없었던 것으로 드러났다.",
+              "산사태가 난 누리군 청솔산 자락은 누리도 산사태 취약지역으로 지정되지 않아 사방시설이 전혀 없었던 것으로 드러났다.",
               "initial", inc="재해>자연재해>눈사태_산사태"),
             A(4, "부산일보", "누리군 \"청솔산 사방댐 2곳 내년 6월까지 설치\"",
               "누리군은 7일 청솔산 산사태 피해 지역에 사방댐 2곳을 내년 6월까지 설치하고 취약지역 지정을 신청하겠다고 밝혔다.",
@@ -626,11 +626,10 @@ def build(today: date) -> dict:
 
 
 def write(out: dict, backend: Path) -> None:
-    bk = backend / "fixtures" / "bigkinds"
-    bk.mkdir(parents=True, exist_ok=True)
-    (backend / "fixtures" / "llm").mkdir(parents=True, exist_ok=True)
-    (backend / "seeds").mkdir(exist_ok=True)
-    (backend / "gold").mkdir(exist_ok=True)
+    fx = backend / "fixtures"
+    bk = fx / "bigkinds"
+    for d in (bk, fx / "llm", fx / "seeds", fx / "gold"):
+        d.mkdir(parents=True, exist_ok=True)
 
     def dump(path: Path, obj) -> None:
         with path.open("w", encoding="utf-8") as f:
@@ -640,18 +639,19 @@ def write(out: dict, backend: Path) -> None:
     dump(bk / "quotations.json", out["quotations"])
     dump(bk / "issues.json", out["issues"])
     dump(bk / "change_tracker.json", out["change_tracker"])
-    dump(backend / "fixtures" / "llm" / "stub_answers.json", out["stub"])
-    with (backend / "seeds" / "events.yaml").open("w", encoding="utf-8") as f:
-        f.write("# 추적 대상 사건 시드 — 예선용 가상 사건. 본선에서는 discover 초안을 바탕으로 사람이 확정한다.\n")
+    dump(fx / "llm" / "stub_answers.json", out["stub"])
+    with (fx / "seeds" / "events.yaml").open("w", encoding="utf-8") as f:
+        f.write("# 가상 사건 시드 — mock 모드·테스트 전용 (make_fixtures.py 생성). 실사건 시드는 seeds/events.yaml.\n")
         yaml.safe_dump(out["seeds"], f, allow_unicode=True, sort_keys=False)
-    with (backend / "gold" / "events.yaml").open("w", encoding="utf-8") as f:
-        f.write("# 정답 데이터셋 — 픽스처 기준(가상). 본선에서는 실제 사건 30건으로 교체한다.\n")
+    with (fx / "gold" / "events.yaml").open("w", encoding="utf-8") as f:
+        f.write("# 정답 데이터셋 — 픽스처 기준(가상), mock 모드·테스트 전용. 실사건 정답셋은 gold/events.yaml.\n")
         yaml.safe_dump(out["gold"], f, allow_unicode=True, sort_keys=False)
 
 
 def main() -> None:
     ap = argparse.ArgumentParser()
-    ap.add_argument("--today", default=date.today().isoformat())
+    # 기본값을 두지 않는다: 실행일로 만들면 change_tracker·gold.today 가 TODAY_OVERRIDE(2026-09-11)와 어긋난다
+    ap.add_argument("--today", required=True, help="픽스처 기준일 YYYY-MM-DD (테스트·시연은 2026-09-11)")
     ap.add_argument("--backend", default=str(BACKEND))
     args = ap.parse_args()
     out = build(date.fromisoformat(args.today))

@@ -1,23 +1,34 @@
-"""정답 데이터셋(gold/events.yaml) 대비 정확도 측정 -> reports/eval_<날짜>.md
+"""정답 데이터셋(GOLD_FILE — mock 은 fixtures/gold, record/live 는 gold/events.yaml) 대비 정확도 측정 -> reports/eval_<일시>.md
 
   python scripts/evaluate.py
-  python scripts/evaluate.py --sweep link_auto=0.45,0.50,0.55,0.60
+  python scripts/evaluate.py --sweep link_auto=0.45,0.50,0.55,0.60      # DB 사본에서 실행 (운영 DB 를 바꾸지 않는다)
   python scripts/evaluate.py --sweep completion_min_conf=0.6,0.7,0.8
 
+정답셋 형식 (gold/events.yaml)
+  as_of: 2026-09-11                      # 판정 기준일 (없으면 settings.today(), 다르면 경고)
+  events:
+    - key: ...                           # 필수
+      expected_status: ...               # 선택 — 없으면 상태 지표 분모에서 제외
+      linked_news_ids: ["0110...", ...]  # 선택 — 따옴표 필수(숫자로 읽히면 오류)
+      promises: [{actor_org, action, deadline_date, strength}]   # 선택
+      followup_news_ids: [...]           # 선택
+
 지표
-  사건 연결   : precision / recall / F1 (자동 연결, 검토 큐 제외)
-  약속 추출   : actor_org 정확 일치율, action 유사도(≥0.8) 일치율, deadline 월 단위 일치율, strength 일치율
-  상태 판정   : 5-class accuracy + confusion matrix (완료 false positive 별도 보고)
-  후속 탐색   : gold followup_news_ids 중 신호가 생성된 비율 (recall)
+  사건 연결   : precision / recall / F1 — 자동 연결(rule/embedding, 검토 대기 제외)만. 검토 큐 건수·정답 비율 별도
+  약속 추출   : 정답 약속과 DB 약속을 1:1 매칭(action 유사도 ≥0.8, 탐욕적). actor/deadline(월)/strength 일치율, DB 약속 기준 precision
+  상태 판정   : 5-class accuracy + confusion (완료 false positive 별도). 판정 이력 없는 사건은 '(미판정)' 으로 오답 처리
+  후속 탐색   : gold followup_news_ids 중 현재 prompt_version 신호(활성 연결)가 있는 비율
+DB 에 없는 정답 사건은 모든 분모에 들어가고(누락), gold 에 없는 DB 사건은 경고로 보고한다.
 """
 
 from __future__ import annotations
 
 import argparse
 import json
+import shutil
 import sys
-from collections import Counter, defaultdict
-from datetime import date
+from collections import Counter
+from datetime import date, datetime
 from pathlib import Path
 
 import numpy as np
@@ -26,12 +37,19 @@ import yaml
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from app.bigkinds import build_client  # noqa: E402
-from app.config import STATUS_DONE, STATUSES, get_settings  # noqa: E402
-from app.db.models import Event  # noqa: E402
-from app.db.session import init_db, session_factory  # noqa: E402
-from app.llm.client import build_llm  # noqa: E402
+from app.config import BACKEND_DIR, DISCLAIMER, STATUS_DONE, STATUSES, get_settings  # noqa: E402
+from app.db.models import Event, StatusJudgment  # noqa: E402
+from app.db.session import db_path, init_db, reset_engine, session_factory  # noqa: E402
+from app.llm.client import PROMPT_VERSIONS, build_llm  # noqa: E402
 from app.pipeline.embeddings import build_embedding  # noqa: E402
 from app.pipeline.runner import Pipeline  # noqa: E402
+
+UNJUDGED = "(미판정)"
+MISSING = "(없음)"
+
+
+class GoldError(ValueError):
+    pass
 
 
 def prf(tp: int, fp: int, fn: int) -> tuple[float, float, float]:
@@ -41,86 +59,184 @@ def prf(tp: int, fp: int, fn: int) -> tuple[float, float, float]:
     return round(p, 3), round(r, 3), round(f, 3)
 
 
+def load_gold(path: Path) -> dict:
+    """스키마 검증·정규화: news_id 는 문자열만, deadline_date 는 ISO 문자열로, 상태는 5개 중 하나."""
+    with open(path, encoding="utf-8") as f:
+        gold = yaml.safe_load(f) or {}
+    events = gold.get("events") or []
+    if not events:
+        raise GoldError(f"정답셋이 비어 있습니다: {path}")
+    keys: set[str] = set()
+    for g in events:
+        key = g.get("key")
+        if not key:
+            raise GoldError("key 가 없는 정답 사건이 있다")
+        if key in keys:
+            raise GoldError(f"정답 key 중복: {key}")
+        keys.add(key)
+        for field in ("linked_news_ids", "followup_news_ids"):
+            ids = g.get(field)
+            if ids is None:
+                continue
+            for i, nid in enumerate(ids):
+                if not isinstance(nid, str):
+                    raise GoldError(f"{key}.{field}[{i}] 가 문자열이 아니다({nid!r}) — YAML 에서 따옴표로 감싸야 한다")
+        st = g.get("expected_status")
+        if st is not None and st not in STATUSES:
+            raise GoldError(f"{key}.expected_status 가 5개 상태가 아니다: {st!r}")
+        for p in g.get("promises") or []:
+            dd = p.get("deadline_date")
+            if isinstance(dd, (date, datetime)):
+                p["deadline_date"] = dd.isoformat()[:10]
+            elif dd is not None and not isinstance(dd, str):
+                raise GoldError(f"{key} promise deadline_date 타입 오류: {dd!r}")
+    as_of = gold.get("as_of") or gold.get("today")
+    if isinstance(as_of, (date, datetime)):
+        as_of = as_of.isoformat()[:10]
+    gold["as_of"] = as_of
+    return gold
+
+
+def _match_promises(gold_ps: list[dict], db_ps: list, embedder) -> list[tuple[dict, object | None, float]]:
+    """정답 약속 ↔ DB 약속 1:1 탐욕 매칭 (유사도 내림차순)."""
+    if not gold_ps:
+        return []
+    if not db_ps:
+        return [(gp, None, 0.0) for gp in gold_ps]
+    g_texts = [gp.get("action") or "" for gp in gold_ps]
+    d_texts = [p.action or "" for p in db_ps]
+    vecs = embedder.encode([*g_texts, *d_texts])
+    sim = vecs[: len(gold_ps)] @ vecs[len(gold_ps) :].T
+    for i, gt in enumerate(g_texts):
+        for j, dt in enumerate(d_texts):
+            if gt and gt == dt:
+                sim[i, j] = 1.0
+    pairs = sorted(((float(sim[i, j]), i, j) for i in range(len(gold_ps)) for j in range(len(db_ps))), reverse=True)
+    used_g: set[int] = set()
+    used_d: set[int] = set()
+    out: dict[int, tuple[object | None, float]] = {}
+    for s, i, j in pairs:
+        if i in used_g or j in used_d or s < 0.8:
+            continue
+        used_g.add(i)
+        used_d.add(j)
+        out[i] = (db_ps[j], s)
+    return [(gp, *(out.get(i, (None, 0.0)))) for i, gp in enumerate(gold_ps)]
+
+
 def evaluate(session, gold: dict, embedder) -> dict:
     events = {e.key: e for e in session.query(Event).all()}
+    judged_ids = {row[0] for row in session.query(StatusJudgment.event_id).distinct().all()}
+    version = PROMPT_VERSIONS["followup"]
+
     link_tp = link_fp = link_fn = 0
-    actor_ok = action_ok = deadline_ok = strength_ok = promise_total = promise_found = 0
-    status_ok = 0
+    review_total = review_correct = 0
+    promise_total = promise_found = actor_ok = deadline_ok = strength_ok = 0
+    db_promise_total = db_promise_matched = 0
+    status_total = status_ok = 0
     confusion: Counter = Counter()
     followup_hit = followup_total = 0
     rows = []
+    missing_keys = []
 
     for g in gold["events"]:
         ev = events.get(g["key"])
+        truth = set(g.get("linked_news_ids") or [])
+        gold_ps = g.get("promises") or []
+        expected = g.get("expected_status")
+        followups = g.get("followup_news_ids") or []
         if ev is None:
-            rows.append({"key": g["key"], "status": "(없음)", "expected": g["expected_status"], "ok": False})
+            missing_keys.append(g["key"])
+            link_fn += len(truth)
+            promise_total += len(gold_ps)
+            followup_total += len(followups)
+            if expected:
+                status_total += 1
+                confusion[(expected, MISSING)] += 1
+            rows.append({"key": g["key"], "title": g.get("title", g["key"]), "expected": expected or "-", "status": MISSING, "reason": "", "ok": False, "link": f"0/{len(truth)}", "promises": f"0/{len(gold_ps)}", "priority": ""})
             continue
-        # 연결
-        pred = {l.news_id for l in ev.links if not l.rejected and not l.needs_review}
-        truth = set(g["linked_news_ids"])
-        tp, fp, fn = len(pred & truth), len(pred - truth), len(truth - pred)
-        link_tp, link_fp, link_fn = link_tp + tp, link_fp + fp, link_fn + fn
-        # 약속
-        db_promises = [p for p in ev.promises if p.is_trackable]
-        for gp in g["promises"]:
+
+        # 연결 — 자동 연결만 측정 (관리자 결정 제외). 검토 큐는 별도 집계
+        auto = {l.news_id for l in ev.links if l.link_method in ("rule", "embedding") and not l.rejected}
+        pred = {l.news_id for l in ev.links if l.link_method in ("rule", "embedding") and l.is_active}
+        review = auto - pred
+        if g.get("linked_news_ids") is not None:
+            tp, fp, fn = len(pred & truth), len(pred - truth), len(truth - pred)
+            link_tp, link_fp, link_fn = link_tp + tp, link_fp + fp, link_fn + fn
+            review_total += len(review)
+            review_correct += len(review & truth)
+        else:
+            tp, fp = 0, 0
+
+        # 약속 — 1:1 매칭
+        db_ps = [p for p in ev.promises if p.is_trackable]
+        db_promise_total += len(db_ps)
+        for gp, best, _ in _match_promises(gold_ps, db_ps, embedder):
             promise_total += 1
-            best = None
-            best_sim = 0.0
-            if db_promises and gp["action"]:
-                vecs = embedder.encode([gp["action"], *[p.action for p in db_promises]])
-                sims = vecs[1:] @ vecs[0]
-                i = int(np.argmax(sims))
-                best, best_sim = db_promises[i], float(sims[i])
-                if db_promises[i].action == gp["action"]:
-                    best_sim = 1.0
-            if best is None or best_sim < 0.8:
+            if best is None:
                 continue
             promise_found += 1
-            action_ok += 1
-            actor_ok += int(best.actor_org == gp["actor_org"])
-            strength_ok += int(best.strength == gp["strength"])
+            db_promise_matched += 1
+            actor_ok += int(best.actor_org == gp.get("actor_org"))
+            strength_ok += int(best.strength == gp.get("strength"))
             gd = gp.get("deadline_date")
             bd = best.deadline_date.isoformat() if best.deadline_date else None
             deadline_ok += int((gd or "")[:7] == (bd or "")[:7])
+
         # 상태
-        ok = ev.status == g["expected_status"]
-        status_ok += int(ok)
-        confusion[(g["expected_status"], ev.status)] += 1
-        # 후속 탐색
-        sig_ids = {s.news_id for s in ev.signals}
-        for nid in g["followup_news_ids"]:
+        got = ev.status if ev.id in judged_ids else UNJUDGED
+        ok = expected is not None and got == expected
+        if expected is not None:
+            status_total += 1
+            status_ok += int(ok)
+            confusion[(expected, got)] += 1
+
+        # 후속 탐색 — 현재 버전 신호 + 활성 연결
+        active = {l.news_id for l in ev.links if l.is_active}
+        sig_ids = {s.news_id for s in ev.signals if s.prompt_version == version and s.news_id in active}
+        for nid in followups:
             followup_total += 1
             followup_hit += int(nid in sig_ids)
+
         rows.append(
             {
                 "key": g["key"],
-                "title": g["title"],
-                "expected": g["expected_status"],
-                "status": ev.status,
-                "reason": ev.status_reason,
+                "title": g.get("title") or ev.title,
+                "expected": expected or "-",
+                "status": got,
+                "reason": ev.status_reason if ev.id in judged_ids else "",
                 "ok": ok,
-                "link": f"{tp}/{len(truth)} (+{fp} 오연결)",
-                "promises": f"{len(db_promises)}/{len(g['promises'])}",
+                "link": f"{tp}/{len(truth)} (+{fp} 오연결, 검토 {len(review)})" if g.get("linked_news_ids") is not None else "N/A",
+                "promises": f"{len(db_ps)}/{len(gold_ps)}",
                 "priority": ev.priority_score,
             }
         )
 
+    extra_db = sorted(set(events) - {g["key"] for g in gold["events"]})
     p, r, f = prf(link_tp, link_fp, link_fn)
     done_fp = sum(v for (exp, got), v in confusion.items() if got == STATUS_DONE and exp != STATUS_DONE)
+
+    def ratio(a: int, b: int) -> float | str:
+        return round(a / b, 3) if b else "N/A(라벨 0건)"
+
     return {
-        "link": {"precision": p, "recall": r, "f1": f, "tp": link_tp, "fp": link_fp, "fn": link_fn},
+        "link": {"precision": p, "recall": r, "f1": f, "tp": link_tp, "fp": link_fp, "fn": link_fn, "review_total": review_total, "review_correct": review_correct},
         "promise": {
             "total": promise_total,
             "found": promise_found,
-            "action_match": round(action_ok / promise_total, 3) if promise_total else 0,
-            "actor_match": round(actor_ok / promise_total, 3) if promise_total else 0,
-            "deadline_month_match": round(deadline_ok / promise_total, 3) if promise_total else 0,
-            "strength_match": round(strength_ok / promise_total, 3) if promise_total else 0,
+            "action_match": ratio(promise_found, promise_total),
+            "actor_match": ratio(actor_ok, promise_total),
+            "deadline_month_match": ratio(deadline_ok, promise_total),
+            "strength_match": ratio(strength_ok, promise_total),
+            "db_total": db_promise_total,
+            "db_precision": ratio(db_promise_matched, db_promise_total),
         },
-        "status": {"accuracy": round(status_ok / len(gold["events"]), 3), "n": len(gold["events"]), "done_false_positive": done_fp},
-        "followup": {"recall": round(followup_hit / followup_total, 3) if followup_total else 0, "hit": followup_hit, "total": followup_total},
+        "status": {"accuracy": ratio(status_ok, status_total), "n": status_total, "done_false_positive": done_fp},
+        "followup": {"recall": ratio(followup_hit, followup_total), "hit": followup_hit, "total": followup_total},
         "confusion": {f"{k[0]} -> {k[1]}": v for k, v in sorted(confusion.items())},
         "rows": rows,
+        "missing_keys": missing_keys,
+        "extra_db_keys": extra_db,
     }
 
 
@@ -129,22 +245,33 @@ def render(result: dict, meta: dict, sweep_rows: list[dict] | None = None) -> st
     L.append(f"# 평가 결과 — {meta['date']}")
     L.append("")
     L.append(f"- 모드: bigkinds=`{meta['bigkinds_mode']}` llm=`{meta['llm_mode']}` embedding=`{meta['embedding']}`")
+    L.append(f"- 판정 기준일: `{meta['judge_today']}` (gold as_of `{meta['gold_as_of']}`, TODAY_OVERRIDE `{meta['today_override']}`)")
     L.append(f"- 임계값: {json.dumps(meta['thresholds'], ensure_ascii=False)}")
-    L.append(f"- 정답셋: `{meta['gold']}` ({result['status']['n']}건)")
+    L.append(f"- 정답셋: `{meta['gold']}` ({len(result['rows'])}건)")
+    if meta["llm_mode"] == "stub":
+        L.append("- ⚠ llm=stub: 약속·후속 신호 지표는 정답 재생이라 성능 지표가 아니다 (파이프라인 배선 검증용)")
+    if meta.get("date_warning"):
+        L.append(f"- ⚠ {meta['date_warning']}")
+    if result["missing_keys"]:
+        L.append(f"- ⚠ DB 에 없는 정답 사건 {len(result['missing_keys'])}건: {', '.join(result['missing_keys'])}")
+    if result["extra_db_keys"]:
+        L.append(f"- ⚠ 정답셋에 없는 DB 사건 {len(result['extra_db_keys'])}건: {', '.join(result['extra_db_keys'])}")
     L.append("")
     L.append("## 요약")
     L.append("")
     L.append("| 지표 | 값 |")
     L.append("|---|---|")
     lk = result["link"]
-    L.append(f"| 사건 연결 P / R / F1 | {lk['precision']} / {lk['recall']} / {lk['f1']} (tp {lk['tp']}, fp {lk['fp']}, fn {lk['fn']}) |")
+    L.append(f"| 사건 연결 P / R / F1 (자동 연결) | {lk['precision']} / {lk['recall']} / {lk['f1']} (tp {lk['tp']}, fp {lk['fp']}, fn {lk['fn']}) |")
+    L.append(f"| 검토 큐 | {lk['review_total']}건 (정답 {lk['review_correct']}건) |")
     pr = result["promise"]
-    L.append(f"| 약속 탐지(action 유사도≥0.8) | {pr['found']}/{pr['total']} = {pr['action_match']} |")
+    L.append(f"| 약속 탐지(1:1, action 유사도≥0.8) | {pr['found']}/{pr['total']} = {pr['action_match']} |")
     L.append(f"| 약속 주체 정확 일치 | {pr['actor_match']} |")
     L.append(f"| 약속 기한 월 단위 일치 | {pr['deadline_month_match']} |")
     L.append(f"| 발언 강도 일치 | {pr['strength_match']} |")
+    L.append(f"| DB 약속 기준 precision | {pr['db_precision']} ({pr['db_total']}건) |")
     st = result["status"]
-    L.append(f"| 상태 판정 accuracy | {st['accuracy']} (완료 false positive {st['done_false_positive']}건) |")
+    L.append(f"| 상태 판정 accuracy | {st['accuracy']} (n={st['n']}, 완료 false positive {st['done_false_positive']}건) |")
     fu = result["followup"]
     L.append(f"| 후속 기사 탐색 recall | {fu['recall']} ({fu['hit']}/{fu['total']}) |")
     L.append("")
@@ -163,53 +290,104 @@ def render(result: dict, meta: dict, sweep_rows: list[dict] | None = None) -> st
         )
     if sweep_rows:
         L.append("")
-        L.append("## 임계값 스윕")
+        L.append("## 임계값 스윕 (DB 사본에서 실행)")
         L.append("")
-        L.append("| 값 | 연결 F1 | 상태 accuracy | 완료 FP |")
-        L.append("|---|---|---|---|")
+        L.append("| 값 | 연결 P / R / F1 | 검토 큐 | 상태 accuracy | 완료 FP |")
+        L.append("|---|---|---|---|---|")
         for s in sweep_rows:
-            L.append(f"| {s['param']}={s['value']} | {s['link_f1']} | {s['status_acc']} | {s['done_fp']} |")
+            L.append(f"| {s['param']}={s['value']} | {s['p']} / {s['r']} / {s['f1']} | {s['review']} | {s['status_acc']} | {s['done_fp']} |")
     L.append("")
-    L.append("> 상태는 5개 문자열로만 표시된다. 보도가 없다는 사실은 조치가 없었다는 근거가 아니라 확인이 필요하다는 신호로만 해석한다.")
+    L.append(f"> 상태는 5개 문자열로만 표시된다. {DISCLAIMER}")
     return "\n".join(L)
 
 
-def main() -> int:
-    ap = argparse.ArgumentParser()
-    ap.add_argument("--sweep", default=None, help="예: link_auto=0.45,0.50,0.55")
-    ap.add_argument("--out", default=None)
-    args = ap.parse_args()
+def gold_label(path: Path) -> str:
+    try:
+        return str(path.resolve().relative_to(BACKEND_DIR))
+    except ValueError:
+        return str(path)
 
-    settings = get_settings()
-    init_db()
+
+def _sweep(settings, gold: dict, embedder, today: date, param: str, values: list[str]) -> list[dict]:
+    """운영 DB 를 임시 파일로 복사해 그 사본에서 link·judge 를 돌린다."""
+    src = db_path()
+    if src is None or not src.exists():
+        raise SystemExit("스윕은 SQLite 파일 DB 에서만 지원한다")
+    tmp = src.with_name(f"{src.stem}.sweep.db")
+    shutil.copy(src, tmp)
+    reset_engine()
+    init_db(f"sqlite:///{tmp}")
     session = session_factory()()
-    embedder = build_embedding(settings)
-    with open(settings.gold_file, encoding="utf-8") as f:
-        gold = yaml.safe_load(f)
-    today = settings.today()
-
-    sweep_rows = None
-    if args.sweep:
-        param, values = args.sweep.split("=")
-        original = getattr(settings, param)
-        sweep_rows = []
+    original = getattr(settings, param)
+    rows = []
+    try:
         pipe = Pipeline(session, settings, build_client(settings), build_llm(settings), embedder, today=today)
-        for v in values.split(","):
+        for v in values:
             setattr(settings, param, type(original)(float(v)) if isinstance(original, (int, float)) else v)
             pipe.run("link")
             pipe.run("judge")
             res = evaluate(session, gold, embedder)
-            sweep_rows.append({"param": param, "value": v, "link_f1": res["link"]["f1"], "status_acc": res["status"]["accuracy"], "done_fp": res["status"]["done_false_positive"]})
+            rows.append(
+                {
+                    "param": param,
+                    "value": v,
+                    "p": res["link"]["precision"],
+                    "r": res["link"]["recall"],
+                    "f1": res["link"]["f1"],
+                    "review": res["link"]["review_total"],
+                    "status_acc": res["status"]["accuracy"],
+                    "done_fp": res["status"]["done_false_positive"],
+                }
+            )
+    finally:
         setattr(settings, param, original)
-        pipe.run("link")
-        pipe.run("judge")
+        session.close()
+        reset_engine()
+        for p in (tmp, tmp.with_name(tmp.name + "-wal"), tmp.with_name(tmp.name + "-shm")):
+            if p.exists():
+                p.unlink()
+    return rows
 
+
+def main() -> int:
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--sweep", default=None, help="예: link_auto=0.45,0.50,0.55 (DB 사본에서 실행)")
+    ap.add_argument("--out", default=None)
+    args = ap.parse_args()
+
+    settings = get_settings()
+    try:
+        gold = load_gold(settings.gold_file)
+    except (GoldError, FileNotFoundError) as exc:
+        print(f"정답셋 오류: {exc} (BIGKINDS_MODE={settings.bigkinds_mode})")
+        return 1
+    embedder = build_embedding(settings)
+
+    today = settings.today()
+    date_warning = None
+    if gold.get("as_of"):
+        as_of = date.fromisoformat(gold["as_of"])
+        if as_of != today:
+            date_warning = f"gold as_of({as_of}) 와 판정 기준일({today}) 이 다르다 — R4(60일·기한 경과) 경계 사건의 결과가 달라질 수 있다. 같은 기준일로 다시 판정하려면 TODAY_OVERRIDE={as_of} 로 run_pipeline --stage judge"
+
+    sweep_rows = None
+    if args.sweep:
+        param, values = args.sweep.split("=")
+        sweep_rows = _sweep(settings, gold, embedder, today, param, values.split(","))
+
+    init_db()
+    session = session_factory()()
     result = evaluate(session, gold, embedder)
+    session.close()
     meta = {
-        "date": date.today().isoformat(),
+        "date": datetime.now().strftime("%Y-%m-%d %H:%M"),
         "bigkinds_mode": settings.bigkinds_mode,
         "llm_mode": settings.llm_mode,
         "embedding": embedder.name,
+        "judge_today": today.isoformat(),
+        "gold_as_of": gold.get("as_of") or "-",
+        "today_override": settings.today_override.isoformat() if settings.today_override else "-",
+        "date_warning": date_warning,
         "thresholds": {
             "link_auto": settings.link_auto,
             "link_review": settings.link_review,
@@ -217,15 +395,16 @@ def main() -> int:
             "completion_min_conf": settings.completion_min_conf,
             "stale_followup_days": settings.stale_followup_days,
         },
-        "gold": str(settings.gold_file.relative_to(settings.gold_file.parents[1])),
+        "gold": gold_label(settings.gold_file),
     }
     md = render(result, meta, sweep_rows)
-    out = Path(args.out) if args.out else settings.reports_dir / f"eval_{date.today().strftime('%Y%m%d')}.md"
+    stamp = datetime.now().strftime("%Y%m%d_%H%M")
+    suffix = f"_sweep_{args.sweep.split('=')[0]}" if args.sweep else ""
+    out = Path(args.out) if args.out else settings.reports_dir / f"eval_{stamp}{suffix}.md"
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(md, encoding="utf-8")
     print(md)
     print(f"\n-> {out}")
-    session.close()
     return 0
 
 

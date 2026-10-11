@@ -24,8 +24,9 @@ export type DeadlinePrecision = "day" | "month" | "year" | "none";
 export type SignalKind = "완료" | "진행" | "새로운문제" | "무관" | "불명확";
 export type ReportType = "wrong_link" | "wrong_status" | "wrong_promise" | "other";
 export type SortKey = "priority" | "recent" | "occurred";
-export type PipelineStage = "discover" | "collect" | "link" | "extract" | "judge" | "all";
-export type BigKindsMode = "mock" | "live";
+export type PipelineStage = "discover" | "collect" | "link" | "extract" | "judge" | "tracker" | "all";
+/** mock = 가상 데이터, record = 녹화된 실제 응답 재생, live = 실시간 빅카인즈 API */
+export type BigKindsMode = "mock" | "record" | "live";
 
 export const SORT_KEYS: readonly SortKey[] = ["priority", "recent", "occurred"];
 
@@ -69,6 +70,8 @@ export interface PromiseOut {
   deadline_passed: boolean;
   quotation: QuotationOut | null;
   evidence_article: ArticleOut | null;
+  /** 중복 병합된 대표 약속 id. 병합된 약속은 백엔드가 목록에서 이미 제외한다. */
+  merged_into_id: number | null;
 }
 
 export interface TrendPoint {
@@ -79,6 +82,8 @@ export interface TrendPoint {
 export interface TrendMarkers {
   occurred_at: string | null;
   deadline_date: string | null;
+  /** precision of `deadline_date` (null when there is no deadline) */
+  deadline_precision: DeadlinePrecision | null;
   today: string;
 }
 
@@ -100,6 +105,10 @@ export interface PrimaryPromise {
   strength: Strength;
 }
 
+/**
+ * EventCard. `deadline_date` and `deadline_passed_days` always refer to the SAME promise
+ * (the overdue one if any, otherwise the firm one).
+ */
 export interface EventCard {
   id: number;
   title: string;
@@ -170,8 +179,10 @@ export interface EventDetailOut {
   card: EventCard;
   summary: string;
   seed_query: string;
+  /** null when no judgment has run yet (then `status_reason_text` = "아직 상태 판정이 실행되지 않음") */
   status_reason: string | null;
   status_reason_text: string;
+  /** null when no judgment has run yet */
   latest_judgment: LatestJudgment | null;
   promises: PromiseOut[];
   timeline: TimelinePhase[];
@@ -193,9 +204,14 @@ export interface SignalOut {
   promise_id: number | null;
   matches_promise: boolean;
   confidence: number;
-  evidence_span: string;
+  evidence_span: string; // may be empty for 무관·불명확
   rationale: string;
+  /** adopted as evidence by the applied rule (R1~R5). NOT "matches and above threshold". */
   counted: boolean;
+  /** R5 reference signal: looked at by the rule but not adopted */
+  considered: boolean;
+  /** false when the article link was rejected / under review / cancelled */
+  active: boolean;
   article: ArticleOut | null; // 신호의 기사가 DB에 없으면 null
 }
 
@@ -215,7 +231,9 @@ export interface EvidenceOut {
   signals: SignalOut[];
   low_confidence_links: LowConfidenceLink[];
   last_followup_at: string | null;
+  /** null when the scheduler is off */
   next_scheduled_run: string | null;
+  /** null when no judgment has run yet */
   judged_at: string | null;
   disclaimer: string;
 }
@@ -259,12 +277,14 @@ export interface ReviewReport {
 export interface ReviewQueueOut {
   events: EventCard[];
   links: ReviewLink[];
+  /** links an admin rejected; can be restored with action "restore" */
+  rejected_links: ReviewLink[];
   reports: ReviewReport[];
 }
 
 // ---------- POST /api/admin/links/{event_id}/{news_id} ----------
 
-export type AdminLinkAction = "confirm" | "reject";
+export type AdminLinkAction = "confirm" | "reject" | "restore";
 
 export interface AdminLinkIn {
   action: AdminLinkAction;
@@ -275,6 +295,7 @@ export interface AdminLinkOut {
   news_id: string;
   link_method: LinkMethod;
   confirmed: boolean;
+  rejected: boolean;
 }
 
 // ---------- POST /api/admin/reports/{report_id}/resolve ----------
@@ -285,6 +306,7 @@ export interface ResolveReportOut {
 }
 
 // ---------- POST /api/pipeline/run ----------
+// 409 when a run is already in progress, 404 for an unknown event_id.
 
 export interface PipelineRunIn {
   stage: PipelineStage;
@@ -304,17 +326,27 @@ export interface PipelineRunOut {
   run_id: number;
   stage: PipelineStage;
   ok: boolean;
-  stats: PipelineStats;
+  stats: PipelineStats; // always a numeric summary object
   duration_ms: number;
 }
 
 // ---------- GET /api/meta ----------
 
+/** Last successful full refresh (stage all/judge, all events). */
 export interface LastPipelineRun {
   stage: PipelineStage;
   finished_at: string;
   ok: boolean;
   stats: PipelineStats;
+}
+
+/** Most recent run of any kind, success or not. */
+export interface LastRun {
+  stage: PipelineStage;
+  finished_at: string;
+  ok: boolean;
+  error_summary: string | null;
+  event_id: number | null;
 }
 
 export interface MetaOut {
@@ -325,7 +357,10 @@ export interface MetaOut {
   embedding_backend: string;
   event_count: number;
   today: string;
+  /** true when the backend pins "today" (TODAY_OVERRIDE) instead of using the clock */
+  today_overridden: boolean;
   last_pipeline_run: LastPipelineRun | null;
+  last_run: LastRun | null;
   disclaimer: string;
 }
 

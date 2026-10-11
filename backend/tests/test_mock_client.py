@@ -55,11 +55,14 @@ def test_news_by_ids_and_issue_ranking(fixtures_ready):
     assert {d.news_id for d in r.documents} == set(ids)
 
 
-def test_quotation_search_returns_source_and_quotation(fixtures_ready):
+def test_quotation_search_matches_quotation_text_only(fixtures_ready):
+    """Mock 인용문 검색은 실서버 확인 전까지 source+quotation 만 매칭한다 (bk-5). 파이프라인은 그래서 OR 질의를 쓴다."""
     c = client(fixtures_ready)
-    r = c.search_quotation(QuotationSearchArgument(query=Q, published_at=PublishedAt.of(date(2025, 7, 15), date(2025, 10, 15)), fields=list(DEFAULT_QUOTATION_FIELDS)))
-    assert r.total_hits >= 3
-    assert any(d.source == "가온시장" and "배수펌프" in d.quotation for d in r.documents)
+    strict = c.search_quotation(QuotationSearchArgument(query=Q, published_at=PublishedAt.of(date(2025, 7, 15), date(2025, 10, 15)), fields=list(DEFAULT_QUOTATION_FIELDS)))
+    assert strict.total_hits == 1  # 시설 AND 지역이 모두 인용문 안에 있는 발언만
+    wide = c.search_quotation(QuotationSearchArgument(query='("달빛지하차도" OR "지하차도 침수" OR "가온시" OR "가온시장")', published_at=PublishedAt.of(date(2025, 7, 15), date(2025, 10, 15)), fields=list(DEFAULT_QUOTATION_FIELDS)))
+    assert wide.total_hits >= 3
+    assert any(d.source == "가온시장" and "배수펌프" in d.quotation for d in wide.documents)
 
 
 def test_time_line_month_labels(fixtures_ready):
