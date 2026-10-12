@@ -10,7 +10,7 @@ from __future__ import annotations
 import re
 
 _SECRETS: set[str] = set()
-_UUID_RE = re.compile(r"\b[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}\b")
+_UUID_RE = re.compile(r"[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}")  # 경계 없이 — key_<uuid>, <uuid>abc 도 가린다
 MASK = "<access_key>"
 
 

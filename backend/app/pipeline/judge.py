@@ -29,9 +29,32 @@ log = logging.getLogger("migyeol.judge")
 
 
 def trackable_promises(event: Event) -> list[Promise]:
-    """추적 약속: is_trackable 이고 근거 기사가 이 사건의 활성 연결(해제·검토 대기 아님)인 것."""
+    """추적 약속: is_trackable 이고 근거 기사(대표 근거 또는 병합된 근거 중 하나)가 이 사건의 활성 연결(해제·검토 대기 아님)인 것."""
     active = {l.news_id for l in event.links if l.is_active}
-    return sorted([p for p in event.promises if p.is_trackable and p.evidence_news_id in active], key=lambda p: p.id)
+    return sorted(
+        [p for p in event.promises if p.is_trackable and (p.evidence_news_id in active or any(n in active for n in (p.merged_news_ids or [])))],
+        key=lambda p: p.id,
+    )
+
+
+def is_judged(session: Session, event: Event) -> bool:
+    """judge 가 한 번이라도 실행된 사건인가. link 단계·관리자 처리 뒤의 규칙 재판정은 이 사건에만 한다 (판정 전 사건을 '판정됨' 으로 만들지 않는다)."""
+    return session.query(StatusJudgment.id).filter_by(event_id=event.id).first() is not None
+
+
+def note_llm_failure(event: Event, key: str) -> int:
+    """항목별 LLM 실패 횟수를 올린다. 반환: 누적 횟수."""
+    counts = dict(event.llm_failures or {})
+    counts[key] = int(counts.get(key, 0)) + 1
+    event.llm_failures = counts
+    return counts[key]
+
+
+def clear_llm_failure(event: Event, key: str) -> None:
+    counts = dict(event.llm_failures or {})
+    if key in counts:
+        counts.pop(key)
+        event.llm_failures = counts
 
 
 def promise_set_hash(promises: list[Promise]) -> str:
@@ -143,8 +166,17 @@ def classify_followups(
             res = validate_span(llm.classify_followup(inp, key=f"{event.key}||{a.news_id}"), inp)
         except LLMFailure as exc:
             stats["llm_failed"] += 1
-            log.warning("followup LLM 실패(다음 실행에서 재시도) %s/%s: %s", event.key, a.news_id, exc)
+            n = note_llm_failure(event, f"followup:{a.news_id}")
+            if n >= 2:
+                # 명세 §8: 1회 재시도 후에도 실패하면 '불명확' 으로 기록하고 검토 큐로 (무한 재시도 방지)
+                log.warning("followup LLM %d회 실패 — 불명확 기록·검토 큐 %s/%s: %s", n, event.key, a.news_id, exc)
+                results.append((a, _unclear_after_failures(n, exc)))
+                stats.setdefault("gave_up", 0)
+                stats["gave_up"] += 1
+            else:
+                log.warning("followup LLM 실패(다음 실행에서 재시도) %s/%s: %s", event.key, a.news_id, exc)
             continue
+        clear_llm_failure(event, f"followup:{a.news_id}")
         results.append((a, res))
 
     for a, res in results:
@@ -166,6 +198,12 @@ def classify_followups(
     return stats
 
 
+def _unclear_after_failures(n: int, exc: Exception):
+    from ..llm.schemas import FollowupSignal as _Sig
+
+    return _Sig(signal="불명확", promise_id=None, matches_promise=False, evidence_span="", confidence=0.0, rationale=f"LLM 호출 {n}회 실패로 불명확 기록 — 사람 검토 필요 ({type(exc).__name__})")
+
+
 def rejudge_event(session: Session, event: Event, settings: Settings, today: date, trend: dict | None = None) -> Judgment:
     """저장된 신호와 추이로 규칙 판정·우선순위·단계만 다시 계산한다 (LLM·API 호출 없음)."""
     session.refresh(event)
@@ -177,6 +215,7 @@ def rejudge_event(session: Session, event: Event, settings: Settings, today: dat
     # 현재 약속 집합으로 분류된 신호만 유효하다 — 약속이 취소·해제된 뒤 남은 옛 신호로 판정하지 않는다
     current = [s for s in event.signals if s.prompt_version == version and s.news_id in by_news and s.promise_set_hash == pset]
     pending = len(by_news) - len({s.news_id for s in current}) if promises else 0
+    pending_q = int(event.pending_quotations or 0)
     signals_in = [
         SignalIn(
             id=s.id,
@@ -194,8 +233,13 @@ def rejudge_event(session: Session, event: Event, settings: Settings, today: dat
     promises_in = [PromiseIn(id=p.id, deadline_date=p.deadline_date, strength=p.strength, is_trackable=p.id in tracked_ids) for p in event.promises]
     th = Thresholds(settings.signal_min_conf, settings.completion_min_conf, settings.stale_followup_days)
     j = judge(signals_in, promises_in, [a.published_at for a in followups], today, th)
+    notes = []
+    if pending_q:
+        notes.append(f"인용문 {pending_q}건은 아직 약속 추출 전")
     if pending:
-        note = f"후속 기사 {pending}건은 아직 분류 전(호출 상한·실패 이월) — 잠정 판정"
+        notes.append(f"후속 기사 {pending}건은 아직 분류 전")
+    if notes:
+        note = ", ".join(notes) + "(호출 상한·실패 이월) — 잠정 판정"
         j.reason_text = f"{j.reason_text} ({note})"
         j.unresolved_reason = f"{j.unresolved_reason} / {note}" if j.unresolved_reason else note
 

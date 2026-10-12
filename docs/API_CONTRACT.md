@@ -138,7 +138,7 @@
 ```
 - `timeline` 은 활성 연결(해제·검토 대기 제외)이고 삭제되지 않은 기사만, 6개 phase 고정 순서, 발행일 오름차순.
 - 판정 이력이 없으면 `latest_judgment` null, `status_reason` null, `status_reason_text` = `아직 상태 판정이 실행되지 않음`.
-- id 는 1 이상 2^31-1 이하. 범위 밖·비활성·없는 사건은 `404 {"detail": "event N not found"}`.
+- id 는 1 이상 2^31-1 이하. 범위 밖(0, 음수, 2^31 초과)은 `422`(검증 오류), 비활성·없는 사건은 `404 {"detail": "event N not found"}`. 프런트 `parseId` 가 범위 밖 id 를 미리 404 페이지로 보낸다.
 
 ### GET `/api/events/{id}/evidence`
 ```json
@@ -196,7 +196,7 @@
 ### POST `/api/pipeline/run` (개발·시연용, `PIPELINE_API_ENABLED=true` 일 때만)
 요청 `{ "stage": "all", "event_id": null }` — `stage` ∈ `discover`|`collect`|`link`|`extract`|`judge`|`tracker`|`all`
 응답 `{ "run_id": 12, "stage": "all", "ok": true, "stats": { "events": 8, "articles": 46, "links": 42, "review": 1, "promises": 8, "signals": 18, "followups": 18 }, "duration_ms": 1840 }`
-- `stats` 는 항상 숫자 요약. 실행 중이면 `409`, 없는 `event_id` 는 `404`, 꺼져 있으면 `403`, 실패는 `500 {"detail": "<예외 클래스>: <첫 줄>"}`(트레이스백은 `pipeline_runs.error` 와 서버 로그에만).
+- `stats` 는 항상 숫자 요약. 실행 중이면 `409`, 없는 `event_id` 는 `404`(범위 밖은 `422`), 꺼져 있으면 `403`, 실패는 `500 {"detail": "<분류 문구>"}`(`/api/meta` 의 `error_summary` 와 같은 분류. 원문·트레이스백은 `pipeline_runs.error` 와 서버 로그에만).
 - `event_id` 를 주면 tracker 단계는 생략된다.
 
 ### GET `/api/meta`
@@ -218,7 +218,7 @@
 }
 ```
 - `bigkinds_mode` ∈ `mock` | `record` | `live`. `llm_model` 은 stub 모드면 `"stub"`.
-- `last_pipeline_run` = 마지막으로 **성공한 전체 갱신**(stage `all`/`judge`, 전체 사건). `last_run` = 성공 여부와 무관한 마지막 실행.
+- `last_pipeline_run` = 마지막으로 **성공한 전체 갱신**(stage `all`/`judge`, 전체 사건). `last_run` = 성공 여부와 무관한 마지막 실행. 실행 중이면 `finished_at` 이 null 이고 `ok` 는 false 다. 서버가 중단돼 끝나지 못한 실행은 다음 기동 때 실패(`서버 종료로 중단`)로 닫힌다.
 - `today_overridden` 이 true 면 기준일이 `TODAY_OVERRIDE` 로 고정된 상태. `warnings` 는 설정 경고 문장 목록.
 - `error_summary` 는 분류 문구만이다: `빅카인즈 API 오류` / `LLM 호출 오류` / `실행 중복` / `입력·설정 오류` / `질의 구문 오류` / `시드 오류` / `실행 오류`. 서버 원문(키·경로가 섞일 수 있음)은 `pipeline_runs.error` 와 서버 로그에만 남는다. `/api/pipeline/run` 의 500 `detail` 도 같은 분류 문구다.
 

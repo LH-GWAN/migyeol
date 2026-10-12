@@ -53,8 +53,8 @@ def gate(event: Event, article: Article) -> tuple[bool, list[str]]:
         reasons.append("facility")
         if event.facility in (article.title or ""):
             reasons.append("facility-title")
-    # 책임기관이 지역과 같은 이름이면(가온시 = 가온시) 기관 일치는 지역 일치와 같은 뜻이라 'org' 로 치지 않는다
-    orgs = [o for o in [event.responsible_org, *(event.org_aliases or [])] if o and o != event.region]
+    # 책임기관·별칭이 지역명을 품으면(가온시·가온시청·가온시장 = 가온시) 기관 일치는 지역 일치와 같은 뜻이라 'org' 로 치지 않는다
+    orgs = [o for o in [event.responsible_org, *(event.org_aliases or [])] if o and not (event.region and event.region in o)]
     if any(o in text for o in orgs):
         reasons.append("org")
     scope_ok = bool(reasons)
@@ -120,11 +120,19 @@ def link_event(
     others = [f for f in (other_facilities or []) if f and f != event.facility]
     stats = {"event": event.key, "candidates": 0, "linked": 0, "review": 0, "dropped": 0, "removed": 0, "skipped": 0}
 
+    candidate_ids = {c.news_id for c in session.query(EventCandidate).filter_by(event_id=event.id).all()}
     for art in candidate_articles(session, event):
         stats["candidates"] += 1
         link = existing.get(art.news_id)
         if link is not None and (link.confirmed or link.rejected or link.link_method == "manual"):
             stats["skipped"] += 1
+            continue
+        if link is not None and art.news_id not in candidate_ids and candidate_ids:
+            # 수집 후보에서 빠진(시드를 좁힌) 기사의 자동 연결은 지운다 — 게이트를 통과하더라도 더는 이 사건의 후보가 아니다
+            event.links.remove(link)
+            session.delete(link)
+            existing.pop(art.news_id, None)
+            stats["removed"] += 1
             continue
 
         def drop() -> None:
@@ -182,7 +190,7 @@ def link_event(
     return stats
 
 
-def resolve_multi_event_links(session: Session, events: list[Event]) -> int:
+def resolve_multi_event_links(session: Session, events: list[Event]) -> list[int]:
     """한 기사가 여러 사건에 **자동 연결**(검토 대기 아님)되면 점수가 가장 높은 사건만 유지하고 나머지는 검토 큐로 보낸다.
 
     이미 검토 대기인 연결은 경쟁에 넣지 않는다 — 다른 사건의 정상 연결까지 강등돼 어느 사건에도 붙지 않는 일을 막는다.
@@ -194,7 +202,7 @@ def resolve_multi_event_links(session: Session, events: list[Event]) -> int:
             if l.rejected or l.confirmed or l.link_method == "manual" or l.needs_review:
                 continue
             by_news.setdefault(l.news_id, []).append(l)
-    changed = 0
+    changed: list[int] = []  # 연결이 강등된 사건 id (재판정 대상)
     for links in by_news.values():
         if len(links) < 2:
             continue
@@ -205,7 +213,7 @@ def resolve_multi_event_links(session: Session, events: list[Event]) -> int:
             l.needs_review = True
             if "multi-event" not in (l.link_reason or ""):
                 l.link_reason = (l.link_reason or "") + "+multi-event"
-            changed += 1
+            changed.append(l.event_id)
     for ev in events:
         recompute_needs_review(session, ev)
     session.commit()
@@ -225,5 +233,6 @@ def link_all(
     stats = [link_event(session, e, settings, embedder, other_facilities=facilities) for e in events]
     multi = resolve_multi_event_links(session, all_events if all_events is not None else events)
     if stats:
-        stats[0]["multi_event_review"] = multi
+        stats[0]["multi_event_review"] = len(multi)
+        stats[0]["multi_event_events"] = sorted(set(multi))
     return stats

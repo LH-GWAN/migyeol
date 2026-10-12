@@ -10,10 +10,10 @@ import re
 
 _PARTICLE_RE = re.compile(r"(으로부터|에서는|으로|에서|에게|까지|부터|이라|라고|하고|에는|은|는|이|가|을|를|의|에|과|와|도|로|들)$")
 # 조사처럼 보이지만 명사의 일부인 끝 — 잘라내지 않는다 (달빛지하차도, 배수로, 진입로, 선로)
-_NOUN_TAILS = ("차도", "수로", "도로", "철도", "보도", "통로", "진입로", "차로", "선로", "지하도", "활주로", "항로", "수도", "제도", "구도", "용도")
+_NOUN_TAILS = ("차도", "수로", "도로", "철도", "보도", "통로", "진입로", "차로", "선로", "지하도", "활주로", "항로", "수도", "제도", "구도", "용도", "관로", "배관", "경로", "회로")
 # 분명한 용언 어미만. 한 글자 '고·지·면·서' 는 창고·문서·측면 같은 명사와 겹치므로 두 글자 이상 조합으로 잡는다
 _VERB_ENDINGS = (
-    "다", "며", "해", "돼", "져", "던", "하기", "한", "된", "할", "될", "하는", "되는", "했", "됐",
+    "다", "며", "돼", "져", "던", "하기", "한", "된", "할", "될", "하는", "되는", "했", "됐", "해서", "해야", "하여",
     "치고", "하고", "리고", "으며", "면서", "고자", "도록", "하며", "되며", "하여", "되어", "마치", "마쳐",
 )
 _ADVERB_RE = re.compile(r"[가-힣]{2,}히$")  # 신속히·조속히·철저히
@@ -34,8 +34,15 @@ def action_terms(text: str, exclude: list[str] | tuple[str, ...] = (), limit: in
     for t in toks:
         if any(ch.isdigit() for ch in t) or _UNIT_RE.match(t):
             continue
-        t2 = t if t.endswith(_NOUN_TAILS) else _PARTICLE_RE.sub("", t)
-        if len(t2) < 2 or t2.endswith(_VERB_ENDINGS) or _ADVERB_RE.match(t2) or t2 in _STOP or t2 in out:
+        t2 = t
+        for _ in range(2):  # '상인들을' -> '상인들' -> '상인' (조사 + 복수)
+            if t2.endswith(_NOUN_TAILS):
+                break
+            stripped = _PARTICLE_RE.sub("", t2)
+            if stripped == t2 or len(stripped) < 2:
+                break
+            t2 = stripped
+        if len(t2) < 2 or _UNIT_RE.match(t2) or t2.endswith(_VERB_ENDINGS) or _ADVERB_RE.match(t2) or t2 in _STOP or t2 in out:
             continue
         if any(t2 in e or e in t2 for e in exclude if e):
             continue

@@ -140,3 +140,14 @@ migyeol/
 - **마이그레이션**: 추가할 수 없는 컬럼이 하나라도 있으면 어떤 DDL 도 실행하지 않고 실패한다(SQLite DDL 은 롤백되지 않는다). JSON `default=list/dict` 는 `DEFAULT '[]'/'{}'` 로 추가한다.
 - **공공 주체 판별**: 토큰 단위로 본다. 민간 단어는 토큰 끝 일치('시민안전과장' 은 통과), 기관 직함(사장·대표·이사장)은 앞에 기관 토큰이 있으면 공공, 한 글자 접미(시·군·구·도)는 뒤에 직함·공백이 오거나 별칭·광역명일 때만 기관(사람 이름 '김민구' 제외). 정당은 민간. 시의회는 공공(지자체 별칭에 귀속되지는 않음).
 
+## 지침서와 실제 응답 차이 — 2026-10-12 첫 실호출 (`scripts/smoke_live.py`, 키 활성)
+
+- 7개 엔드포인트 모두 `result=0`. 잘못된 키는 `{"result": -1, "reason": "Invalid Access Key!:<키>"}` 로 키를 되돌려 준다 → `app/redact.py` 마스킹.
+- `/search/news` 반환 필드: byline, category(list), category_incident(list), dateline, enveloped_at, hilight, news_id, provider, provider_link_page, provider_news_id, published_at, title, tms_raw_stream. `sort` 는 객체 `{"date":"asc"}` 와 리스트 `[{"date":"asc"},{"_score":"desc"}]` 둘 다 받는다(코드는 객체만 쓴다). `until` 은 제외.
+- `provider_link_page` 가 `//www.yeongnam.com/...` 처럼 스킴 없이 온다 → `collect._absolute_link` 가 https 를 붙인다.
+- `/search/news` news_ids 조회: content 는 200자.
+- `/time_line` 라벨은 day=`20230715`, month=`202307`. 하루 건수가 search 의 같은 날 total_hits 와 일치(날짜 기준·매칭 방식 동일).
+- `/search/quotation` 반환 필드: category, category_incident, date(`20261010`), news_id, provider, published_at, quotation, source. **인용문 검색은 기사 본문도 매칭한다**(질의어가 인용문·source 에 없는 문서가 5건 중 4건) — mock 은 인용문만 매칭하므로 실데이터에서는 인용문 수가 더 많다. extract 는 사건에 연결된 news_id 로 거르므로 영향은 호출량뿐.
+- `/issue_ranking` 의 `issue_category` 는 코드(`001000000`). `/word_cloud` weight 는 0~20 범위 실수.
+- `/changeTracker/news` 는 `dataList`, `message`, `size`(3000), `total_count`(문자열 "4222") — 관대 파서가 처리.
+

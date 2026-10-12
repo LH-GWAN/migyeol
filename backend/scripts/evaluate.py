@@ -157,8 +157,13 @@ def evaluate(session, gold: dict, embedder) -> dict:
             continue
 
         # 연결 — 파이프라인의 마지막 결정(auto_decision)만 측정. 관리자가 해제한 오연결도 fp 로, 관리자 확정도 tp 로 세지 않는다
-        pred = {l.news_id for l in ev.links if l.auto_decision == "link"}
-        review = {l.news_id for l in ev.links if l.auto_decision == "review"}
+        if any(l.auto_decision for l in ev.links):
+            pred = {l.news_id for l in ev.links if l.auto_decision == "link"}
+            review = {l.news_id for l in ev.links if l.auto_decision == "review"}
+        else:
+            # link 단계를 아직 새 코드로 돌리지 않은 DB: 옛 기준(활성 자동 연결)으로 대체
+            pred = {l.news_id for l in ev.links if l.link_method in ("rule", "embedding") and l.is_active}
+            review = {l.news_id for l in ev.links if l.link_method in ("rule", "embedding") and l.needs_review and not l.rejected}
         if g.get("linked_news_ids") is not None:
             tp, fp, fn = len(pred & truth), len(pred - truth), len(truth - pred)
             link_tp, link_fp, link_fn = link_tp + tp, link_fp + fp, link_fn + fn

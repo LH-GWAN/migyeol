@@ -80,7 +80,7 @@ export default async function AdminPage() {
                         <td className="py-3 pr-3">{c.judged && c.status_confidence !== null ? formatPercent(c.status_confidence) : "-"}</td>
                         <td className="py-3 pr-3">{c.priority_score.toFixed(1)}</td>
                         <td className="py-3 pr-3">
-                          {c.deadline_date ? formatDate(c.deadline_date, c.primary_promise?.deadline_precision ?? "day") : "-"}
+                          {c.deadline_date ? formatDate(c.deadline_date, c.deadline_precision ?? "day") : "-"}
                           {showsDeadlinePassed(c.status, c.deadline_passed_days) && (
                             <span className="ml-1 text-xs font-semibold text-red-700">경과 {c.deadline_passed_days}일</span>
                           )}

@@ -111,10 +111,37 @@ def migrate_missing_columns(engine: Engine) -> list[str]:
     if blocked:
         raise RuntimeError(f"컬럼 {', '.join(blocked)} 은 NOT NULL 이고 기본값이 없어 자동 추가할 수 없다 (아무 컬럼도 바꾸지 않았다). --reset 또는 수동 마이그레이션 필요")
     added: list[str] = []
-    with engine.begin() as conn:
-        for table_name, col_name, ddl in plan:
-            conn.execute(text(ddl))
-            added.append(f"{table_name}.{col_name}")
+    if not plan:
+        return added
+    # pysqlite 는 DDL 을 자동 커밋하므로 BEGIN IMMEDIATE 를 직접 열어 한 트랜잭션으로 묶는다 (중간 실패 시 전부 롤백).
+    # BEGIN IMMEDIATE 는 쓰기 잠금이라 여러 프로세스가 동시에 처음 기동해도 한 번만 실행된다 (busy_timeout 안에서 대기).
+    raw = engine.raw_connection()
+    try:
+        dbapi = raw.driver_connection if hasattr(raw, "driver_connection") else raw.connection
+        if "sqlite" in engine.dialect.name:
+            dbapi.isolation_level = None
+            cur = dbapi.cursor()
+            cur.execute("BEGIN IMMEDIATE")
+            try:
+                existing_now = {(t, c["name"]) for t, _, _ in plan for c in inspect(engine).get_columns(t)}
+                for table_name, col_name, ddl in plan:
+                    if (table_name, col_name) in existing_now:
+                        continue  # 다른 프로세스가 먼저 추가했다
+                    cur.execute(ddl)
+                    added.append(f"{table_name}.{col_name}")
+                cur.execute("COMMIT")
+            except Exception:
+                cur.execute("ROLLBACK")
+                raise
+            finally:
+                cur.close()
+        else:
+            with engine.begin() as conn:
+                for table_name, col_name, ddl in plan:
+                    conn.execute(text(ddl))
+                    added.append(f"{table_name}.{col_name}")
+    finally:
+        raw.close()
     if added:
         log.warning("DB 컬럼 추가(간이 마이그레이션): %s", added)
     return added

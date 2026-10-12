@@ -92,7 +92,7 @@ export default async function EvidencePage({ params }: { params: Params }) {
   const judged = ev.judged;
   const isUnresolved = judged && (ev.status === "판단 불가" || ev.status === "후속보도 부족");
   const signalMin = ev.rule.thresholds?.signal_min_conf;
-  const completionMin = ev.rule.thresholds?.completion_min_conf ?? signalMin; // 완료 신호의 채택 기준은 completion_min_conf
+  const completionMin = ev.rule.thresholds?.completion_min_conf ?? signalMin; // 완료(R2)·새로운문제(R1) 의 채택 기준은 completion_min_conf
   const thresholds = Object.entries(ev.rule.thresholds ?? {});
   const counted = ev.signals.filter((s) => s.counted).length;
   const considered = ev.signals.filter((s) => !s.counted && s.considered).length;
@@ -115,7 +115,11 @@ export default async function EvidencePage({ params }: { params: Params }) {
         <p className="text-sm text-gray-500">근거·불확실성</p>
         <h1 className="mt-1 text-2xl font-bold leading-tight text-gray-900">{ev.title}</h1>
         <div className="mt-3 flex flex-wrap items-center gap-3">
-          <StatusBadge status={ev.status} size="lg" />
+          {judged ? (
+            <StatusBadge status={ev.status} size="lg" />
+          ) : (
+            <span className="rounded border border-dashed border-gray-400 px-2 py-1 text-sm text-gray-600">판정 전</span>
+          )}
           <span className="text-sm text-gray-600">판정 신뢰도 {judged && ev.confidence !== null ? formatPercent(ev.confidence) : "-"}</span>
           {ev.judged_at ? (
             <span className="text-xs text-gray-400">판정 시각 {formatDateTime(ev.judged_at)}</span>
@@ -246,7 +250,7 @@ export default async function EvidencePage({ params }: { params: Params }) {
                       )}
                     </td>
                     <td className="py-3 pr-3">
-                      <ConfidenceBar value={s.confidence} threshold={s.signal === "완료" ? completionMin : signalMin} />
+                      <ConfidenceBar value={s.confidence} threshold={s.signal === "완료" || s.signal === "새로운문제" ? completionMin : signalMin} />
                     </td>
                     <td className="py-3 pr-3 text-xs leading-relaxed text-gray-600">{s.rationale || "-"}</td>
                     <td className="py-3">

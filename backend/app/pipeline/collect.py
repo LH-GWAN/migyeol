@@ -51,6 +51,18 @@ def _clean_hilight(s: str | None) -> str | None:
     return re.sub(r"</?b>", "", s)[:200]
 
 
+def _absolute_link(url: str | None) -> str | None:
+    """실서버는 provider_link_page 를 '//www.example.com/...' 처럼 스킴 없이 돌려주기도 한다 (첫 실호출 확인). 화면 링크용으로 https 를 붙인다."""
+    if not url:
+        return url
+    u = url.strip()
+    if u.startswith("//"):
+        return "https:" + u
+    if u.startswith("www."):
+        return "https://" + u
+    return u
+
+
 def expansions_for(client: BigKindsClient, seed: Seed, limit: int = 3) -> list[str]:
     """연관어 분석: 사건 핵심어 주변 30일 문서에서 상위 연관어를 뽑아 질의를 보강한다.
 
@@ -87,13 +99,16 @@ def _near_duplicate(doc: NewsDocument, kept: list[NewsDocument]) -> bool:
     return False
 
 
-def fetch_articles(client: BigKindsClient, query: str, start: date, until: date, cap: int) -> tuple[list[NewsDocument], int, bool]:
-    """[start, until) 구간을 날짜 오름차순으로 cap 건까지. 반환: (문서, total_hits, 잘림 여부).
+def fetch_articles(
+    client: BigKindsClient, query: str, start: date, until: date, cap: int, start_offset: int = 0
+) -> tuple[list[NewsDocument], int, bool, int]:
+    """[start, until) 구간을 날짜 오름차순으로 cap 건까지. 반환: (문서, total_hits, 잘림 여부, 다음 offset).
 
     거의 같은 기사(전재)는 건너뛰고 상한을 소모하지 않는다 — 상한은 저장할 기사 수 기준이다.
+    start_offset 을 주면 그 위치부터 이어 받는다 (남은 예산 이월용).
     """
     docs: list[NewsDocument] = []
-    offset = 0
+    offset = start_offset
     total = 0
     while len(docs) < cap:
         res = client.search_news(
@@ -117,7 +132,7 @@ def fetch_articles(client: BigKindsClient, query: str, start: date, until: date,
         offset += len(res.documents)
         if not res.documents or offset >= res.total_hits:
             break
-    return docs, total, total > offset
+    return docs, total, total > offset, offset
 
 
 def _month_windows(start: date, end_exclusive: date) -> list[tuple[date, date]]:
@@ -138,6 +153,17 @@ def _bucket_label(start: date, interval: str) -> str:
     return start.strftime("%Y%m%d") if interval == "day" else start.strftime("%Y%m")
 
 
+def _decades(start: date, end_exclusive: date) -> list[tuple[date, date]]:
+    """월 구간을 상·중·하순으로 나눈다 (큰 달에서 월초 기사만 받지 않도록)."""
+    cuts = [start, start.replace(day=11), start.replace(day=21), end_exclusive]
+    out = []
+    for a, b in zip(cuts, cuts[1:]):
+        a, b = max(a, start), min(b, end_exclusive)
+        if a < b:
+            out.append((a, b))
+    return out
+
+
 def allocate(hits: dict[str, int], budget: int, per_bucket_cap: int | None = None) -> dict[str, int]:
     """물 채우기 배분: 작은 구간은 전부, 큰 구간은 남은 예산을 고르게 나눠 받는다. 구간별 상한(per_bucket_cap)도 적용."""
     keys = [k for k, h in hits.items() if h > 0]
@@ -153,6 +179,38 @@ def allocate(hits: dict[str, int], budget: int, per_bucket_cap: int | None = Non
     return out
 
 
+def _fetch_bucket(
+    client: BigKindsClient, query: str, a: date, b: date, cap: int, split_big_month: bool
+) -> tuple[list[NewsDocument], int, bool, int, list[tuple[date, date, int]]]:
+    """한 구간을 cap 까지. 큰 달(interval=month)은 상·중·하순으로 나눠 cap 을 고르게 쓰고 남는 몫은 다음 순으로 넘긴다.
+
+    반환: (문서, total_hits, 잘림, 호출 수, 이어받기 지점 [(구간 시작, 끝, 다음 offset)] — 잘린 부분 구간만).
+    """
+    if not split_big_month:
+        docs, total, truncated, nxt = fetch_articles(client, query, a, b, cap)
+        return docs, total, truncated, 1, ([(a, b, nxt)] if truncated else [])
+    parts = _decades(a, b)
+    docs: list[NewsDocument] = []
+    total = 0
+    truncated = False
+    calls = 0
+    remaining = cap
+    resume: list[tuple[date, date, int]] = []
+    for i, (pa, pb) in enumerate(parts):
+        share = remaining // (len(parts) - i)
+        if share <= 0:
+            continue
+        got, t, tr, nxt = fetch_articles(client, query, pa, pb, share)
+        calls += 1
+        total += t
+        truncated = truncated or tr
+        if tr:
+            resume.append((pa, pb, nxt))
+        docs.extend(got)
+        remaining -= len(got)
+    return docs, total, truncated, calls, resume
+
+
 def fetch_balanced(
     client: BigKindsClient,
     query: str,
@@ -161,27 +219,40 @@ def fetch_balanced(
     budget: int,
     interval: str,
     per_bucket_cap: int | None = None,
-) -> tuple[list[NewsDocument], int, list[str], int]:
+) -> tuple[list[NewsDocument], int, list[str], int, list[str]]:
     """[start, end) 를 time_line 으로 먼저 보고, 예산 안이면 한 번에, 넘치면 날짜/월 구간별로 배분해 받는다.
 
-    반환: (문서, total_hits, 잘린 구간 설명, API 호출 수).
+    - time_line 이 0건이면 search 1회(return_size=1)로 교차 확인한다 (일시 장애·빈 응답으로 조용히 0건이 되지 않게).
+    - time_line 이 실패하면 단일 구간 수집으로 대체하고 경고를 남긴다.
+    - 상한을 넘는 달은 상·중·하순으로 나눠 받아 월초 기사만 들어오지 않게 한다. 전재만 많은 구간에서 쓰지 못한 예산은 잘린 다른 구간에 이월한다.
+    반환: (문서, total_hits, 잘린 구간 설명, API 호출 수, 경고).
     """
+    warnings: list[str] = []
     if start >= end or budget <= 0:
-        return [], 0, [], 0
+        return [], 0, [], 0, warnings
     calls = 1
     try:
         tl = client.time_line(TimeLineArgument(query=query, published_at=PublishedAt.of(start, end), interval=interval))
         hits = {p.label: int(p.hits or 0) for p in tl.time_line}
         total = sum(hits.values()) if hits else int(tl.total_hits or 0)
     except Exception as exc:  # noqa: BLE001 — 트렌드 실패는 단일 구간 수집으로 대체
-        log.warning("time_line 실패(%s) — 구간 %s~%s 를 한 번에 수집", exc, start, end)
+        warnings.append(f"time_line 실패({type(exc).__name__}) — 구간 {start}~{end} 를 한 번에 수집")
+        log.warning(warnings[-1])
         hits, total = {}, -1
     if total == 0:
-        return [], 0, [], calls
-    if 0 <= total <= budget or total < 0:
-        docs, got_total, truncated = fetch_articles(client, query, start, end, budget)
+        # 교차 확인: 트렌드가 비었는데 검색에는 있으면 트렌드를 믿지 않는다
+        probe = client.search_news(NewsSearchArgument(query=query, published_at=PublishedAt.of(start, end), sort=dict(_SORT), return_size=1, fields=["news_id"]))
         calls += 1
-        return docs, got_total, ([f"{start}~{end}:{got_total}건 중 {len(docs)}건"] if truncated else []), calls
+        if probe.total_hits > 0:
+            warnings.append(f"time_line 0건이지만 검색 total_hits={probe.total_hits} — 구간 {start}~{end} 를 한 번에 수집")
+            log.warning(warnings[-1])
+            hits, total = {}, -1
+        else:
+            return [], 0, [], calls, warnings
+    if total < 0 or total <= budget:
+        docs, got_total, truncated, _ = fetch_articles(client, query, start, end, budget)
+        calls += 1
+        return docs, got_total, ([f"{start}~{end}:{got_total}건 중 {len(docs)}건"] if truncated else []), calls, warnings
 
     windows = _day_windows(start, end) if interval == "day" else _month_windows(start, end)
     labelled = [(a, b, _bucket_label(a, interval)) for a, b in windows]
@@ -189,30 +260,64 @@ def fetch_balanced(
     docs: list[NewsDocument] = []
     seen: set[str] = set()
     truncated_info: list[str] = []
+    resume: list[tuple[date, date, int]] = []  # 잘린 (부분)구간: (시작, 끝, 다음 offset) — 예산 이월용
+    got_by_bucket: dict[str, int] = {}
+    spent = 0
     for a, b, lb in labelled:
         cap = plan.get(lb, 0)
+        bucket_hits = hits.get(lb, 0)
         if cap <= 0:
-            if hits.get(lb, 0) > 0:
-                truncated_info.append(f"{a}~{b}:{hits[lb]}건 중 0건")
+            if bucket_hits > 0:
+                truncated_info.append(f"{a}~{b}:{bucket_hits}건 중 0건")
+                resume.append((a, b, 0))
             continue
-        got, bucket_total, truncated = fetch_articles(client, query, a, b, cap)
-        calls += 1
-        if truncated or bucket_total > len(got):
-            truncated_info.append(f"{a}~{b}:{bucket_total}건 중 {len(got)}건")
+        big = interval == "month" and bucket_hits > cap
+        got, bucket_total, truncated, ncalls, parts = _fetch_bucket(client, query, a, b, cap, split_big_month=big)
+        calls += ncalls
         for d in got:
             if d.news_id not in seen:
                 seen.add(d.news_id)
                 docs.append(d)
-    return docs, total, truncated_info, calls
+        got_by_bucket[lb] = len(got)
+        spent += len(got)
+        if truncated:
+            truncated_info.append(f"{a}~{b}:{bucket_total}건 중 {len(got)}건")
+            resume.extend(parts)
+    # 예산 이월: 전재만 많아 못 쓴 예산을 잘린 (부분)구간에 고르게 나눠 이어 받는다
+    leftover = budget - spent
+    if leftover > 0 and resume:
+        extra: dict[str, int] = {}
+        for i, (a, b, off) in enumerate(resume):
+            share = leftover // (len(resume) - i)
+            if share <= 0:
+                break
+            got, _, _, _ = fetch_articles(client, query, a, b, share, start_offset=off)
+            calls += 1
+            added = 0
+            for d in got:
+                if d.news_id not in seen:
+                    seen.add(d.news_id)
+                    docs.append(d)
+                    added += 1
+            leftover -= added
+            lb = _bucket_label(a if interval == "day" else a.replace(day=1), interval)
+            extra[lb] = extra.get(lb, 0) + added
+        if extra:
+            truncated_info = []
+            for a, b, lb in labelled:
+                n = got_by_bucket.get(lb, 0) + extra.get(lb, 0)
+                if hits.get(lb, 0) > n:
+                    truncated_info.append(f"{a}~{b}:{hits[lb]}건 중 {n}건")
+    return docs, total, truncated_info, calls, warnings
 
 
 def fetch_windowed(client: BigKindsClient, query: str, occurred: date, today: date, settings: Settings) -> tuple[list[NewsDocument], dict]:
     """초기 구간(발생-1 ~ +14일, 상한 collect_initial_cap, 날짜별 배분) + 후속 구간(그 이후 ~ 오늘, 총상한의 남은 예산을 월별 배분,
-    월별 상한 collect_month_cap). 두 구간의 total_hits 는 모두 합산한다."""
+    월별 상한 collect_month_cap, 큰 달은 상·중·하순 분할). 두 구간의 total_hits 는 모두 합산한다."""
     until = today + timedelta(days=1)  # until 은 제외이므로 오늘을 포함하려면 내일
     init_start = occurred - timedelta(days=1)
     init_end = min(occurred + timedelta(days=INITIAL_DAYS), until)
-    info: dict = {"windows": 0, "total_hits": 0, "truncated_windows": [], "api_calls": 0}
+    info: dict = {"windows": 0, "total_hits": 0, "truncated_windows": [], "api_calls": 0, "warnings": []}
     docs: list[NewsDocument] = []
     seen: set[str] = set()
 
@@ -223,22 +328,24 @@ def fetch_windowed(client: BigKindsClient, query: str, occurred: date, today: da
                 docs.append(d)
 
     initial_budget = min(settings.collect_initial_cap, settings.max_articles_per_event)
-    got, total, trunc, calls = fetch_balanced(client, query, init_start, init_end, initial_budget, "day")
+    got, total, trunc, calls, warns = fetch_balanced(client, query, init_start, init_end, initial_budget, "day")
     _take(got)
     info["windows"] += 1
     info["total_hits"] += max(total, 0)
     info["truncated_windows"] += trunc
     info["api_calls"] += calls
+    info["warnings"] += warns
 
     tail_start = occurred + timedelta(days=INITIAL_DAYS)
     if tail_start < until:
         tail_budget = settings.max_articles_per_event - len(docs)
-        got, total, trunc, calls = fetch_balanced(client, query, tail_start, until, tail_budget, "month", per_bucket_cap=settings.collect_month_cap)
+        got, total, trunc, calls, warns = fetch_balanced(client, query, tail_start, until, tail_budget, "month", per_bucket_cap=settings.collect_month_cap)
         _take(got)
         info["windows"] += 1
         info["total_hits"] += max(total, 0)
         info["truncated_windows"] += trunc
         info["api_calls"] += calls
+        info["warnings"] += warns
     if info["truncated_windows"]:
         log.warning("수집 잘림 %s: %s", query[:60], info["truncated_windows"])
     return docs, info
@@ -265,7 +372,7 @@ def upsert_article(session: Session, doc: NewsDocument, embedder: EmbeddingBacke
     if doc.tms_raw_stream:
         art.tms_keywords = doc.keywords[:80]
     art.byline = doc.byline or art.byline
-    art.provider_link_page = doc.provider_link_page or art.provider_link_page
+    art.provider_link_page = _absolute_link(doc.provider_link_page) or art.provider_link_page
     if embedder is not None and (needs_recompute(art.embedding, art.embedding_backend, embedder) or article_text(art) != before):
         art.embedding = to_bytes(embedder.encode([article_text(art)])[0])
         art.embedding_backend = embedder.name
@@ -307,12 +414,16 @@ def collect_event(
         _, created = upsert_article(session, d, embedder)
         new += int(created)
         add_candidate(session, event, d.news_id, "seed")
-    # 시드를 좁히면 이전 질의로 들어온 후보는 더 이상 이 사건의 후보가 아니다 (연결은 link 단계가 게이트로 정리한다)
+    # 시드를 좁히면 이전 질의로 들어온 후보는 더 이상 이 사건의 후보가 아니다 (link 단계가 후보 없는 자동 연결을 지운다).
+    # 단, 이번 수집이 0건이면(장애 가능성) 후보를 지우지 않는다.
     stale = 0
-    for c in session.query(EventCandidate).filter_by(event_id=event.id, source="seed").all():
-        if c.news_id not in current:
-            session.delete(c)
-            stale += 1
+    if docs:
+        for c in session.query(EventCandidate).filter_by(event_id=event.id, source="seed").all():
+            if c.news_id not in current:
+                session.delete(c)
+                stale += 1
+    elif info.get("warnings"):
+        info["warnings"].append("수집 0건 — 기존 후보를 유지")
     info["stale_candidates_removed"] = stale
     session.commit()
     stats = {"event": event.key, "query": query, "expansions": expansions, "fetched": len(docs), "new": new, **info}

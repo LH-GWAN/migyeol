@@ -23,7 +23,8 @@ from ..config import Settings
 from ..db.models import Article, Event, Promise, Quotation
 from ..llm.client import PROMPT_VERSIONS, LLMClient, LLMFailure
 from ..llm.schemas import PromiseInput
-from ..rules.actors import is_public_actor, normalize_actor_org
+from ..rules.actors import is_public_actor, looks_like_person, normalize_actor_org
+from .judge import clear_llm_failure, note_llm_failure
 from .embeddings import EmbeddingBackend
 from .seeds import _quote, seed_from_event
 
@@ -80,8 +81,8 @@ def fetch_quotations(client: BigKindsClient, query: str, start: date, until: dat
 
 
 _DEADLINE_PATTERNS = (
-    re.compile(r"^(\d{4})[-./](\d{1,2})[-./](\d{1,2})"),  # 2026-06-30, 2026.06.30, 2026/6/30
-    re.compile(r"^(\d{4})[-./](\d{1,2})(?![\d])"),  # 2026-06, 2026.6
+    re.compile(r"^(\d{4})\s*[-./]\s*(\d{1,2})\s*[-./]\s*(\d{1,2})"),  # 2026-06-30, 2026.06.30, 2026. 6. 30., 2026/6/30
+    re.compile(r"^(\d{4})\s*[-./]\s*(\d{1,2})(?![\d])"),  # 2026-06, 2026.6, 2026. 6
     re.compile(r"^(\d{4})(\d{2})(\d{2})$"),  # 20260630
     re.compile(r"^(\d{4})년\s*(\d{1,2})월\s*(\d{1,2})일"),  # 2026년 6월 30일
     re.compile(r"^(\d{4})년\s*(\d{1,2})월"),  # 2026년 6월
@@ -130,12 +131,14 @@ def _rank(p: Promise) -> tuple:
 
 
 def _merge_duplicates(event: Event, embedder: EmbeddingBackend | None) -> int:
-    """같은 기관 + 유사 행동(코사인 ≥ 0.85 또는 동일)은 하나로 합친다. 근거 news_id 는 모두 보존."""
+    """같은 기관 + 유사 행동(코사인 ≥ 0.85 또는 동일)은 하나로 합친다. 근거 news_id 는 모두 보존.
+    대표는 근거 기사가 활성 연결인 약속을 우선한다 (대표 근거만 해제돼도 약속 전체가 추적에서 빠지지 않게)."""
     merged = 0
+    active = {l.news_id for l in event.links if l.is_active}
     for p in event.promises:
         if p.merged_into_id is not None and p.strength in ("확약", "계획") and p.action:
             p.is_trackable, p.merged_into_id = True, None  # 다시 대표를 고른다 (새 약속이 더 구체적일 수 있다)
-    promises = sorted([p for p in event.promises if p.is_trackable], key=_rank)
+    promises = sorted([p for p in event.promises if p.is_trackable], key=lambda p: (0 if p.evidence_news_id in active else 1, *_rank(p)))
     kept: list[Promise] = []
     vecs: dict[int, np.ndarray] = {}
     if embedder is not None and promises:
@@ -222,6 +225,7 @@ def extract_event(
     # 2) LLM 호출 (DB 쓰기 없음). 같은 (주체, 발언) 은 한 번만.
     memo: dict[tuple[str, str], object] = {}
     results: list[tuple[Quotation, object]] = []
+    gave_up: list[tuple[Quotation, str]] = []
     for q in pending:
         mkey = (q.source.strip(), re.sub(r"\s+", " ", q.quotation.strip()))
         if mkey in memo:
@@ -231,6 +235,8 @@ def extract_event(
             stats.setdefault("deferred", 0)
             stats["deferred"] += 1
             continue
+        if int((event.llm_failures or {}).get(f"promise:{q.id}", 0)) >= 2:
+            continue  # 2회 실패한 인용문은 '해당없음' 으로 기록돼 있다 — 다시 부르지 않는다
         article = session.get(Article, q.news_id)
         inp = PromiseInput(
             event_summary=event.summary or event.title,
@@ -247,14 +253,23 @@ def extract_event(
             res = llm.extract_promise(inp, key=f"{q.news_id}||{q.source}||{q.quotation}")
         except LLMFailure as exc:
             stats["llm_failed"] += 1
-            log.warning("extract LLM 실패(다음 실행에서 재시도) %s: %s", event.key, exc)
+            n = note_llm_failure(event, f"promise:{q.id}")
+            if n >= 2:
+                # 명세 §8: 재시도 후에도 실패하면 기록하고 검토 큐로 — 약속 없음('해당없음')으로 남겨 재호출하지 않는다
+                log.warning("extract LLM %d회 실패 — 해당없음 기록·검토 큐 %s/%s: %s", n, event.key, q.id, exc)
+                gave_up.append((q, f"LLM 호출 {n}회 실패로 추출 포기 — 사람 검토 필요 ({type(exc).__name__})"))
+            else:
+                log.warning("extract LLM 실패(다음 실행에서 재시도) %s: %s", event.key, exc)
             continue
+        clear_llm_failure(event, f"promise:{q.id}")
         memo[mkey] = res
         results.append((q, res))
 
     # 3) 결과 저장
     for q, res in results:
-        actor = normalize_actor_org(q.source, event.responsible_org, aliases) or res.actor_org or ""
+        actor = normalize_actor_org(q.source, event.responsible_org, aliases)
+        if not actor or (looks_like_person(actor) and res.actor_org and not looks_like_person(res.actor_org)):
+            actor = res.actor_org or actor or ""  # 규칙이 기관을 못 찾거나 사람 이름 형태면 LLM 의 기관명을 쓴다 (§2-4: 개인명은 추적 키가 아니다)
         deadline, why = parse_deadline(res.deadline_date, q.published_at)
         if why:
             stats["deadline_rejected"] += 1
@@ -280,9 +295,19 @@ def extract_event(
         q.promises.append(p)
         if p.is_trackable:
             stats["promises"] += 1
+    for q, why in gave_up:
+        p = Promise(event_id=event.id, quotation_id=q.id, actor_org="", actor_raw=q.source, action="", strength="해당없음", is_trackable=False, evidence_news_id=q.news_id, confidence=0.0, rationale=why, model=llm.model, prompt_version=PROMPT_VERSIONS["promise"])
+        event.promises.append(p)
+        q.promises.append(p)
     session.flush()
     session.refresh(event)
     stats["merged"] = _merge_duplicates(event, embedder)
+    # 아직 추출을 못 받은 공공 인용문 수 — 잠정 판정·검토 큐 표시 (호출 상한 이월·1회 실패)
+    event.pending_quotations = sum(1 for q in event.quotations if q.is_public_actor and not q.promises)
+    stats["pending_quotations"] = event.pending_quotations
+    from .review import recompute_needs_review
+
+    recompute_needs_review(session, event)
 
     # 약속 근거 기사는 '대응발표' 단계
     evidence_ids = {p.evidence_news_id for p in event.promises if p.is_trackable or p.strength == "의사표명"}

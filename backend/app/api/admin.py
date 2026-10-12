@@ -9,7 +9,7 @@ from sqlalchemy.orm import Session
 from ..config import get_settings
 from ..db.models import Article, Event, EventArticle, Report
 from ..db.session import get_session
-from ..pipeline.judge import rejudge_event
+from ..pipeline.judge import is_judged, rejudge_event
 from ..pipeline.review import recompute_needs_review
 from . import serializers as ser
 from .deps import MAX_ID, require_admin
@@ -83,8 +83,9 @@ def link_action(
     if ev is not None:
         recompute_needs_review(session, ev)
         session.commit()
-        # 연결이 바뀌면 근거도 바뀐다 — LLM 없이 규칙 판정·우선순위·단계만 다시 계산
-        rejudge_event(session, ev, get_settings(), get_settings().today())
+        # 연결이 바뀌면 근거도 바뀐다 — LLM 없이 규칙 판정·우선순위·단계만 다시 계산 (판정 전 사건은 그대로 둔다)
+        if is_judged(session, ev):
+            rejudge_event(session, ev, get_settings(), get_settings().today())
     session.commit()
     return {"event_id": event_id, "news_id": news_id, "link_method": link.link_method, "confirmed": link.confirmed, "rejected": link.rejected}
 

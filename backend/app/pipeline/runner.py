@@ -40,10 +40,11 @@ RUN_LOCK = threading.Lock()
 
 
 def _lock_path() -> Path:
+    from ..config import BACKEND_DIR
     from ..db.session import db_path
 
     p = db_path()
-    base = p.parent if p is not None else Path(".")
+    base = p.parent if p is not None else BACKEND_DIR / "data"  # :memory:·비 sqlite 도 실행 위치가 아니라 backend/data 에
     base.mkdir(parents=True, exist_ok=True)
     return base / "pipeline.lock"
 
@@ -152,7 +153,7 @@ class Pipeline:
             return {"dates": [d.isoformat() for d in dates], "candidates": len(cands), "draft": str(draft), "topics": [c.topic for c in cands]}
         if stage == "tracker":
             stats = {"events": 0}
-            self._tracker(stats)
+            self._tracker(stats, isolate=False)  # tracker 만 실행했으면 실패는 실행 실패다 (all 안에서는 격리)
             stats["summary"] = summarize(stats)
             return stats
 
@@ -164,12 +165,18 @@ class Pipeline:
             stats["collect"] = self._per_event(
                 "collect", evs, lambda e: collect_mod.collect_event(self.session, self.client, e, self.settings, self.embedder, self.today), stats
             )
+            for c in stats["collect"]:
+                for w in c.get("warnings", []):
+                    stats.setdefault("warnings", []).append({"stage": "collect", "event": c.get("event"), "warning": w})
         if stage in ("link", "all"):
             stats["link"] = link_mod.link_all(self.session, evs, self.settings, self.embedder, all_facilities=all_facilities, all_events=all_events)
             if stage == "link":
-                # 연결이 바뀌면 근거·약속(근거 기사가 활성 연결이어야 추적)도 바뀐다 — LLM 없이 규칙 판정만 다시
+                # 연결이 바뀌면 근거·약속(근거 기사가 활성 연결이어야 추적)도 바뀐다 — LLM 없이 규칙 판정만 다시.
+                # 판정 전 사건(judge 미실행)은 그대로 두고, 사건 간 배타 처리로 연결이 바뀐 다른 사건도 포함한다.
+                touched_ids = set(stats["link"][0].get("multi_event_events", [])) if stats["link"] else set()
+                targets = [e for e in all_events if (e in evs or e.id in touched_ids) and judge_mod.is_judged(self.session, e)]
                 stats["rejudge"] = self._per_event(
-                    "rejudge", evs, lambda e: {"event": e.key, "status": judge_mod.rejudge_event(self.session, e, self.settings, self.today).status}, stats
+                    "rejudge", targets, lambda e: {"event": e.key, "status": judge_mod.rejudge_event(self.session, e, self.settings, self.today).status}, stats
                 )
         if stage in ("extract", "all"):
             stats["extract"] = self._per_event(
@@ -199,14 +206,16 @@ class Pipeline:
         stats["summary"] = summarize(stats)
         return stats
 
-    def _tracker(self, stats: dict[str, Any]) -> None:
-        """변경이력 확인. 실패해도 all 전체를 깨지 않는다 (failures 에 남긴다)."""
+    def _tracker(self, stats: dict[str, Any], isolate: bool = True) -> None:
+        """변경이력 확인. all 안에서는 실패해도 전체를 깨지 않는다 (failures 에 남긴다). 단독 실행이면 실패를 올린다."""
         try:
             stats["tracker"] = tracker_mod.check_changes(
                 self.session, self.client, self._tracker_from(), settings=self.settings, today=self.today, llm=self.llm, call_budget=self.call_budget
             )
         except Exception as exc:  # noqa: BLE001
             self.session.rollback()
+            if not isolate:
+                raise
             err = mask(f"{type(exc).__name__}: {exc}")
             log.error("tracker failed: %s", err[:300])
             stats.setdefault("failures", []).append({"stage": "tracker", "event": "*", "error": err[:200]})

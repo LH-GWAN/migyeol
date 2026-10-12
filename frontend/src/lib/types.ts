@@ -348,7 +348,7 @@ export interface PipelineRunOut {
 export interface LastPipelineRun {
   stage: PipelineStage;
   event_id: number | null;
-  finished_at: string;
+  finished_at: string | null;
   ok: boolean;
   error_summary: string | null;
   stats: PipelineStats;
@@ -357,7 +357,8 @@ export interface LastPipelineRun {
 /** Most recent run of any kind, success or not. `error_summary` is a category label only (never the raw server message). */
 export interface LastRun {
   stage: PipelineStage;
-  finished_at: string;
+  /** null while the run is still in progress */
+  finished_at: string | null;
   ok: boolean;
   error_summary: string | null;
   event_id: number | null;

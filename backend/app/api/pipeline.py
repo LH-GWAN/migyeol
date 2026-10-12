@@ -64,6 +64,7 @@ _ERROR_LABELS = {
     "ValueError": "입력·설정 오류",
     "QueryError": "질의 구문 오류",
     "SeedError": "시드 오류",
+    "Interrupted": "서버 종료로 중단",
 }
 
 

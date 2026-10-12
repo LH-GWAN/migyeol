@@ -23,6 +23,7 @@ log = logging.getLogger("migyeol")
 async def lifespan(app: FastAPI):
     settings = get_settings()
     init_db()  # 누락 컬럼은 간이 마이그레이션으로 보충
+    _close_interrupted_runs()
     for w in settings.startup_warnings():
         log.warning("설정 경고: %s", w)
     scheduler = None
@@ -43,6 +44,25 @@ async def lifespan(app: FastAPI):
     yield
     if scheduler is not None:
         scheduler.shutdown(wait=False)
+
+
+def _close_interrupted_runs() -> None:
+    """서버가 죽어 finished_at 이 비어 남은 실행 기록을 실패로 닫는다 (헤더가 '실행 중' 으로 영원히 보이지 않게)."""
+    from .db.models import PipelineRun, _now
+    from .db.session import session_factory
+
+    session = session_factory()()
+    try:
+        stale = session.query(PipelineRun).filter(PipelineRun.finished_at.is_(None)).all()
+        for r in stale:
+            r.ok = False
+            r.error = "Interrupted: 서버 종료로 중단된 실행"
+            r.finished_at = _now()
+        if stale:
+            session.commit()
+            log.warning("중단된 실행 %d건을 실패로 닫았다", len(stale))
+    finally:
+        session.close()
 
 
 def create_app() -> FastAPI:

@@ -50,6 +50,8 @@ class Event(Base):
     needs_review: Mapped[bool] = mapped_column(Boolean, default=False)  # 검토 대기 연결 OR 미처리 신고 OR 변경이력 표시
     change_flagged: Mapped[bool] = mapped_column(Boolean, default=False)  # 변경이력(tracker)으로 근거 기사가 바뀜
     pending_followups: Mapped[int] = mapped_column(Integer, default=0)  # 아직 LLM 분류를 못 받은 후속 기사 수 (호출 상한·실패 이월)
+    pending_quotations: Mapped[int] = mapped_column(Integer, default=0)  # 아직 약속 추출을 못 받은 공공 인용문 수 (호출 상한·실패 이월)
+    llm_failures: Mapped[dict] = mapped_column(JSON, default=dict)  # 항목별 LLM 실패 횟수 {"followup:<news_id>": n, "promise:<quotation_id>": n}
 
     created_at: Mapped[datetime] = mapped_column(DateTime, default=_now)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=_now, onupdate=_now)

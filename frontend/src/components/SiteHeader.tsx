@@ -22,7 +22,8 @@ export default async function SiteHeader() {
   const meta = await safe(getMeta());
   const badge = meta.ok ? modeBadge(meta.data.bigkinds_mode) : null;
   const lastRun = meta.ok ? meta.data.last_run : null;
-  const lastRunFailed = lastRun !== null && lastRun.ok === false;
+  const lastRunRunning = lastRun !== null && lastRun.finished_at === null;
+  const lastRunFailed = lastRun !== null && lastRun.ok === false && !lastRunRunning;
 
   return (
     <header className="border-b border-gray-200 bg-white">
@@ -62,12 +63,17 @@ export default async function SiteHeader() {
               <p>
                 마지막 갱신{" "}
                 <time dateTime={meta.data.last_pipeline_run?.finished_at ?? undefined}>
-                  {meta.data.last_pipeline_run ? formatDateTime(meta.data.last_pipeline_run.finished_at) : "기록 없음"}
+                  {meta.data.last_pipeline_run?.finished_at ? formatDateTime(meta.data.last_pipeline_run.finished_at) : "기록 없음"}
                 </time>
+                {lastRunRunning && lastRun && (
+                  <span className="ml-1 text-amber-700" title={`실행 중: ${lastRun.stage}`}>
+                    (실행 중)
+                  </span>
+                )}
                 {lastRunFailed && lastRun && (
                   <span
                     className="ml-1 text-red-600"
-                    title={`최근 실행 실패: ${lastRun.stage}${lastRun.event_id !== null ? ` (사건 #${lastRun.event_id})` : ""} · ${formatDateTime(lastRun.finished_at)}${lastRun.error_summary ? ` · ${lastRun.error_summary}` : ""}`}
+                    title={`최근 실행 실패: ${lastRun.stage}${lastRun.event_id !== null ? ` (사건 #${lastRun.event_id})` : ""}${lastRun.finished_at ? ` · ${formatDateTime(lastRun.finished_at)}` : ""}${lastRun.error_summary ? ` · ${lastRun.error_summary}` : ""}`}
                   >
                     (실패)
                   </span>
