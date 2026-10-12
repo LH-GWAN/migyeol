@@ -1,9 +1,11 @@
 """5. 후속 신호 분류(LLM 역할 ⓑ) + 상태 판정(규칙) + 우선순위.
 
 후속 기사 = 활성 연결(해제·검토 대기 제외) 기사 중 published_at > max(발생일 + 유예, 가장 이른 약속 발언일), 삭제(cancelled) 제외.
+추적 약속 = is_trackable 이고 근거 기사가 활성 연결인 약속 (연결이 해제·삭제되면 약속도 추적에서 빠진다).
 신호 캐시 키: (event, news_id, prompt_version) + 분류 당시 model + 추적 약속 집합 해시. 모델이나 약속 집합이 바뀌면 다시 분류한다.
-LLM 호출은 DB 쓰기 트랜잭션 밖에서 하고, 실패한 기사는 저장하지 않는다(다음 실행에서 재시도).
-규칙 판정(rejudge_event)은 LLM 없이 저장된 신호만으로 다시 실행할 수 있다 — 관리자 연결 해제·변경이력 뒤에 쓴다.
+LLM 호출은 DB 쓰기 트랜잭션 밖에서 하고, 실패한 기사는 저장하지 않는다(다음 실행에서 재시도). 최신 기사부터 분류한다.
+규칙 판정(rejudge_event)은 **현재 약속 집합으로 분류된** 신호만 쓴다. 분류를 못 받은 후속 기사가 있으면
+Event.pending_followups 에 건수를 남기고 판정은 잠정(검토 큐)으로 표시한다 — 명세 §8.
 """
 
 from __future__ import annotations
@@ -27,7 +29,9 @@ log = logging.getLogger("migyeol.judge")
 
 
 def trackable_promises(event: Event) -> list[Promise]:
-    return sorted([p for p in event.promises if p.is_trackable], key=lambda p: p.id)
+    """추적 약속: is_trackable 이고 근거 기사가 이 사건의 활성 연결(해제·검토 대기 아님)인 것."""
+    active = {l.news_id for l in event.links if l.is_active}
+    return sorted([p for p in event.promises if p.is_trackable and p.evidence_news_id in active], key=lambda p: p.id)
 
 
 def promise_set_hash(promises: list[Promise]) -> str:
@@ -57,6 +61,14 @@ def followup_cutoff(session: Session, event: Event, settings: Settings) -> date:
     if dates:
         cutoff = max(cutoff, min(dates))
     return cutoff
+
+
+def days_since_followup(session: Session, event: Event, settings: Settings, today: date) -> int:
+    """우선순위용 '보도 공백' 일수. 후속 기사가 없는 사건도 기준일(발생+유예 / 첫 약속) 이후 경과로 가산점을 받는다.
+    판정(rejudge)과 API(live_priority)가 같은 값을 쓰도록 한 곳에 둔다."""
+    if event.last_followup_at:
+        return (today - event.last_followup_at).days
+    return max(0, (today - followup_cutoff(session, event, settings)).days)
 
 
 def followup_articles(session: Session, event: Event, settings: Settings) -> list[Article]:
@@ -94,14 +106,16 @@ def classify_followups(
     version = PROMPT_VERSIONS["followup"]
     existing = {s.news_id: s for s in event.signals if s.prompt_version == version}
     followups = followup_articles(session, event, settings)
-    stats = {"event": event.key, "followups": len(followups), "llm_calls": 0, "llm_failed": 0, "reclassified": 0}
+    stats = {"event": event.key, "followups": len(followups), "llm_calls": 0, "llm_failed": 0, "reclassified": 0, "deferred": 0}
+    if not promises:
+        return stats  # 추적 약속이 없으면 신호가 뜻이 없다 — LLM 을 부르지 않는다 (R5 사유로 표시)
 
     quotes_by_news: dict[str, list[str]] = {}
     for q in event.quotations:
         quotes_by_news.setdefault(q.news_id, []).append(f"{q.source}: {q.quotation}")
 
     todo: list[Article] = []
-    for a in followups:
+    for a in reversed(followups):  # 최신 기사부터 — 호출 상한에 걸려도 판정에 중요한 최근 신호가 먼저 분류된다
         s = existing.get(a.news_id)
         if s is not None and s.model == llm.model and s.promise_set_hash == pset:
             continue
@@ -112,7 +126,6 @@ def classify_followups(
     results: list[tuple[Article, object]] = []
     for a in todo:
         if call_budget is not None and call_budget.get("remaining", 1) <= 0:
-            stats.setdefault("deferred", 0)
             stats["deferred"] += 1
             continue
         inp = FollowupInput(
@@ -159,6 +172,11 @@ def rejudge_event(session: Session, event: Event, settings: Settings, today: dat
     version = PROMPT_VERSIONS["followup"]
     followups = followup_articles(session, event, settings)
     by_news = {a.news_id: a for a in followups}
+    promises = trackable_promises(event)
+    pset = promise_set_hash(promises)
+    # 현재 약속 집합으로 분류된 신호만 유효하다 — 약속이 취소·해제된 뒤 남은 옛 신호로 판정하지 않는다
+    current = [s for s in event.signals if s.prompt_version == version and s.news_id in by_news and s.promise_set_hash == pset]
+    pending = len(by_news) - len({s.news_id for s in current}) if promises else 0
     signals_in = [
         SignalIn(
             id=s.id,
@@ -170,13 +188,16 @@ def rejudge_event(session: Session, event: Event, settings: Settings, today: dat
             promise_id=s.promise_id,
             evidence_span=s.evidence_span,
         )
-        for s in event.signals
-        if s.prompt_version == version and s.news_id in by_news
+        for s in current
     ]
-    promises = trackable_promises(event)
-    promises_in = [PromiseIn(id=p.id, deadline_date=p.deadline_date, strength=p.strength, is_trackable=p.is_trackable) for p in event.promises]
+    tracked_ids = {p.id for p in promises}
+    promises_in = [PromiseIn(id=p.id, deadline_date=p.deadline_date, strength=p.strength, is_trackable=p.id in tracked_ids) for p in event.promises]
     th = Thresholds(settings.signal_min_conf, settings.completion_min_conf, settings.stale_followup_days)
     j = judge(signals_in, promises_in, [a.published_at for a in followups], today, th)
+    if pending:
+        note = f"후속 기사 {pending}건은 아직 분류 전(호출 상한·실패 이월) — 잠정 판정"
+        j.reason_text = f"{j.reason_text} ({note})"
+        j.unresolved_reason = f"{j.unresolved_reason} / {note}" if j.unresolved_reason else note
 
     session.add(
         StatusJudgment(
@@ -197,12 +218,14 @@ def rejudge_event(session: Session, event: Event, settings: Settings, today: dat
     event.status_confidence = j.confidence
     event.followup_count = len(followups)
     event.last_followup_at = followups[-1].published_at if followups else None
+    event.pending_followups = pending
+    from .review import recompute_needs_review
+
+    recompute_needs_review(session, event)
 
     if trend is None:
         trend = latest_trend_dict(session, event)
-    cutoff = followup_cutoff(session, event, settings)
-    # 후속 기사가 없는 사건도 '얼마나 오래 보도가 없었나'(기준일 이후 경과)로 가산점을 받는다
-    days_since = (today - event.last_followup_at).days if event.last_followup_at else max(0, (today - cutoff).days)
+    days_since = days_since_followup(session, event, settings, today)
     passed = deadline_passed_days(event, today)
     event.priority_score = priority_rules.score(
         status=j.status,

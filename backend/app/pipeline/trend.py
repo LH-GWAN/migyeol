@@ -2,6 +2,7 @@
 
 peak_hits  : 월별 최대 기사 수
 recent_mean: 직전 완결 3개월 평균 (진행 중인 이번 달은 부분 월이라 제외; 시리즈가 이번 달뿐이면 그 달), 빈 달은 0
+             단, 이번 달(부분 월) 보도가 이미 그 평균을 넘으면(재발 등으로 급증) 이번 달 값을 쓴다 — 급증을 '급감' 으로 보지 않는다
 drop_ratio : 1 - recent_mean / peak_hits
 """
 
@@ -31,6 +32,9 @@ def summarize_series(series: list[dict], today: date) -> dict:
     completed = [s for s in series if s["label"] != current] or series
     recent = completed[-3:]
     recent_mean = round(sum(s["hits"] for s in recent) / len(recent), 2) if recent else 0.0
+    current_hits = next((s["hits"] for s in series if s["label"] == current), None)
+    if current_hits is not None and current_hits > recent_mean:
+        recent_mean = float(current_hits)
     peak_hits = peak["hits"] if peak else 0
     drop = round(1 - recent_mean / peak_hits, 3) if peak_hits > 0 else 0.0
     return {

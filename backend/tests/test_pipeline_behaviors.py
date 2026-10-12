@@ -114,13 +114,17 @@ def test_followup_signals_reclassified_when_promise_set_changes(fresh):
     sig = session.query(FollowupSignal).filter_by(event_id=ev.id).first()
     old_hash = sig.promise_set_hash
     assert old_hash
+    from datetime import date
+
+    # 약속 집합(id:action:deadline)이 바뀌면 — 여기서는 기한 변경 — 기존 신호는 캐시로 쓰지 않고 다시 분류한다
     for p in ev.promises:
-        p.is_trackable = False
+        if p.is_trackable:
+            p.deadline_date = date(2027, 1, 31)
     session.commit()
     stats = pipe.run("judge", ev.id).stats["judge"][0]
     assert stats["reclassified"] >= 1
     session.refresh(sig)
-    assert sig.promise_set_hash != old_hash and sig.matches_promise is False
+    assert sig.promise_set_hash != old_hash  # 새 약속 집합으로 다시 저장됐다
 
 
 # 1-4 ------------------------------------------------------------------------------

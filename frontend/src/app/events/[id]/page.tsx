@@ -112,8 +112,19 @@ export default async function EventPage({ params }: { params: Params }) {
           <div className="flex w-full flex-col gap-2 rounded-md border border-gray-100 bg-gray-50 p-4 sm:w-auto sm:min-w-[260px]">
             <span className="text-xs font-semibold text-gray-500">현재 상태</span>
             <div className="flex flex-wrap items-center gap-2">
-              <StatusBadge status={card.status} size="lg" />
-              <span className="text-sm text-gray-600">신뢰도 {judged ? formatPercent(card.status_confidence) : "-"}</span>
+              {judged ? (
+                <StatusBadge status={card.status} size="lg" />
+              ) : (
+                <span className="rounded border border-dashed border-gray-400 px-2 py-1 text-sm text-gray-600">판정 전</span>
+              )}
+              <span className="text-sm text-gray-600">
+                신뢰도 {judged && card.status_confidence !== null ? formatPercent(card.status_confidence) : "-"}
+              </span>
+              {card.pending_followups > 0 && (
+                <span className="rounded bg-amber-50 px-1.5 py-0.5 text-xs font-semibold text-amber-800">
+                  잠정 · 분류 대기 {card.pending_followups}건
+                </span>
+              )}
             </div>
             {judged ? (
               <p className="text-xs text-gray-600">

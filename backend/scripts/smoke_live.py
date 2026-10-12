@@ -25,6 +25,7 @@ from app.bigkinds.schemas import (  # noqa: E402
     WordCloudArgument,
 )
 from app.config import get_settings  # noqa: E402
+from app.redact import mask  # noqa: E402
 
 
 def main() -> int:
@@ -40,7 +41,7 @@ def main() -> int:
     c = LiveBigKindsClient(key, settings.bigkinds_base_url, rps=1.0)
 
     def redact(text: str) -> str:
-        return text.replace(key, "<access_key>")  # 서버 오류 메시지에 키가 그대로 들어온다 (Invalid Access Key!:<key>)
+        return mask(text)  # 서버 오류 메시지에 키가 그대로 들어온다 (Invalid Access Key!:<key>) — 클라이언트 공통 마스킹
 
     d = date.fromisoformat(args.date)
     window = PublishedAt.of(d - timedelta(days=40), d + timedelta(days=1))
@@ -61,6 +62,13 @@ def main() -> int:
         return {"total_hits": r.total_hits, "n": len(docs), "document_keys": sorted(docs[0].keys()) if docs else [], "sample": {k: (str(v)[:80]) for k, v in (docs[0].items() if docs else [])}}
 
     step("search_news", _news)
+
+    def _sort_list():
+        # 수집·인용문 코드는 지침서의 객체 형식 sort 를 쓴다. 다중 정렬(리스트)을 실서버가 받는지 여기서만 확인한다
+        r = c.search_news(NewsSearchArgument(query=args.query, published_at=window, sort=[{"date": "asc"}, {"_score": "desc"}], return_size=2, fields=["news_id", "published_at"]))
+        return {"accepted": True, "total_hits": r.total_hits, "n": len(r.documents)}
+
+    step("search_news_sort_list", _sort_list)
     first_id = None
     sample = report.get("search_news", {}).get("sample") if isinstance(report.get("search_news"), dict) else None
     if sample and sample.get("news_id"):

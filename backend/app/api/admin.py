@@ -70,13 +70,15 @@ def link_action(
     link = session.get(EventArticle, {"event_id": event_id, "news_id": news_id})
     if link is None:
         raise HTTPException(status_code=404, detail="link not found")
-    link.link_method = "manual"
+    # link_method(rule/embedding)는 파이프라인의 결정으로 남긴다 — 평가가 관리자 해제 전 오연결을 셀 수 있게. 사람 결정은 플래그로 표시
     if body.action == "confirm":
         link.confirmed, link.needs_review, link.rejected = True, False, False
     elif body.action == "reject":
         link.confirmed, link.needs_review, link.rejected = False, False, True
     else:  # restore: 해제를 되돌려 검토 큐로
         link.confirmed, link.needs_review, link.rejected = False, True, False
+    if "+manual" not in (link.link_reason or ""):
+        link.link_reason = (link.link_reason or "") + "+manual"
     ev = session.get(Event, event_id)
     if ev is not None:
         recompute_needs_review(session, ev)
@@ -84,7 +86,7 @@ def link_action(
         # 연결이 바뀌면 근거도 바뀐다 — LLM 없이 규칙 판정·우선순위·단계만 다시 계산
         rejudge_event(session, ev, get_settings(), get_settings().today())
     session.commit()
-    return {"event_id": event_id, "news_id": news_id, "link_method": "manual", "confirmed": link.confirmed, "rejected": link.rejected}
+    return {"event_id": event_id, "news_id": news_id, "link_method": link.link_method, "confirmed": link.confirmed, "rejected": link.rejected}
 
 
 @router.post("/reports/{report_id}/resolve")

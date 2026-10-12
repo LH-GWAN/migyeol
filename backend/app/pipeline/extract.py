@@ -57,7 +57,7 @@ def fetch_quotations(client: BigKindsClient, query: str, start: date, until: dat
                 QuotationSearchArgument(
                     query=query,
                     published_at=PublishedAt.of(cur, end),
-                    sort=[{"date": "asc"}, {"_score": "desc"}],
+                    sort={"date": "asc"},  # 지침서 형식. 다중 정렬 리스트는 실서버 확인 전 (smoke_live.py)
                     hilight=300,
                     return_from=offset,
                     return_size=100,
@@ -79,23 +79,46 @@ def fetch_quotations(client: BigKindsClient, query: str, start: date, until: dat
     return out, truncated
 
 
+_DEADLINE_PATTERNS = (
+    re.compile(r"^(\d{4})[-./](\d{1,2})[-./](\d{1,2})"),  # 2026-06-30, 2026.06.30, 2026/6/30
+    re.compile(r"^(\d{4})[-./](\d{1,2})(?![\d])"),  # 2026-06, 2026.6
+    re.compile(r"^(\d{4})(\d{2})(\d{2})$"),  # 20260630
+    re.compile(r"^(\d{4})년\s*(\d{1,2})월\s*(\d{1,2})일"),  # 2026년 6월 30일
+    re.compile(r"^(\d{4})년\s*(\d{1,2})월"),  # 2026년 6월
+    re.compile(r"^(\d{4})년?(?![\d])"),  # 2026, 2026년
+)
+_DEADLINE_MAX_YEARS_AHEAD = 15
+
+
 def parse_deadline(raw: str | None, published: date | None = None) -> tuple[date | None, str | None]:
     """LLM 이 낸 기한 문자열 -> date. 'YYYY-MM' 은 말일, 'YYYY' 는 12-31, 없는 날짜(2026-06-31)는 그 달 말일.
-    발언일보다 앞선 기한은 무효. 반환: (date|None, 무효 사유|None)."""
+    'YYYY.MM.DD' / 'YYYYMMDD' / 'YYYY년 M월 D일' 도 받는다. 발언일보다 앞선 기한, 터무니없는 연도(0000, 발언 15년 뒤)는 무효.
+    반환: (date|None, 무효 사유|None). 예외를 던지지 않는다 (사건 extract 전체를 롤백시키지 않기 위해)."""
     if not raw:
         return None, None
     s = str(raw).strip()
-    m = re.match(r"^(\d{4})(?:-(\d{1,2}))?(?:-(\d{1,2}))?", s)
+    m = None
+    for pat in _DEADLINE_PATTERNS:
+        m = pat.match(s)
+        if m:
+            break
     if not m:
         return None, f"기한 형식 인식 불가: {s}"
-    y = int(m.group(1))
-    mo = int(m.group(2)) if m.group(2) else 12
-    if not 1 <= mo <= 12:
-        return None, f"기한 월 범위 밖: {s}"
-    last = calendar.monthrange(y, mo)[1]
-    d = int(m.group(3)) if m.group(3) else last
-    d = min(max(d, 1), last)
-    out = date(y, mo, d)
+    groups = m.groups()
+    try:
+        y = int(groups[0])
+        mo = int(groups[1]) if len(groups) > 1 and groups[1] else 12
+        if not 1 <= mo <= 12:
+            return None, f"기한 월 범위 밖: {s}"
+        last = calendar.monthrange(y, mo)[1]
+        d = int(groups[2]) if len(groups) > 2 and groups[2] else last
+        d = min(max(d, 1), last)
+        out = date(y, mo, d)
+    except (ValueError, OverflowError):
+        return None, f"기한 날짜 해석 불가: {s}"
+    base = published or date.today()
+    if y < 2000 or y > base.year + _DEADLINE_MAX_YEARS_AHEAD:
+        return None, f"기한 연도 범위 밖: {s}"
     if published and out < published:
         return None, f"기한({out})이 발언일({published})보다 앞섬"
     return out, None
@@ -109,6 +132,9 @@ def _rank(p: Promise) -> tuple:
 def _merge_duplicates(event: Event, embedder: EmbeddingBackend | None) -> int:
     """같은 기관 + 유사 행동(코사인 ≥ 0.85 또는 동일)은 하나로 합친다. 근거 news_id 는 모두 보존."""
     merged = 0
+    for p in event.promises:
+        if p.merged_into_id is not None and p.strength in ("확약", "계획") and p.action:
+            p.is_trackable, p.merged_into_id = True, None  # 다시 대표를 고른다 (새 약속이 더 구체적일 수 있다)
     promises = sorted([p for p in event.promises if p.is_trackable], key=_rank)
     kept: list[Promise] = []
     vecs: dict[int, np.ndarray] = {}
@@ -129,10 +155,16 @@ def _merge_duplicates(event: Event, embedder: EmbeddingBackend | None) -> int:
         if dup is None:
             kept.append(p)
         else:
+            # 대표가 바뀌어도 근거 news_id 와 '어디로 병합됐는지' 를 잃지 않는다
             ids = list(dup.merged_news_ids or [])
-            if p.evidence_news_id and p.evidence_news_id not in ids and p.evidence_news_id != dup.evidence_news_id:
-                ids.append(p.evidence_news_id)
+            for nid in [p.evidence_news_id, *(p.merged_news_ids or [])]:
+                if nid and nid not in ids and nid != dup.evidence_news_id:
+                    ids.append(nid)
             dup.merged_news_ids = ids
+            for other in event.promises:
+                if other.merged_into_id == p.id:
+                    other.merged_into_id = dup.id
+            p.merged_news_ids = []
             p.is_trackable = False
             p.merged_into_id = dup.id
             merged += 1

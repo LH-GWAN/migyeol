@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useRouter } from "next/navigation";
+import { useState, useTransition } from "react";
 import { describeError, resolveReport } from "@/lib/api";
 
 interface Props {
@@ -15,13 +16,16 @@ type State =
 
 /** 미처리 신고 -> 처리 완료 버튼. POST /api/admin/reports/{report_id}/resolve. */
 export default function ReportResolveButton({ reportId }: Props) {
+  const router = useRouter();
   const [state, setState] = useState<State>({ phase: "idle" });
+  const [refreshing, startTransition] = useTransition();
 
   const run = async () => {
     setState({ phase: "sending" });
     try {
       await resolveReport(reportId);
       setState({ phase: "done" });
+      startTransition(() => router.refresh()); // 사건의 needs_review·검토 큐가 바로 갱신되게
     } catch (error) {
       const { message, detail } = describeError(error);
       setState({ phase: "error", message, detail });
@@ -31,7 +35,7 @@ export default function ReportResolveButton({ reportId }: Props) {
   if (state.phase === "done") {
     return (
       <span className="rounded bg-gray-100 px-1.5 py-0.5 text-gray-500" role="status">
-        처리됨
+        처리됨{refreshing ? " (갱신 중…)" : ""}
       </span>
     );
   }

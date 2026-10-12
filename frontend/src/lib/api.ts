@@ -4,6 +4,9 @@
  * - Server components call the backend directly: API_BASE_INTERNAL (default http://localhost:8000).
  * - Client components call relative `/api/...` on the same origin; next.config.ts rewrites
  *   `/api/:path*` to `${API_BASE_INTERNAL}/api/:path*`, so the browser never needs the backend URL.
+ * - Admin-only routes (`/api/admin/*`, `/api/pipeline/*`) need `X-Admin-Token` when the backend sets ADMIN_TOKEN.
+ *   On the server this file adds it from the server env; in the browser the Route Handler proxy adds it
+ *   (src/lib/proxy.ts). The token is never shipped to the browser.
  * - NEXT_PUBLIC_USE_MOCK=1 switches every fetcher to src/lib/mock.ts (server and client).
  */
 import * as mock from "./mock";
@@ -38,6 +41,12 @@ export const API_BASE = (
 export const USE_MOCK = process.env.NEXT_PUBLIC_USE_MOCK === "1";
 
 const REQUEST_TIMEOUT_MS = 10_000;
+/** Server-only (never NEXT_PUBLIC_): sent as X-Admin-Token on admin/pipeline calls made from server components. */
+const ADMIN_TOKEN = typeof window === "undefined" ? process.env.ADMIN_TOKEN || "" : "";
+
+function isAdminPath(path: string): boolean {
+  return path.startsWith("/api/admin/") || path.startsWith("/api/pipeline/");
+}
 
 /** Server: absolute backend URL. Browser: "" so paths stay relative and go through the Next.js rewrite. */
 function requestBase(): string {
@@ -88,6 +97,7 @@ async function request<T>(path: string, init?: RequestInit & { json?: unknown })
   const { json, ...rest } = init ?? {};
   const headers: Record<string, string> = { Accept: "application/json" };
   if (json !== undefined) headers["Content-Type"] = "application/json";
+  if (ADMIN_TOKEN && isAdminPath(path)) headers["X-Admin-Token"] = ADMIN_TOKEN;
 
   let res: Response;
   try {
@@ -118,13 +128,17 @@ async function request<T>(path: string, init?: RequestInit & { json?: unknown })
     const label =
       res.status === 404
         ? "요청한 자료를 찾을 수 없습니다."
-        : res.status === 422
-          ? "요청 형식이 올바르지 않습니다."
-          : res.status === 403
-            ? "허용되지 않은 요청입니다."
-            : res.status === 409
-              ? "이미 실행 중인 작업이 있습니다. 잠시 후 다시 시도해 주세요."
-              : `백엔드 응답 오류 (HTTP ${res.status})`;
+        : res.status === 401
+          ? "관리자 토큰이 없거나 올바르지 않습니다. 프런트 서버의 ADMIN_TOKEN 설정을 확인해 주세요."
+          : res.status === 422
+            ? "요청 형식이 올바르지 않습니다."
+            : res.status === 403
+              ? "허용되지 않은 요청입니다."
+              : res.status === 409
+                ? "이미 실행 중인 작업이 있습니다. 잠시 후 다시 시도해 주세요."
+                : res.status === 502
+                  ? "백엔드 서버에 연결할 수 없습니다."
+                  : `백엔드 응답 오류 (HTTP ${res.status})`;
     throw new ApiError(label, res.status, detail);
   }
 

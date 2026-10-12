@@ -49,6 +49,7 @@ class Event(Base):
     followup_count: Mapped[int] = mapped_column(Integer, default=0)
     needs_review: Mapped[bool] = mapped_column(Boolean, default=False)  # 검토 대기 연결 OR 미처리 신고 OR 변경이력 표시
     change_flagged: Mapped[bool] = mapped_column(Boolean, default=False)  # 변경이력(tracker)으로 근거 기사가 바뀜
+    pending_followups: Mapped[int] = mapped_column(Integer, default=0)  # 아직 LLM 분류를 못 받은 후속 기사 수 (호출 상한·실패 이월)
 
     created_at: Mapped[datetime] = mapped_column(DateTime, default=_now)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=_now, onupdate=_now)
@@ -105,7 +106,8 @@ class EventArticle(Base):
     event_id: Mapped[int] = mapped_column(ForeignKey("events.id", ondelete="CASCADE"), primary_key=True)
     news_id: Mapped[str] = mapped_column(ForeignKey("articles.news_id", ondelete="CASCADE"), primary_key=True)
     phase: Mapped[str] = mapped_column(String(16), default="기타")
-    link_method: Mapped[str] = mapped_column(String(16), default="rule")  # rule|embedding|manual
+    link_method: Mapped[str] = mapped_column(String(16), default="rule")  # rule|embedding|manual (manual = 사람이 만든 연결)
+    auto_decision: Mapped[str | None] = mapped_column(String(8), nullable=True)  # 마지막 link 단계의 결정 link|review — 관리자 처리와 무관 (평가용)
     link_score: Mapped[float] = mapped_column(Float, default=0.0)
     link_reason: Mapped[str] = mapped_column(String(300), default="")
     confirmed: Mapped[bool] = mapped_column(Boolean, default=False)  # 관리자 확정 (재평가 안 함)

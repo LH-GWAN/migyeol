@@ -8,7 +8,8 @@
 - 모든 상태 표시 옆에 고정 면책 문구를 노출한다. 서버는 `disclaimer` 필드로 같은 문장을 내려준다.
   - `보도가 없다는 사실은 조치가 없었다는 근거가 아니라, 확인이 필요하다는 신호입니다.`
 - 목록·상세·검토 큐·meta 는 **활성 사건**(현재 시드에 있는 사건, `active=true`)만 다룬다. 시드에서 빠진 사건은 404.
-- `ADMIN_TOKEN` 이 설정돼 있으면 `/api/admin/*` 와 `/api/pipeline/run` 에 `X-Admin-Token` 헤더가 필요하다(없으면 401). 비어 있으면 검사하지 않는다.
+- `ADMIN_TOKEN` 이 설정돼 있으면 `/api/admin/*` 와 `/api/pipeline/run` 에 `X-Admin-Token` 헤더가 필요하다(없으면 401, 비교는 constant-time). 비어 있으면 검사하지 않는다. 프런트는 서버 측(서버 컴포넌트, `/api/admin|pipeline` Route Handler 프록시)에서만 헤더를 붙인다.
+- **잠정 판정**: `EventCard.pending_followups` 가 0 보다 크면 LLM 분류를 못 받은 후속 기사가 있는 상태다(호출 상한·실패 이월). 그 사건은 `needs_review=true` 이고 판정 사유 끝에 "잠정 판정" 이 붙는다.
 
 ## 공통 객체
 
@@ -46,7 +47,7 @@
   "deadline_date": "2026-10-31",
   "deadline_precision": "month",
   "strength": "확약",
-  "is_trackable": true,
+  "is_trackable": true,   // 추적 중인지 — 근거 기사가 이 사건의 활성 연결(해제·검토 대기 아님)일 때만 true
   "merged_into_id": null,
   "confidence": 0.9,
   "deadline_passed": false,
@@ -88,6 +89,7 @@
   "judged": true,
   "priority_score": 64.0,
   "needs_check": true,
+  "pending_followups": 0,
   "needs_review": true,
   "deadline_date": "2026-10-31",
   "deadline_precision": "month",
@@ -180,7 +182,8 @@
 
 ### POST `/api/admin/links/{event_id}/{news_id}`
 요청 `{ "action": "confirm" | "reject" | "restore" }`
-응답 `{ "event_id": 1, "news_id": "…", "link_method": "manual", "confirmed": true, "rejected": false }`
+응답 `{ "event_id": 1, "news_id": "…", "link_method": "rule", "confirmed": true, "rejected": false }`
+- `link_method` 는 파이프라인의 연결 방식(rule/embedding)이 그대로 남는다. 사람의 결정은 `confirmed`/`rejected` 플래그와 `link_reason` 끝의 `+manual` 로 표시하며, 다음 실행에서 다시 평가하지 않는다.
 - `reject` 는 연결 행을 지우지 않고 `rejected=true` 로 표시한다. 해제된 연결은 타임라인·근거·검토 큐에서 빠지고 재실행해도 다시 자동 연결되지 않는다. `restore` 는 해제를 되돌려 검토 큐로 보낸다.
 - 어떤 액션이든 뒤에 **그 사건의 규칙 판정·우선순위·단계를 다시 계산**한다(LLM·외부 API 호출 없음). 그래서 유일한 완료 근거를 해제하면 상태가 즉시 바뀐다.
 
@@ -210,13 +213,14 @@
   "scheduler_enabled": false,
   "warnings": [],
   "last_pipeline_run": { "stage": "all", "event_id": null, "finished_at": "…", "ok": true, "error_summary": null, "stats": { "...": "" } },
-  "last_run": { "stage": "link", "event_id": 3, "finished_at": "…", "ok": false, "error_summary": "BigKindsError: …", "stats": {} },
+  "last_run": { "stage": "link", "event_id": 3, "finished_at": "…", "ok": false, "error_summary": "빅카인즈 API 오류", "stats": {} },
   "disclaimer": "…"
 }
 ```
 - `bigkinds_mode` ∈ `mock` | `record` | `live`. `llm_model` 은 stub 모드면 `"stub"`.
 - `last_pipeline_run` = 마지막으로 **성공한 전체 갱신**(stage `all`/`judge`, 전체 사건). `last_run` = 성공 여부와 무관한 마지막 실행.
 - `today_overridden` 이 true 면 기준일이 `TODAY_OVERRIDE` 로 고정된 상태. `warnings` 는 설정 경고 문장 목록.
+- `error_summary` 는 분류 문구만이다: `빅카인즈 API 오류` / `LLM 호출 오류` / `실행 중복` / `입력·설정 오류` / `질의 구문 오류` / `시드 오류` / `실행 오류`. 서버 원문(키·경로가 섞일 수 있음)은 `pipeline_runs.error` 와 서버 로그에만 남는다. `/api/pipeline/run` 의 500 `detail` 도 같은 분류 문구다.
 
 ### GET `/api/health` — `{ "ok": true }`
 

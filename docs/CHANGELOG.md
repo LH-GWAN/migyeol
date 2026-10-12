@@ -17,6 +17,24 @@
 - Next.js 3화면(목록·타임라인·근거) + 관리자 화면, Mock 데이터로 완성
 - 정답셋 대비 평가 스크립트 (`scripts/evaluate.py`, 임계값 스윕)
 
+## 2026-10-12 (저녁) 수정 검증 반영 — `코드리뷰_2026-10-12_수정검증.md`
+
+검증 리뷰의 0장(즉시)·1장(본선 1주차)·2장(본선 기간) 항목을 코드로 재확인한 뒤 반영했다. 회귀 테스트 `tests/test_review_20261012.py`(40건) 추가, 전체 113건 통과. mock 평가: 상태 정확도 1.0, 연결 P/R 1.0/0.955(변동 없음).
+
+- **0-1 키 노출**: `app/redact.py` — 등록된 접근 키와 UUID 형태 문자열을 `BigKindsError`·`pipeline_runs.error`·`failures`·로그에서 마스킹. `/api/meta.error_summary` 와 `/api/pipeline/run` 500 detail 은 분류 문구만.
+- **0-2 관리자 토큰**: 프런트 `/api/admin/*`·`/api/pipeline/*` 는 Route Handler 프록시(`src/lib/proxy.ts`)가 서버 전용 `ADMIN_TOKEN` 을 `X-Admin-Token` 으로 붙인다(브라우저에 전달 안 함). 서버 컴포넌트도 같은 헤더. 공개 API 는 `fallback` rewrite. 401 안내 문구 추가. 백엔드 비교는 `hmac.compare_digest`.
+- **0-3 마이그레이션**: 전체 사전 검사 후 실행(부분 적용 없음), JSON `default=list/dict` 는 `DEFAULT '[]'/'{}'`.
+- **1-A~1-D 수집**: `time_line` 로 건수를 먼저 보고 상한 안이면 한 번에, 넘치면 날짜(초기)·월(이후) 단위 물 채우기 배분. 총상한이 최근 달을 굶기지 않고 `total_hits` 는 전 구간 합. 전재 기사는 상한 미소모. 조용한 사건은 사건당 4회 호출. **1-E** 정렬은 지침서 객체 형식만 쓰고 리스트 형식은 `smoke_live.py` 에서만 시험.
+- **1-F 공공 주체**: 토큰 단위 판별로 재작성 — '시민안전과장'·'한국도로공사 사장'·'여성가족부 관계자'·'LH·한전·코레일 관계자' 통과, '김민구'·'더불어민주당 대변인'·'식당 사장' 탈락. 개인명은 기관으로 정규화하지 않는다. 시의회는 공공으로 유지(리뷰와 다른 판단 — 공공기관).
+- **1-G/1-H 판정**: 분류를 못 받은 후속 기사는 `Event.pending_followups` 에 남기고 검토 큐 + "잠정 판정" 사유. 최신 기사부터 분류. 규칙 판정은 현재 약속 집합 해시의 신호만 사용(취소된 약속의 옛 신호 무시). 추적 약속이 없으면 LLM 을 부르지 않는다.
+- **1-I 연결 삭제**: 추적 약속 = 근거 기사가 활성 연결인 약속. 대표 약속·우선순위·후속 재검색에 반영. `link` 단계만 돌려도 규칙 재판정.
+- **1-J/1-K 연결·키워드**: 책임기관 == 지역이면 기관 일치로 치지 않음. 어미(마치고·하며·도록·…히), 복수 '들', 명사 꼬리(…차도·…수로) 보호, 일반어(안전대책·지원금·신속·…) 추가.
+- **1-L 분류 코드**: `"2,9,34"` 를 쪼개지 않고 코드로 보존 → 명칭 매핑.
+- **2장**: 우선순위 경과일 계산 공통화(`days_since_followup`), 스윕은 sqlite backup API, 파일 Lock(`data/pipeline.lock`), 검토 대기 연결은 사건 간 경쟁에서 제외·단일 사건 실행도 전체 사건과 비교, 시드 변경 시 옛 시드 후보 삭제, R5 새로운문제 사유는 최신 신호, 완료 강등은 과거형 완료 표현이 있으면 유지, 기한 파싱(`2026.06.30`·`20260630`·`2026년 6월 30일`, 비정상 연도 무효·예외 없음), 재발 급증은 급감 아님, 병합 대표 변경 시 근거·병합 포인터 이월, 관대 파서(TimeLine·WordCloud·Issue·ChangeTracker null), tracker 실패 격리, Retry-After 상한 60초, 관리자 해제도 평가 fp 로(`auto_decision`), `event_id` 범위 검증, PipelineRun 시각 KST.
+- **프런트**: `judged`·`pending_followups`·`deadline_precision`·`warnings`·`scheduler_enabled`·`merged_news_ids` 타입, `status_confidence`/`confidence` nullable, 판정 전 사건은 "판정 전" 표시, 잠정 배지, 완료 신호 기준선 0.7, 신고 처리 뒤 새로고침, `parseId` 상한, rewrite 재빌드 안내, mock 데이터 동기화.
+- **문서**: README(관리자 화면 보호·동시 실행), ARCHITECTURE 메모, API_CONTRACT(error_summary 분류, link_method 보존, 잠정 판정), DEMO_SCRIPT 수치·표현 수정, `.gitignore` 에 `events.draft.yaml`.
+- 연결 recall 0.977→0.955 는 2026-10-12 오전의 pc-9(검토 큐 강화) 반영에 따른 의도된 변화다: '달빛지하차도 침수 1년…' 기사가 자동 연결에서 검토 큐로 옮겨졌다. 2026-09-11 결정("강한 규칙 일치는 자동 연결")과는 충돌하지 않는다 — 그 기사는 시설명이 제목에 있지만 지역·기관·사건분류가 없어 강한 규칙이 아니다.
+
 ## 본선 단계 (2026-10-12 ~ 10-30) — Phase 1~3 (예정)
 
 - Phase 1: `BIGKINDS_MODE=record` 전환, 첫 실호출 응답 키 검증 후 스키마·픽스처 보정, `discover` 초안 → 시드 20~30건 확정, 연결 정확도 1차 측정

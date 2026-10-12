@@ -128,3 +128,15 @@ migyeol/
 ├── frontend/                                           Next.js 3화면 + 관리자
 └── docs/{ARCHITECTURE,API_CONTRACT,CHANGELOG,DEMO_SCRIPT}.md
 ```
+
+## 2026-10-12 수정 검증 반영 메모
+
+- **수집(collect)**: 구간마다 `time_line` 로 날짜/월별 건수를 먼저 보고, 상한 안이면 한 번에(`return_size` 한 페이지), 넘치면 날짜(초기 2주)·월(이후) 단위로 상한을 물 채우기 방식으로 배분한다. 초기 구간 상한 `COLLECT_INITIAL_CAP`, 이후 구간은 총상한의 남은 예산을 월별 상한 `COLLECT_MONTH_CAP` 안에서 배분한다. 전재 기사는 상한을 소모하지 않는다. 조용한 사건은 사건당 4회(time_line 2 + search 2)로 끝난다. `total_hits` 는 두 구간의 트렌드 합계다.
+- **정렬 인자**: 코드는 지침서의 객체 형식 `{"date": "asc"}` 만 쓴다. 다중 정렬 리스트 `[{"date":"asc"},{"_score":"desc"}]` 는 실서버가 받는지 확인 전이라 `scripts/smoke_live.py` 의 `search_news_sort_list` 단계에서만 시험한다. 구간 상한이 한 페이지 안이라 동률 페이징 문제는 생기지 않는다.
+- **접근 키 마스킹**: 빅카인즈는 키가 틀리면 `Invalid Access Key!:<키>` 를 돌려준다. `app/redact.py` 가 등록된 키와 UUID 형태 문자열을 `BigKindsError`·`pipeline_runs.error`·`failures`·로그에서 가리고, `/api/meta` 의 `error_summary` 와 `/api/pipeline/run` 500 detail 은 분류 문구(`빅카인즈 API 오류` 등)만 내보낸다.
+- **판정의 잠정 상태**: LLM 호출 상한·실패로 분류를 못 받은 후속 기사는 `Event.pending_followups` 에 건수로 남고, 그 사건은 `needs_review` 로 검토 큐에 들어가며 판정 사유에 "잠정" 이 붙는다. 분류는 최신 기사부터 한다. 규칙 판정은 **현재 약속 집합 해시로 분류된 신호만** 쓴다(약속이 취소·해제되면 옛 신호는 무시).
+- **추적 약속 = 근거 기사가 활성 연결인 약속**: 연결이 삭제·해제·검토 대기가 되면 그 기사에서 뽑은 약속은 추적·대표 약속·우선순위·후속 재검색에서 빠진다. `link` 단계만 돌려도 규칙 재판정을 한다.
+- **관리자 결정과 평가**: 확정·해제는 `link_method` 를 바꾸지 않고(`+manual` 사유만 추가) `EventArticle.auto_decision`(link|review)이 파이프라인의 마지막 결정으로 남는다. 평가 스크립트는 이 값으로 P/R 을 재서 관리자 해제가 precision 을 부풀리지 않는다. 스윕은 sqlite backup API 로 DB 사본을 만든다(WAL 포함).
+- **마이그레이션**: 추가할 수 없는 컬럼이 하나라도 있으면 어떤 DDL 도 실행하지 않고 실패한다(SQLite DDL 은 롤백되지 않는다). JSON `default=list/dict` 는 `DEFAULT '[]'/'{}'` 로 추가한다.
+- **공공 주체 판별**: 토큰 단위로 본다. 민간 단어는 토큰 끝 일치('시민안전과장' 은 통과), 기관 직함(사장·대표·이사장)은 앞에 기관 토큰이 있으면 공공, 한 글자 접미(시·군·구·도)는 뒤에 직함·공백이 오거나 별칭·광역명일 때만 기관(사람 이름 '김민구' 제외). 정당은 민간. 시의회는 공공(지자체 별칭에 귀속되지는 않음).
+

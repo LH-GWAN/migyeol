@@ -1,9 +1,13 @@
 import type { DeadlinePrecision, Phase, ReportType, SignalKind, Strength } from "./types";
 
 /** Route param -> positive integer id (max 10 digits). null for anything else ("abc", "0", "1e3", "-1"). */
+/** Backend accepts 1 ≤ id ≤ 2^31-1 (MAX_ID); anything else is a 404 page, never a 422 from the API. */
+const MAX_ID = 2147483647;
+
 export function parseId(raw: string | undefined): number | null {
   if (!raw || !/^[1-9]\d{0,9}$/.test(raw)) return null;
-  return Number(raw);
+  const n = Number(raw);
+  return n <= MAX_ID ? n : null;
 }
 
 /**

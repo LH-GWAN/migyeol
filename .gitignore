@@ -12,6 +12,8 @@ __pycache__/
 backend/data/*
 !backend/data/.gitkeep
 backend/fixtures/bigkinds/recordings/
+# discover 단계가 쓰는 시드 초안 (사람이 확정해 events.yaml 로 옮긴다)
+backend/**/events.draft.yaml
 
 # node
 node_modules/

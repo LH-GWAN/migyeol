@@ -4,7 +4,7 @@ import time
 from typing import Literal
 
 from fastapi import APIRouter, Depends, HTTPException
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
 from ..bigkinds import build_client
@@ -15,14 +15,14 @@ from ..llm.client import build_llm
 from ..pipeline.embeddings import build_embedding
 from ..pipeline.runner import Pipeline, PipelineBusy
 from . import serializers as ser
-from .deps import require_admin
+from .deps import MAX_ID, require_admin
 
 router = APIRouter(prefix="/api", tags=["pipeline"])
 
 
 class RunIn(BaseModel):
     stage: Literal["discover", "collect", "link", "extract", "judge", "tracker", "all"] = "all"
-    event_id: int | None = None
+    event_id: int | None = Field(default=None, ge=1, le=MAX_ID)
 
 
 @router.post("/pipeline/run", dependencies=[Depends(require_admin)])
@@ -42,8 +42,8 @@ def run_pipeline(body: RunIn, session: Session = Depends(get_session)):
     except PipelineBusy as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
     except RuntimeError as exc:
-        # 트레이스백은 pipeline_runs.error 와 서버 로그에만. 응답에는 첫 줄 요약만.
-        raise HTTPException(status_code=500, detail=str(exc).splitlines()[0][:300]) from exc
+        # 트레이스백은 pipeline_runs.error 와 서버 로그에만. 응답에는 분류 문구만 (서버 메시지에 키가 섞일 수 있다).
+        raise HTTPException(status_code=500, detail=error_summary(str(exc)) or "실행 오류") from exc
     finally:
         close = getattr(client, "close", None)
         if callable(close):
@@ -57,6 +57,24 @@ def run_pipeline(body: RunIn, session: Session = Depends(get_session)):
     }
 
 
+_ERROR_LABELS = {
+    "BigKindsError": "빅카인즈 API 오류",
+    "LLMFailure": "LLM 호출 오류",
+    "PipelineBusy": "실행 중복",
+    "ValueError": "입력·설정 오류",
+    "QueryError": "질의 구문 오류",
+    "SeedError": "시드 오류",
+}
+
+
+def error_summary(error: str | None) -> str | None:
+    """공개 API 에는 분류 문구만 내보낸다. 서버 메시지(키·경로가 들어갈 수 있음)는 pipeline_runs.error 와 로그에만."""
+    if not error:
+        return None
+    cls = error.split(":", 1)[0].strip()
+    return _ERROR_LABELS.get(cls, "실행 오류")
+
+
 def _run_out(r: PipelineRun | None) -> dict | None:
     if r is None:
         return None
@@ -65,7 +83,7 @@ def _run_out(r: PipelineRun | None) -> dict | None:
         "event_id": r.event_id,
         "finished_at": ser._iso(r.finished_at),
         "ok": r.ok,
-        "error_summary": (r.error or "").splitlines()[0][:200] if r.error else None,
+        "error_summary": error_summary(r.error),
         "stats": r.stats.get("summary", {}) if isinstance(r.stats, dict) else {},
     }
 

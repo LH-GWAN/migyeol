@@ -72,6 +72,8 @@ export interface PromiseOut {
   evidence_article: ArticleOut | null;
   /** 중복 병합된 대표 약속 id. 병합된 약속은 백엔드가 목록에서 이미 제외한다. */
   merged_into_id: number | null;
+  /** news_ids of the duplicate promises merged into this one (their evidence articles) */
+  merged_news_ids: string[];
 }
 
 export interface TrendPoint {
@@ -118,11 +120,18 @@ export interface EventCard {
   responsible_org: string;
   occurred_at: string;
   status: EventStatus;
-  status_confidence: number;
+  /** null until a judgment has run (`judged` false) */
+  status_confidence: number | null;
+  /** false until judge has run at least once — then status is the model default, not a judgment */
+  judged: boolean;
   priority_score: number;
   needs_check: boolean;
   needs_review: boolean;
+  /** followup articles still waiting for LLM classification (call cap / failures) — >0 means the judgment is provisional */
+  pending_followups: number;
   deadline_date: string | null;
+  /** precision of `deadline_date` (null when there is no deadline) */
+  deadline_precision: DeadlinePrecision | null;
   deadline_passed_days: number | null;
   last_followup_at: string | null;
   days_since_last_followup: number | null;
@@ -225,7 +234,10 @@ export interface EvidenceOut {
   event_id: number;
   title: string;
   status: EventStatus;
-  confidence: number;
+  /** false until a judgment has run */
+  judged: boolean;
+  /** null until a judgment has run */
+  confidence: number | null;
   rule: RuleOut;
   unresolved_reason: string | null;
   signals: SignalOut[];
@@ -335,18 +347,21 @@ export interface PipelineRunOut {
 /** Last successful full refresh (stage all/judge, all events). */
 export interface LastPipelineRun {
   stage: PipelineStage;
+  event_id: number | null;
   finished_at: string;
   ok: boolean;
+  error_summary: string | null;
   stats: PipelineStats;
 }
 
-/** Most recent run of any kind, success or not. */
+/** Most recent run of any kind, success or not. `error_summary` is a category label only (never the raw server message). */
 export interface LastRun {
   stage: PipelineStage;
   finished_at: string;
   ok: boolean;
   error_summary: string | null;
   event_id: number | null;
+  stats: PipelineStats;
 }
 
 export interface MetaOut {
@@ -359,6 +374,9 @@ export interface MetaOut {
   today: string;
   /** true when the backend pins "today" (TODAY_OVERRIDE) instead of using the clock */
   today_overridden: boolean;
+  scheduler_enabled: boolean;
+  /** configuration warnings from the backend (e.g. TODAY_OVERRIDE left in the past) */
+  warnings: string[];
   last_pipeline_run: LastPipelineRun | null;
   last_run: LastRun | null;
   disclaimer: string;

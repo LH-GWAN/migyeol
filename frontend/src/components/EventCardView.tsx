@@ -83,8 +83,22 @@ export default function EventCardView({ card }: Props) {
 
         <dt className="text-gray-500">현재 상태</dt>
         <dd className="flex flex-wrap items-center gap-x-4 gap-y-1">
-          <StatusBadge status={card.status} />
-          <span className="text-xs text-gray-500">신뢰도 {formatPercent(card.status_confidence)}</span>
+          {card.judged ? (
+            <StatusBadge status={card.status} />
+          ) : (
+            <span className="rounded border border-dashed border-gray-400 px-2 py-0.5 text-xs text-gray-600">판정 전(수집·연결 단계)</span>
+          )}
+          <span className="text-xs text-gray-500">
+            신뢰도 {card.judged && card.status_confidence !== null ? formatPercent(card.status_confidence) : "-"}
+          </span>
+          {card.pending_followups > 0 && (
+            <span
+              className="rounded bg-amber-50 px-1.5 py-0.5 text-[11px] font-semibold text-amber-800"
+              title="후속 기사 일부가 아직 분류되지 않아(호출 상한·실패 이월) 잠정 판정입니다"
+            >
+              잠정 · 분류 대기 {card.pending_followups}건
+            </span>
+          )}
           <Link
             href={`/events/${card.id}/evidence`}
             className="relative z-10 text-sm font-medium text-blue-700 underline-offset-2 hover:underline"

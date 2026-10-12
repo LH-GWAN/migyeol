@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import hmac
+
 from fastapi import Depends, Header, HTTPException, Path
 from sqlalchemy.orm import Session
 
@@ -15,7 +17,7 @@ MAX_ID = 2**31 - 1  # SQLite INTEGER 범위 안, 실사용 범위
 def require_admin(x_admin_token: str | None = Header(default=None)) -> None:
     """ADMIN_TOKEN 이 설정돼 있으면 X-Admin-Token 헤더가 같아야 한다. 비어 있으면 검사하지 않는다(로컬 전용)."""
     token = get_settings().admin_token
-    if token and x_admin_token != token:
+    if token and not hmac.compare_digest(token.encode(), (x_admin_token or "").encode()):
         raise HTTPException(status_code=401, detail="admin token required")
 
 

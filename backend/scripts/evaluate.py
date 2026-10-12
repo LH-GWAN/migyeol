@@ -25,7 +25,7 @@ from __future__ import annotations
 
 import argparse
 import json
-import shutil
+import sqlite3
 import sys
 from collections import Counter
 from datetime import date, datetime
@@ -156,10 +156,9 @@ def evaluate(session, gold: dict, embedder) -> dict:
             rows.append({"key": g["key"], "title": g.get("title", g["key"]), "expected": expected or "-", "status": MISSING, "reason": "", "ok": False, "link": f"0/{len(truth)}", "promises": f"0/{len(gold_ps)}", "priority": ""})
             continue
 
-        # 연결 — 자동 연결만 측정 (관리자 결정 제외). 검토 큐는 별도 집계
-        auto = {l.news_id for l in ev.links if l.link_method in ("rule", "embedding") and not l.rejected}
-        pred = {l.news_id for l in ev.links if l.link_method in ("rule", "embedding") and l.is_active}
-        review = auto - pred
+        # 연결 — 파이프라인의 마지막 결정(auto_decision)만 측정. 관리자가 해제한 오연결도 fp 로, 관리자 확정도 tp 로 세지 않는다
+        pred = {l.news_id for l in ev.links if l.auto_decision == "link"}
+        review = {l.news_id for l in ev.links if l.auto_decision == "review"}
         if g.get("linked_news_ids") is not None:
             tp, fp, fn = len(pred & truth), len(pred - truth), len(truth - pred)
             link_tp, link_fp, link_fn = link_tp + tp, link_fp + fp, link_fn + fn
@@ -314,7 +313,9 @@ def _sweep(settings, gold: dict, embedder, today: date, param: str, values: list
     if src is None or not src.exists():
         raise SystemExit("스윕은 SQLite 파일 DB 에서만 지원한다")
     tmp = src.with_name(f"{src.stem}.sweep.db")
-    shutil.copy(src, tmp)
+    # WAL 에 남은 최근 쓰기(신고·관리자 결정)까지 담도록 sqlite backup API 로 복사한다 (파일 복사는 WAL 을 빠뜨린다)
+    with sqlite3.connect(src) as src_conn, sqlite3.connect(tmp) as dst_conn:
+        src_conn.backup(dst_conn)
     reset_engine()
     init_db(f"sqlite:///{tmp}")
     session = session_factory()()

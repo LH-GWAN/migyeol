@@ -9,6 +9,7 @@
 from __future__ import annotations
 
 import logging
+import re
 from datetime import date, datetime, timedelta, timezone
 from typing import Any, Literal
 
@@ -182,18 +183,29 @@ def _none_to_str(v: Any) -> Any:
     return "" if v is None else v
 
 
+_CODE_LIST_RE = re.compile(r"^[\d,\s]+$")
+
+
 def _to_str_list(v: Any) -> list[str]:
+    """None/"" -> [], "a|b" / "a,b" -> [a, b]. 사건분류 **코드값**("2,9,34" = 사고>산업사고>화재)은 쉼표로 쪼개지 않는다."""
     if v is None or v == "":
         return []
     if isinstance(v, str):
-        return [s.strip() for s in v.replace("|", ",").split(",") if s.strip()]
+        parts = [p.strip() for p in v.split("|") if p.strip()]
+        out: list[str] = []
+        for part in parts:
+            if _CODE_LIST_RE.match(part):
+                out.append(",".join(x.strip() for x in part.split(",") if x.strip()))
+            else:
+                out.extend(x.strip() for x in part.split(",") if x.strip())
+        return out
     if isinstance(v, (list, tuple)):
         return [str(x) for x in v if x is not None and str(x).strip()]
     return [str(v)]
 
 
 class _Lenient(BaseModel):
-    """응답 문서 공통: null 문자열 -> "", null/문자열 리스트 -> [str]."""
+    """응답 문서 공통: null 문자열 -> "", null/문자열 리스트 -> [str], null/빈 숫자 -> 0, 숫자 문자열 -> 숫자."""
 
     model_config = ConfigDict(extra="allow")
 
@@ -206,8 +218,15 @@ class _Lenient(BaseModel):
         ann = str(field.annotation)
         if ann.startswith("list"):
             return _to_str_list(v)
-        if v is None and ann in ("<class 'str'>", "str"):
-            return ""
+        if ann in ("<class 'str'>", "str"):
+            return "" if v is None else v
+        if ann in ("<class 'int'>", "int", "<class 'float'>", "float"):
+            if v is None or v == "":
+                return 0
+            try:
+                return float(v) if "float" in ann else int(float(v))
+            except (TypeError, ValueError):
+                return 0
         return v
 
 
@@ -298,10 +317,21 @@ class IssueRankingResult(BaseModel):
     date: str = ""
     topics: list[IssueTopic] = Field(default_factory=list)
 
+    @field_validator("date", mode="before")
+    @classmethod
+    def _date(cls, v: Any) -> str:
+        return "" if v is None else str(v)
+
     @field_validator("topics", mode="before")
     @classmethod
     def _topics(cls, v: Any) -> list:
-        return v or []
+        out = []
+        for raw in v or []:
+            try:
+                out.append(IssueTopic.model_validate(raw))
+            except Exception as exc:  # noqa: BLE001
+                log.warning("issue topic 건너뜀 (%s): %s", exc, str(raw)[:80])
+        return out
 
 
 class WordCloudNode(_Lenient):
@@ -317,11 +347,17 @@ class WordCloudResult(BaseModel):
     @field_validator("nodes", mode="before")
     @classmethod
     def _nodes(cls, v: Any) -> list:
-        return v or []
+        out = []
+        for raw in v or []:
+            try:
+                out.append(WordCloudNode.model_validate(raw))
+            except Exception as exc:  # noqa: BLE001
+                log.warning("word cloud node 건너뜀 (%s): %s", exc, str(raw)[:80])
+        return out
 
 
-class TimeLinePoint(BaseModel):
-    label: str  # day=yyyyMMdd, month=yyyyMM, year=yyyy
+class TimeLinePoint(_Lenient):
+    label: str = ""  # day=yyyyMMdd, month=yyyyMM, year=yyyy
     hits: int = 0
 
 
@@ -329,10 +365,24 @@ class TimeLineResult(BaseModel):
     total_hits: int = 0
     time_line: list[TimeLinePoint] = Field(default_factory=list)
 
+    @field_validator("total_hits", mode="before")
+    @classmethod
+    def _hits(cls, v: Any) -> int:
+        try:
+            return int(v or 0)
+        except (TypeError, ValueError):
+            return 0
+
     @field_validator("time_line", mode="before")
     @classmethod
     def _tl(cls, v: Any) -> list:
-        return v or []
+        out = []
+        for raw in v or []:
+            try:
+                out.append(TimeLinePoint.model_validate(raw))
+            except Exception as exc:  # noqa: BLE001
+                log.warning("time_line point 건너뜀 (%s): %s", exc, str(raw)[:80])
+        return out
 
 
 class QuotationDocument(_Lenient):
@@ -426,7 +476,21 @@ class ChangeTrackerResult(BaseModel):
         if isinstance(data, dict) and "dataList" in data and "items" not in data:
             data = dict(data)
             data["items"] = [row.get("data", row) for row in (data.pop("dataList") or []) if isinstance(row, dict)]
+        if isinstance(data, dict) and data.get("message") is None:
+            data = dict(data)
+            data["message"] = "OK"
         return data
+
+    @field_validator("items", mode="before")
+    @classmethod
+    def _items(cls, v: Any) -> list:
+        out = []
+        for raw in v or []:
+            try:
+                out.append(ChangeTrackerItem.model_validate(raw))
+            except Exception as exc:  # noqa: BLE001
+                log.warning("change tracker item 건너뜀 (%s): %s", exc, str(raw)[:80])
+        return out
 
 
 class ApiEnvelope(BaseModel):

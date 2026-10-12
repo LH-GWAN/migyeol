@@ -60,27 +60,61 @@ def session_factory() -> sessionmaker[Session]:
     return _SessionLocal
 
 
+def _column_default_sql(col) -> str | None:
+    """ALTER TABLE ADD COLUMN 에 쓸 DEFAULT 절. 없으면 None.
+
+    스칼라 기본값은 그대로, JSON 컬럼의 list/dict 콜러블 기본값은 '[]'/'{}' 로 둔다 (ORM 의 default=list 와 같은 뜻).
+    """
+    d = col.default
+    if d is None:
+        return None
+    if getattr(d, "is_scalar", False):
+        v = d.arg
+        if isinstance(v, bool):
+            return f" DEFAULT {int(v)}"
+        if isinstance(v, (int, float)):
+            return f" DEFAULT {v}"
+        if isinstance(v, str):
+            return " DEFAULT '" + v.replace("'", "''") + "'"
+        return None
+    if getattr(d, "is_callable", False):
+        arg = getattr(d, "arg", None)
+        raw = getattr(arg, "__wrapped__", arg)
+        if raw is list:
+            return " DEFAULT '[]'"
+        if raw is dict:
+            return " DEFAULT '{}'"
+    return None
+
+
 def migrate_missing_columns(engine: Engine) -> list[str]:
-    """모델에는 있고 테이블에는 없는 컬럼을 추가한다 (nullable 또는 기본값 있는 컬럼만). 반환: 추가한 'table.column' 목록."""
+    """모델에는 있고 테이블에는 없는 컬럼을 추가한다 (nullable 또는 기본값 있는 컬럼만). 반환: 추가한 'table.column' 목록.
+
+    SQLite 의 DDL 은 롤백되지 않으므로, 전체를 먼저 검사해 추가할 수 없는 컬럼이 하나라도 있으면 아무것도 바꾸지 않고 실패한다.
+    """
     insp = inspect(engine)
+    plan: list[tuple[str, str, str]] = []
+    blocked: list[str] = []
+    for table in Base.metadata.sorted_tables:
+        if not insp.has_table(table.name):
+            continue
+        existing = {c["name"] for c in insp.get_columns(table.name)}
+        for col in table.columns:
+            if col.name in existing:
+                continue
+            coltype = col.type.compile(engine.dialect)
+            default = _column_default_sql(col) or ""
+            if not col.nullable and not default:
+                blocked.append(f"{table.name}.{col.name}")
+                continue
+            plan.append((table.name, col.name, f'ALTER TABLE "{table.name}" ADD COLUMN "{col.name}" {coltype}{default}'))
+    if blocked:
+        raise RuntimeError(f"컬럼 {', '.join(blocked)} 은 NOT NULL 이고 기본값이 없어 자동 추가할 수 없다 (아무 컬럼도 바꾸지 않았다). --reset 또는 수동 마이그레이션 필요")
     added: list[str] = []
     with engine.begin() as conn:
-        for table in Base.metadata.sorted_tables:
-            if not insp.has_table(table.name):
-                continue
-            existing = {c["name"] for c in insp.get_columns(table.name)}
-            for col in table.columns:
-                if col.name in existing:
-                    continue
-                coltype = col.type.compile(engine.dialect)
-                default = ""
-                if col.default is not None and getattr(col.default, "is_scalar", False):
-                    v = col.default.arg
-                    default = f" DEFAULT {int(v)}" if isinstance(v, bool) else (f" DEFAULT {v!r}" if isinstance(v, (int, float, str)) else "")
-                if not col.nullable and not default:
-                    raise RuntimeError(f"컬럼 {table.name}.{col.name} 은 NOT NULL 이고 기본값이 없어 자동 추가할 수 없다. --reset 또는 수동 마이그레이션 필요")
-                conn.execute(text(f'ALTER TABLE "{table.name}" ADD COLUMN "{col.name}" {coltype}{default}'))
-                added.append(f"{table.name}.{col.name}")
+        for table_name, col_name, ddl in plan:
+            conn.execute(text(ddl))
+            added.append(f"{table_name}.{col_name}")
     if added:
         log.warning("DB 컬럼 추가(간이 마이그레이션): %s", added)
     return added

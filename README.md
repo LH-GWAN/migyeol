@@ -32,7 +32,11 @@ npm install && cp .env.local.example .env.local
 npm run dev -- -p 3000        # http://localhost:3000
 ```
 
-저장소 루트의 `.env.example` 을 `.env` 로 복사해 모드를 정한다. 예선 기본값은 `BIGKINDS_MODE=mock`, `LLM_MODE=stub`, `EMBEDDING_BACKEND=hash`, `TODAY_OVERRIDE=2026-09-11`(픽스처 기준일 고정). 화면의 "파이프라인 실행" API 를 쓰려면 `PIPELINE_API_ENABLED=true`(기본 꺼짐). 다른 PC 에서 관리자 화면을 열면 `ADMIN_TOKEN` 을 설정한다.
+저장소 루트의 `.env.example` 을 `.env` 로 복사해 모드를 정한다. 예선 기본값은 `BIGKINDS_MODE=mock`, `LLM_MODE=stub`, `EMBEDDING_BACKEND=hash`, `TODAY_OVERRIDE=2026-09-11`(픽스처 기준일 고정). 화면의 "파이프라인 실행" API 를 쓰려면 `PIPELINE_API_ENABLED=true`(기본 꺼짐).
+
+**관리자 화면 보호.** 백엔드 `.env` 의 `ADMIN_TOKEN` 을 설정하면 `/api/admin/*`·`/api/pipeline/run` 은 `X-Admin-Token` 이 있어야 한다. 같은 값을 `frontend/.env.local` 의 `ADMIN_TOKEN` 에도 넣는다 — 프런트 **서버**(서버 컴포넌트와 `/api/admin|pipeline` Route Handler 프록시)가 헤더를 붙이고 브라우저에는 토큰이 내려가지 않는다. 따라서 프런트에 접근할 수 있는 사람은 누구나 관리자 화면을 쓸 수 있다. 토큰은 백엔드를 다른 호스트로부터 지키는 용도이고, 프런트는 localhost 나 별도 접근 제어 뒤에 둔다.
+
+**동시 실행.** 파이프라인은 프로세스 Lock 과 파일 Lock(`backend/data/pipeline.lock`)으로 한 번에 하나만 돈다 — 서버와 CLI 를 같이 켜도 겹치지 않고(`409` / `PipelineBusy`), `uvicorn --workers N` 도 막힌다. 다만 관리자 확정·해제 뒤의 규칙 재판정은 Lock 밖에서 바로 실행된다(LLM·API 호출 없음).
 
 시드·정답셋 파일은 모드를 따른다. `mock` 은 `backend/fixtures/{seeds,gold}/events.yaml`(가상 8건 — 테스트도 이것만 쓴다), `record`/`live` 는 `backend/seeds/events.yaml`·`backend/gold/events.yaml`(실사건). `SEEDS_FILE`·`GOLD_FILE` 로 바꿀 수 있다(상대경로는 `backend/` 기준).
 

@@ -1,24 +1,29 @@
 """파이프라인 오케스트레이터. 단계별 실행 가능, 모든 실행은 pipeline_runs 에 기록한다.
 
 - 사건 단위 try/except: 한 사건의 API·LLM 실패가 다른 사건을 막지 않는다 (stats["failures"] 에 남긴다).
-- 프로세스 전역 Lock: 스케줄러·API 가 동시에 실행하지 않는다 (API 는 409).
-- 실행당 LLM 호출 상한(llm_max_calls_per_run)을 넘으면 나머지는 다음 실행으로 미룬다.
+- 프로세스 전역 Lock + 파일 Lock(data/pipeline.lock): 스케줄러·API·CLI 가 동시에 실행하지 않는다 (API 는 409).
+  파일 Lock 은 같은 호스트의 다른 프로세스(CLI 와 서버, uvicorn --workers N)까지 막는다.
+- 실행당 LLM 호출 상한(llm_max_calls_per_run)을 넘으면 나머지는 다음 실행으로 미룬다 (사건에 분류 대기 건수를 남긴다).
+- 오류 기록(pipeline_runs.error, failures)은 비밀값(접근 키)을 가린 뒤 저장한다.
 """
 
 from __future__ import annotations
 
+import fcntl
 import logging
 import threading
 import traceback
-from datetime import date, datetime
+from datetime import date
+from pathlib import Path
 from typing import Any
 
 from sqlalchemy.orm import Session
 
 from ..bigkinds.protocol import BigKindsClient
 from ..config import Settings
-from ..db.models import Event, PipelineRun
+from ..db.models import Event, PipelineRun, _now
 from ..llm.client import LLMClient
+from ..redact import mask
 from . import collect as collect_mod
 from . import discover as discover_mod
 from . import extract as extract_mod
@@ -32,6 +37,15 @@ log = logging.getLogger("migyeol.pipeline")
 
 STAGES = ("discover", "collect", "link", "extract", "judge", "tracker", "all")
 RUN_LOCK = threading.Lock()
+
+
+def _lock_path() -> Path:
+    from ..db.session import db_path
+
+    p = db_path()
+    base = p.parent if p is not None else Path(".")
+    base.mkdir(parents=True, exist_ok=True)
+    return base / "pipeline.lock"
 
 
 class PipelineBusy(RuntimeError):
@@ -76,13 +90,26 @@ class Pipeline:
             raise ValueError(f"unknown stage {stage}")
         if not RUN_LOCK.acquire(blocking=False):
             raise PipelineBusy("파이프라인이 이미 실행 중이다")
+        fh = None
         try:
+            try:
+                fh = open(_lock_path(), "a+")
+                fcntl.flock(fh.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+            except OSError as exc:
+                if isinstance(exc, BlockingIOError):
+                    raise PipelineBusy("파이프라인이 다른 프로세스에서 실행 중이다") from exc
+                log.warning("파일 Lock 을 잡지 못했다(%s) — 프로세스 Lock 만으로 진행", exc)
             return self._run_locked(stage, event_id, dates)
         finally:
+            if fh is not None:
+                try:
+                    fcntl.flock(fh.fileno(), fcntl.LOCK_UN)
+                finally:
+                    fh.close()
             RUN_LOCK.release()
 
     def _run_locked(self, stage: str, event_id: int | None, dates: list[date] | None) -> PipelineRun:
-        run = PipelineRun(stage=stage, mode=f"{self.client.mode}/{self.llm.mode}/{self.embedder.name}", event_id=event_id, started_at=datetime.now())
+        run = PipelineRun(stage=stage, mode=f"{self.client.mode}/{self.llm.mode}/{self.embedder.name}", event_id=event_id, started_at=_now())
         self.session.add(run)
         self.session.commit()
         try:
@@ -92,9 +119,9 @@ class Pipeline:
         except Exception as exc:  # 기록 후 재전파 (API 응답에는 요약만)
             self.session.rollback()
             run.ok = False
-            run.error = f"{type(exc).__name__}: {exc}\n{traceback.format_exc()[-1500:]}"
-            log.exception("pipeline %s failed", stage)
-        run.finished_at = datetime.now()
+            run.error = mask(f"{type(exc).__name__}: {exc}\n{traceback.format_exc()[-1500:]}")
+            log.error("pipeline %s failed: %s", stage, run.error.splitlines()[0])
+        run.finished_at = _now()
         self.session.add(run)
         self.session.commit()
         if not run.ok:
@@ -108,8 +135,9 @@ class Pipeline:
                 out.append(fn(e))
             except Exception as exc:  # noqa: BLE001 — 사건 단위 격리
                 self.session.rollback()
-                log.exception("%s failed for %s", label, e.key)
-                stats.setdefault("failures", []).append({"stage": label, "event": e.key, "error": f"{type(exc).__name__}: {str(exc)[:200]}"})
+                err = mask(f"{type(exc).__name__}: {exc}")
+                log.error("%s failed for %s: %s", label, e.key, err[:300])
+                stats.setdefault("failures", []).append({"stage": label, "event": e.key, "error": err[:200]})
         return out
 
     def _dispatch(self, stage: str, event_id: int | None, dates: list[date] | None = None) -> dict[str, Any]:
@@ -123,9 +151,10 @@ class Pipeline:
             draft = discover_mod.write_seed_draft(cands, self.settings.seeds_file.with_name("events.draft.yaml"))
             return {"dates": [d.isoformat() for d in dates], "candidates": len(cands), "draft": str(draft), "topics": [c.topic for c in cands]}
         if stage == "tracker":
-            return tracker_mod.check_changes(
-                self.session, self.client, self._tracker_from(), settings=self.settings, today=self.today, llm=self.llm, call_budget=self.call_budget
-            )
+            stats = {"events": 0}
+            self._tracker(stats)
+            stats["summary"] = summarize(stats)
+            return stats
 
         all_events = self.ensure_events()
         all_facilities = [e.facility for e in all_events]
@@ -136,7 +165,12 @@ class Pipeline:
                 "collect", evs, lambda e: collect_mod.collect_event(self.session, self.client, e, self.settings, self.embedder, self.today), stats
             )
         if stage in ("link", "all"):
-            stats["link"] = link_mod.link_all(self.session, evs, self.settings, self.embedder, all_facilities=all_facilities)
+            stats["link"] = link_mod.link_all(self.session, evs, self.settings, self.embedder, all_facilities=all_facilities, all_events=all_events)
+            if stage == "link":
+                # 연결이 바뀌면 근거·약속(근거 기사가 활성 연결이어야 추적)도 바뀐다 — LLM 없이 규칙 판정만 다시
+                stats["rejudge"] = self._per_event(
+                    "rejudge", evs, lambda e: {"event": e.key, "status": judge_mod.rejudge_event(self.session, e, self.settings, self.today).status}, stats
+                )
         if stage in ("extract", "all"):
             stats["extract"] = self._per_event(
                 "extract",
@@ -151,7 +185,7 @@ class Pipeline:
                 lambda e: collect_mod.collect_promise_followups(self.session, self.client, e, self.settings, self.embedder, self.today),
                 stats,
             )
-            stats["relink"] = link_mod.link_all(self.session, evs, self.settings, self.embedder, all_facilities=all_facilities)
+            stats["relink"] = link_mod.link_all(self.session, evs, self.settings, self.embedder, all_facilities=all_facilities, all_events=all_events)
         if stage in ("judge", "all"):
             stats["judge"] = self._per_event(
                 "judge",
@@ -160,14 +194,26 @@ class Pipeline:
                 stats,
             )
         if stage == "all" and event_id is None:
-            stats["tracker"] = tracker_mod.check_changes(
-                self.session, self.client, self._tracker_from(), settings=self.settings, today=self.today, llm=self.llm, call_budget=self.call_budget
-            )
+            self._tracker(stats)
         stats["llm_calls_remaining"] = self.call_budget["remaining"]
         stats["summary"] = summarize(stats)
         return stats
 
-    def _tracker_from(self) -> datetime:
+    def _tracker(self, stats: dict[str, Any]) -> None:
+        """변경이력 확인. 실패해도 all 전체를 깨지 않는다 (failures 에 남긴다)."""
+        try:
+            stats["tracker"] = tracker_mod.check_changes(
+                self.session, self.client, self._tracker_from(), settings=self.settings, today=self.today, llm=self.llm, call_budget=self.call_budget
+            )
+        except Exception as exc:  # noqa: BLE001
+            self.session.rollback()
+            err = mask(f"{type(exc).__name__}: {exc}")
+            log.error("tracker failed: %s", err[:300])
+            stats.setdefault("failures", []).append({"stage": "tracker", "event": "*", "error": err[:200]})
+
+    def _tracker_from(self):
+        from datetime import datetime
+
         return datetime.combine(self.today, datetime.min.time().replace(hour=5))
 
 

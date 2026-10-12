@@ -25,7 +25,10 @@ log = logging.getLogger("migyeol.llm")
 PROMPTS_DIR = Path(__file__).resolve().parent / "prompts"
 PROMPT_VERSIONS = {"promise": "promise_v1", "followup": "followup_v1"}
 MAX_SPAN_CHARS = 100
-_FUTURE_RE = re.compile(r"(예정|목표|계획|방침|추진하|할\s*것|마무리할|완료하겠)")
+# 완료 -> 진행 강등: 미래 표현이 있고, 과거형 완료 표현('마쳤다·준공했다·완료됐다')이 없을 때만.
+# '당초 계획대로 마쳤다', '예정보다 앞당겨 준공했다' 는 완료로 남긴다.
+_FUTURE_RE = re.compile(r"(예정|목표|계획|방침|추진하|할\s*것|마무리할|마무리될|완료하겠|완료할|앞두고|전망|예상)")
+_PAST_DONE_RE = re.compile(r"(마쳤|마무리했|마무리됐|완료했|완료됐|완료되었|준공했|준공됐|개통했|개통됐|끝냈|끝났|설치했|설치됐|교체했|교체됐|복구했|복구됐)")
 
 T = TypeVar("T", bound=BaseModel)
 
@@ -195,6 +198,6 @@ def validate_span(signal: FollowupSignal, inp: FollowupInput) -> FollowupSignal:
     hay = " ".join([inp.article_title, inp.hilight, *inp.quotations]).replace("\n", " ")
     if not (span in hay or span.replace(" ", "") in hay.replace(" ", "")):
         return _demote(signal, "근거 문장이 입력에서 확인되지 않아 불명확 처리")
-    if signal.signal == "완료" and _FUTURE_RE.search(span):
+    if signal.signal == "완료" and _FUTURE_RE.search(span) and not _PAST_DONE_RE.search(span):
         return signal.model_copy(update={"signal": "진행", "rationale": f"발췌가 예정·목표 표현이라 완료가 아닌 진행으로 조정 — {signal.rationale}"})
     return signal

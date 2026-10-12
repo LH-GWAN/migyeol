@@ -14,6 +14,7 @@ from typing import Any
 import httpx
 from pydantic import ValidationError
 
+from ..redact import register_secret
 from .protocol import DEFAULT_NEWS_FIELDS, BigKindsError
 from .schemas import (
     ApiEnvelope,
@@ -42,6 +43,7 @@ EP_SEARCH_QUOTATION = "/search/quotation"
 EP_CHANGE_TRACKER = "/changeTracker/news"
 
 _RETRY_STATUS = {429, 500, 502, 503, 504}
+MAX_RETRY_WAIT = 60.0
 
 
 class LiveBigKindsClient:
@@ -60,6 +62,7 @@ class LiveBigKindsClient:
         if require_key and not access_key:
             raise ValueError("BIGKINDS_ACCESS_KEY 가 비어 있습니다 (.env 확인)")
         self.access_key = access_key
+        register_secret(access_key)  # 오류 메시지·기록에 키가 남지 않게
         self.base_url = base_url.rstrip("/")
         self.min_interval = 1.0 / rps if rps > 0 else 0.0
         self.max_retries = max_retries
@@ -124,7 +127,7 @@ class LiveBigKindsClient:
         if resp is not None and resp.status_code == 429:
             ra = resp.headers.get("Retry-After")
             if ra and ra.isdigit():
-                wait = max(wait, float(ra))
+                wait = max(wait, min(float(ra), MAX_RETRY_WAIT))  # 아주 큰 Retry-After 로 Lock 을 쥔 채 오래 자지 않는다
         log.warning("bigkinds %s attempt %d failed (%s); retry in %.1fs", endpoint, attempt + 1, exc, wait)
         time.sleep(wait)
 

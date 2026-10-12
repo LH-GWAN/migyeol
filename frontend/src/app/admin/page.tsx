@@ -68,9 +68,16 @@ export default async function AdminPage() {
                           </p>
                         </td>
                         <td className="py-3 pr-3">
-                          <StatusBadge status={c.status} size="sm" />
+                          {c.judged ? (
+                            <StatusBadge status={c.status} size="sm" />
+                          ) : (
+                            <span className="rounded border border-dashed border-gray-400 px-1.5 py-0.5 text-xs text-gray-600">판정 전</span>
+                          )}
+                          {c.pending_followups > 0 && (
+                            <p className="mt-1 text-[11px] font-semibold text-amber-800">잠정 · 분류 대기 {c.pending_followups}건</p>
+                          )}
                         </td>
-                        <td className="py-3 pr-3">{formatPercent(c.status_confidence)}</td>
+                        <td className="py-3 pr-3">{c.judged && c.status_confidence !== null ? formatPercent(c.status_confidence) : "-"}</td>
                         <td className="py-3 pr-3">{c.priority_score.toFixed(1)}</td>
                         <td className="py-3 pr-3">
                           {c.deadline_date ? formatDate(c.deadline_date, c.primary_promise?.deadline_precision ?? "day") : "-"}
@@ -99,8 +106,8 @@ export default async function AdminPage() {
               저신뢰 연결 <span className="text-sm font-normal text-gray-500">{result.data.links.length}건</span>
             </h2>
             <p className="mt-1 text-xs text-gray-500">
-              확정하면 수동 연결(manual)로 기록됩니다. 해제하면 이 사건에서 제외되며 자동 재연결되지 않습니다(아래 「해제된
-              연결」에서 되돌릴 수 있음).
+              확정·해제는 사람의 결정으로 기록되어 다음 실행에서 다시 평가되지 않습니다(연결 방식 rule/embedding 은 평가용으로
+              남습니다). 해제하면 이 사건에서 제외되며 자동 재연결되지 않습니다(아래 「해제된 연결」에서 되돌릴 수 있음).
             </p>
             {result.data.links.length === 0 ? (
               <p className="mt-3 text-sm text-gray-500">검토할 저신뢰 연결이 없습니다.</p>

@@ -1,9 +1,14 @@
-"""2. 관련 기사 수집·정제 — 연관어로 질의를 보강하고 뉴스 검색 API 를 구간별로 페이징 호출해 Article 로 저장한다.
+"""2. 관련 기사 수집·정제 — 연관어로 질의를 보강하고 뉴스 검색 API 를 구간별로 호출해 Article 로 저장한다.
 
-- 수집 구간: 발생일-1 ~ +14일(초기 보도, 상한 collect_initial_cap) 과 그 이후 월별 구간(상한 collect_month_cap).
-  날짜 오름차순 단일 호출로는 대형 사건의 첫 주 기사가 상한을 다 채워 약속·후속 기사를 놓친다.
+- 수집 구간: 발생일-1 ~ +14일(초기 보도) 과 그 이후(후속). 구간마다 키워드 트렌드(time_line) 로 날짜/월별 건수를 먼저 보고,
+  상한 안에 다 들어오면 한 번에 받고, 넘치면 날짜(초기)·월(후속) 단위로 상한을 고르게 나눠 받는다(물 채우기 배분).
+  날짜 오름차순 단일 호출로는 대형 사건의 첫 주 기사가 상한을 다 채워 약속·후속 기사를 놓치고,
+  구간을 차례로 돌다 총상한이 차면 최근 달의 착공·완료 기사가 빠지기 때문이다. 호출 수도 조용한 사건은 3~4회로 끝난다.
+- 거의 같은 기사(전재)는 상한을 소모하지 않는다 (상한은 저장하는 기사 수 기준).
 - 수집한 기사는 (event_id, news_id, 질의 종류) 로 EventCandidate 에 기록해 link 단계의 후보로 쓴다.
+  이번 실행의 시드 질의에서 빠진 후보(시드를 좁힌 경우)는 지운다.
 - 사람 지정 질의(query_override)는 연관어 확장을 하지 않는다.
+- 정렬은 지침서의 객체 형식(`{"date": "asc"}`) 만 쓴다. 다중 정렬 리스트는 실서버 확인 전이라 smoke_live.py 에서만 시험한다.
 """
 
 from __future__ import annotations
@@ -16,7 +21,7 @@ from sqlalchemy.orm import Session
 
 from ..bigkinds.codes import normalize_incident
 from ..bigkinds.protocol import DEFAULT_NEWS_FIELDS, BigKindsClient
-from ..bigkinds.schemas import NewsDocument, NewsSearchArgument, PublishedAt, WordCloudArgument
+from ..bigkinds.schemas import NewsDocument, NewsSearchArgument, PublishedAt, TimeLineArgument, WordCloudArgument
 from ..config import Settings
 from ..db.models import Article, Event, EventCandidate
 from .embeddings import EmbeddingBackend, needs_recompute, to_bytes
@@ -29,7 +34,9 @@ _STOP = {
     "사고", "차량", "주민", "발생", "지역", "관계자", "오전", "오후", "이날", "구조", "당국", "대책", "점검",
     "조사", "결과", "피해", "안전", "시민", "현장", "부상", "사망", "사람", "이번", "지난", "올해", "내년",
 }
-_SORT = [{"date": "asc"}, {"_score": "desc"}]  # 같은 날짜 동률에 대비한 다중 정렬
+_SORT = {"date": "asc"}  # 지침서 형식. 구간 상한이 한 페이지(≤ PAGE_SIZE) 안이라 동률 페이징 문제가 생기지 않는다
+PAGE_SIZE = 300  # 지침서 return_size 상한(10000) 안. 총상한(300)까지 한 페이지로 받아 페이징 경계의 동률 문제를 피한다
+INITIAL_DAYS = 15  # 발생일 ~ +14일
 
 
 def article_text(a: Article) -> str:
@@ -81,24 +88,29 @@ def _near_duplicate(doc: NewsDocument, kept: list[NewsDocument]) -> bool:
 
 
 def fetch_articles(client: BigKindsClient, query: str, start: date, until: date, cap: int) -> tuple[list[NewsDocument], int, bool]:
-    """[start, until) 구간을 날짜 오름차순으로 cap 건까지. 반환: (문서, total_hits, 잘림 여부)."""
+    """[start, until) 구간을 날짜 오름차순으로 cap 건까지. 반환: (문서, total_hits, 잘림 여부).
+
+    거의 같은 기사(전재)는 건너뛰고 상한을 소모하지 않는다 — 상한은 저장할 기사 수 기준이다.
+    """
     docs: list[NewsDocument] = []
     offset = 0
     total = 0
-    while offset < cap:
+    while len(docs) < cap:
         res = client.search_news(
             NewsSearchArgument(
                 query=query,
                 published_at=PublishedAt.of(start, until),
-                sort=_SORT,
+                sort=dict(_SORT),
                 hilight=200,
                 return_from=offset,
-                return_size=min(100, cap - offset),
+                return_size=min(PAGE_SIZE, cap - len(docs)),
                 fields=list(DEFAULT_NEWS_FIELDS),
             )
         )
         total = res.total_hits
         for d in res.documents:
+            if len(docs) >= cap:
+                break
             if any(d.news_id == k.news_id for k in docs) or _near_duplicate(d, docs):
                 continue
             docs.append(d)
@@ -118,30 +130,115 @@ def _month_windows(start: date, end_exclusive: date) -> list[tuple[date, date]]:
     return out
 
 
-def fetch_windowed(client: BigKindsClient, query: str, occurred: date, today: date, settings: Settings) -> tuple[list[NewsDocument], dict]:
-    """초기 구간 + 월별 구간으로 나눠 수집한다. 총 상한 max_articles_per_event."""
-    until = today + timedelta(days=1)  # until 은 제외이므로 오늘을 포함하려면 내일
-    windows = [(occurred - timedelta(days=1), min(occurred + timedelta(days=15), until), settings.collect_initial_cap)]
-    windows += [(a, b, settings.collect_month_cap) for a, b in _month_windows(occurred + timedelta(days=15), until)]
+def _day_windows(start: date, end_exclusive: date) -> list[tuple[date, date]]:
+    return [(start + timedelta(days=i), start + timedelta(days=i + 1)) for i in range((end_exclusive - start).days)]
+
+
+def _bucket_label(start: date, interval: str) -> str:
+    return start.strftime("%Y%m%d") if interval == "day" else start.strftime("%Y%m")
+
+
+def allocate(hits: dict[str, int], budget: int, per_bucket_cap: int | None = None) -> dict[str, int]:
+    """물 채우기 배분: 작은 구간은 전부, 큰 구간은 남은 예산을 고르게 나눠 받는다. 구간별 상한(per_bucket_cap)도 적용."""
+    keys = [k for k, h in hits.items() if h > 0]
+    out: dict[str, int] = {}
+    remaining = max(0, budget)
+    for i, k in enumerate(sorted(keys, key=lambda k: hits[k])):
+        share = remaining // (len(keys) - i) if len(keys) - i else 0
+        take = min(hits[k], share)
+        if per_bucket_cap is not None:
+            take = min(take, per_bucket_cap)
+        out[k] = take
+        remaining -= take
+    return out
+
+
+def fetch_balanced(
+    client: BigKindsClient,
+    query: str,
+    start: date,
+    end: date,
+    budget: int,
+    interval: str,
+    per_bucket_cap: int | None = None,
+) -> tuple[list[NewsDocument], int, list[str], int]:
+    """[start, end) 를 time_line 으로 먼저 보고, 예산 안이면 한 번에, 넘치면 날짜/월 구간별로 배분해 받는다.
+
+    반환: (문서, total_hits, 잘린 구간 설명, API 호출 수).
+    """
+    if start >= end or budget <= 0:
+        return [], 0, [], 0
+    calls = 1
+    try:
+        tl = client.time_line(TimeLineArgument(query=query, published_at=PublishedAt.of(start, end), interval=interval))
+        hits = {p.label: int(p.hits or 0) for p in tl.time_line}
+        total = sum(hits.values()) if hits else int(tl.total_hits or 0)
+    except Exception as exc:  # noqa: BLE001 — 트렌드 실패는 단일 구간 수집으로 대체
+        log.warning("time_line 실패(%s) — 구간 %s~%s 를 한 번에 수집", exc, start, end)
+        hits, total = {}, -1
+    if total == 0:
+        return [], 0, [], calls
+    if 0 <= total <= budget or total < 0:
+        docs, got_total, truncated = fetch_articles(client, query, start, end, budget)
+        calls += 1
+        return docs, got_total, ([f"{start}~{end}:{got_total}건 중 {len(docs)}건"] if truncated else []), calls
+
+    windows = _day_windows(start, end) if interval == "day" else _month_windows(start, end)
+    labelled = [(a, b, _bucket_label(a, interval)) for a, b in windows]
+    plan = allocate({lb: hits.get(lb, 0) for _, _, lb in labelled}, budget, per_bucket_cap)
     docs: list[NewsDocument] = []
     seen: set[str] = set()
-    info = {"windows": 0, "total_hits": 0, "truncated_windows": []}
-    for start, end, cap in windows:
-        if start >= end:
+    truncated_info: list[str] = []
+    for a, b, lb in labelled:
+        cap = plan.get(lb, 0)
+        if cap <= 0:
+            if hits.get(lb, 0) > 0:
+                truncated_info.append(f"{a}~{b}:{hits[lb]}건 중 0건")
             continue
-        remaining = settings.max_articles_per_event - len(docs)
-        if remaining <= 0:
-            info["truncated_windows"].append(f"{start}~{end}:총상한")
-            continue
-        got, total, truncated = fetch_articles(client, query, start, end, min(cap, remaining))
-        info["windows"] += 1
-        info["total_hits"] += total
-        if truncated:
-            info["truncated_windows"].append(f"{start}~{end}:{total}건 중 {len(got)}건")
+        got, bucket_total, truncated = fetch_articles(client, query, a, b, cap)
+        calls += 1
+        if truncated or bucket_total > len(got):
+            truncated_info.append(f"{a}~{b}:{bucket_total}건 중 {len(got)}건")
         for d in got:
             if d.news_id not in seen:
                 seen.add(d.news_id)
                 docs.append(d)
+    return docs, total, truncated_info, calls
+
+
+def fetch_windowed(client: BigKindsClient, query: str, occurred: date, today: date, settings: Settings) -> tuple[list[NewsDocument], dict]:
+    """초기 구간(발생-1 ~ +14일, 상한 collect_initial_cap, 날짜별 배분) + 후속 구간(그 이후 ~ 오늘, 총상한의 남은 예산을 월별 배분,
+    월별 상한 collect_month_cap). 두 구간의 total_hits 는 모두 합산한다."""
+    until = today + timedelta(days=1)  # until 은 제외이므로 오늘을 포함하려면 내일
+    init_start = occurred - timedelta(days=1)
+    init_end = min(occurred + timedelta(days=INITIAL_DAYS), until)
+    info: dict = {"windows": 0, "total_hits": 0, "truncated_windows": [], "api_calls": 0}
+    docs: list[NewsDocument] = []
+    seen: set[str] = set()
+
+    def _take(got: list[NewsDocument]) -> None:
+        for d in got:
+            if d.news_id not in seen:
+                seen.add(d.news_id)
+                docs.append(d)
+
+    initial_budget = min(settings.collect_initial_cap, settings.max_articles_per_event)
+    got, total, trunc, calls = fetch_balanced(client, query, init_start, init_end, initial_budget, "day")
+    _take(got)
+    info["windows"] += 1
+    info["total_hits"] += max(total, 0)
+    info["truncated_windows"] += trunc
+    info["api_calls"] += calls
+
+    tail_start = occurred + timedelta(days=INITIAL_DAYS)
+    if tail_start < until:
+        tail_budget = settings.max_articles_per_event - len(docs)
+        got, total, trunc, calls = fetch_balanced(client, query, tail_start, until, tail_budget, "month", per_bucket_cap=settings.collect_month_cap)
+        _take(got)
+        info["windows"] += 1
+        info["total_hits"] += max(total, 0)
+        info["truncated_windows"] += trunc
+        info["api_calls"] += calls
     if info["truncated_windows"]:
         log.warning("수집 잘림 %s: %s", query[:60], info["truncated_windows"])
     return docs, info
@@ -205,10 +302,18 @@ def collect_event(
     event.expansions = expansions
     docs, info = fetch_windowed(client, query, event.occurred_at, today, settings)
     new = 0
+    current = {d.news_id for d in docs}
     for d in docs:
         _, created = upsert_article(session, d, embedder)
         new += int(created)
         add_candidate(session, event, d.news_id, "seed")
+    # 시드를 좁히면 이전 질의로 들어온 후보는 더 이상 이 사건의 후보가 아니다 (연결은 link 단계가 게이트로 정리한다)
+    stale = 0
+    for c in session.query(EventCandidate).filter_by(event_id=event.id, source="seed").all():
+        if c.news_id not in current:
+            session.delete(c)
+            stale += 1
+    info["stale_candidates_removed"] = stale
     session.commit()
     stats = {"event": event.key, "query": query, "expansions": expansions, "fetched": len(docs), "new": new, **info}
     log.info("collect %s", stats)
@@ -237,9 +342,9 @@ def collect_promise_followups(
     seen: set[str] = set()
     fetched = new = 0
     truncated: list[str] = []
-    for p in event.promises:
-        if not p.is_trackable:
-            continue
+    from .judge import trackable_promises
+
+    for p in trackable_promises(event):
         terms = action_terms(p.action, exclude=scopes, limit=3)
         if not terms:
             continue

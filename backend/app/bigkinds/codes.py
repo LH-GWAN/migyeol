@@ -140,8 +140,9 @@ PROVIDER_NAME_TO_CODE: dict[str, str] = {v: k for k, v in PROVIDERS.items()}
 
 
 def normalize_incident(value: str) -> str:
-    """코드값('3,11')이 들어오면 명칭('재해>자연재해')으로, 명칭이면 그대로."""
-    return INCIDENT_CODE_TO_NAME.get(value, value)
+    """코드값('3,11' / '3, 11')이 들어오면 명칭('재해>자연재해')으로, 명칭이면 그대로."""
+    key = ",".join(x.strip() for x in str(value).split(",")) if "," in str(value) else str(value).strip()
+    return INCIDENT_CODE_TO_NAME.get(key, value)
 
 
 def normalize_provider(value: str) -> str:

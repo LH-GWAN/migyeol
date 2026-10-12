@@ -46,11 +46,16 @@ DEFAULT_QUOTATION_FIELDS: list[str] = [
 
 
 class BigKindsError(RuntimeError):
+    """메시지와 payload 에서 접근 키를 가린다 — 서버가 'Invalid Access Key!:<키>' 처럼 키를 되돌려 주기 때문."""
+
     def __init__(self, endpoint: str, result: int | None, payload: object):
-        super().__init__(f"bigkinds {endpoint} failed: result={result} payload={str(payload)[:300]}")
+        from ..redact import mask
+
+        safe_payload = mask(payload)
+        super().__init__(f"bigkinds {endpoint} failed: result={result} payload={safe_payload[:300]}")
         self.endpoint = endpoint
         self.result = result
-        self.payload = payload
+        self.payload = safe_payload
 
 
 @runtime_checkable

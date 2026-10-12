@@ -201,7 +201,9 @@ def judge(
         why = f"완료 신호 {len(done)}건이 있으나 신뢰도({max(s.confidence for s in done):.2f})가 기준 {th.completion_min_conf} 미만이고 서로 다른 근거 2건이 안 됨"
     elif problems:
         considered = problems
-        why = f"새로운 문제 신호 {len(problems)}건이 있으나 신뢰도({max(s.confidence for s in problems):.2f})가 기준 {th.completion_min_conf} 미만"
+        # R1 은 '가장 최근' 신호를 보므로 사유도 최신 신호의 신뢰도를 쓴다 (최댓값이 아니다)
+        newest = max(problems, key=lambda s: (s.published_at or date.min, s.confidence))
+        why = f"가장 최근 새로운 문제 신호({newest.published_at.isoformat() if newest.published_at else '날짜 없음'})의 신뢰도 {newest.confidence:.2f}가 기준 {th.completion_min_conf} 미만 (총 {len(problems)}건)"
     else:
         why = f"후속 기사 {len(followup_dates)}건이 있으나 조치와 관련된 유효 신호(신뢰도 {th.signal_min_conf} 이상)가 없음"
     return Judgment(

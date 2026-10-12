@@ -53,8 +53,9 @@ def gate(event: Event, article: Article) -> tuple[bool, list[str]]:
         reasons.append("facility")
         if event.facility in (article.title or ""):
             reasons.append("facility-title")
-    orgs = [event.responsible_org, *(event.org_aliases or [])]
-    if any(o and o in text for o in orgs):
+    # 책임기관이 지역과 같은 이름이면(가온시 = 가온시) 기관 일치는 지역 일치와 같은 뜻이라 'org' 로 치지 않는다
+    orgs = [o for o in [event.responsible_org, *(event.org_aliases or [])] if o and o != event.region]
+    if any(o in text for o in orgs):
         reasons.append("org")
     scope_ok = bool(reasons)
     prefix = incident_prefix(event.incident_type)
@@ -170,6 +171,7 @@ def link_event(
         link.link_score = round(score, 3)
         link.link_reason = "+".join(reasons)
         link.needs_review = review
+        link.auto_decision = decision  # 관리자 처리와 무관한 파이프라인 결정 (평가용)
         if link.phase in ("발생", "원인조사", "기타"):
             link.phase = initial_phase(event, art)
         stats["linked" if decision == "link" else "review"] += 1
@@ -181,12 +183,15 @@ def link_event(
 
 
 def resolve_multi_event_links(session: Session, events: list[Event]) -> int:
-    """한 기사가 여러 사건에 자동 연결되면 점수가 가장 높은 사건만 유지하고 나머지는 검토 큐로 보낸다."""
+    """한 기사가 여러 사건에 **자동 연결**(검토 대기 아님)되면 점수가 가장 높은 사건만 유지하고 나머지는 검토 큐로 보낸다.
+
+    이미 검토 대기인 연결은 경쟁에 넣지 않는다 — 다른 사건의 정상 연결까지 강등돼 어느 사건에도 붙지 않는 일을 막는다.
+    """
     by_news: dict[str, list[EventArticle]] = {}
     for ev in events:
         session.refresh(ev)
         for l in ev.links:
-            if l.rejected or l.confirmed or l.link_method == "manual":
+            if l.rejected or l.confirmed or l.link_method == "manual" or l.needs_review:
                 continue
             by_news.setdefault(l.news_id, []).append(l)
     changed = 0
@@ -213,10 +218,12 @@ def link_all(
     settings: Settings,
     embedder: EmbeddingBackend,
     all_facilities: list[str] | None = None,
+    all_events: list[Event] | None = None,
 ) -> list[dict]:
+    """all_events: 사건 간 배타 처리 대상 (단일 사건 실행이어도 다른 활성 사건의 연결과 비교한다)."""
     facilities = all_facilities if all_facilities is not None else [e.facility for e in events]
     stats = [link_event(session, e, settings, embedder, other_facilities=facilities) for e in events]
-    multi = resolve_multi_event_links(session, events)
+    multi = resolve_multi_event_links(session, all_events if all_events is not None else events)
     if stats:
         stats[0]["multi_event_review"] = multi
     return stats
