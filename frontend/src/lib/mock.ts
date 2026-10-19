@@ -229,6 +229,9 @@ const E1_CARD: EventCard = {
   needs_check: true,
   judged: true,
   pending_followups: 0,
+  pending_quotations: 0,
+  llm_gave_up: false,
+  llm_acked: false,
   needs_review: false,
   deadline_date: "2026-10-31",
   deadline_precision: "month",
@@ -371,6 +374,9 @@ const E2_CARD: EventCard = {
   needs_check: true,
   judged: true,
   pending_followups: 0,
+  pending_quotations: 0,
+  llm_gave_up: false,
+  llm_acked: false,
   needs_review: true,
   deadline_date: "2026-07-31",
   deadline_precision: "month",
@@ -503,6 +509,9 @@ const E3_CARD: EventCard = {
   needs_check: true,
   judged: true,
   pending_followups: 0,
+  pending_quotations: 0,
+  llm_gave_up: false,
+  llm_acked: false,
   needs_review: false,
   deadline_date: null,
   deadline_precision: null,
@@ -851,6 +860,9 @@ const E4_CARD: EventCard = {
   needs_check: true,
   judged: false,
   pending_followups: 0,
+  pending_quotations: 0,
+  llm_gave_up: false,
+  llm_acked: false,
   needs_review: false,
   deadline_date: null,
   deadline_precision: null,
@@ -1086,3 +1098,10 @@ export async function mockGetMeta(): Promise<MetaOut> {
 export async function mockGetHealth(): Promise<HealthOut> {
   return { ok: true };
 }
+
+export async function mockAdminEventFlag(eventId: number): Promise<{ event_id: number; needs_review: boolean; removed?: number }> {
+  await delay(50);
+  if (!EVENTS.some((e) => e.card.id === eventId)) throw new MockNotFound(`event ${eventId} not found`);
+  return { event_id: eventId, needs_review: false, removed: 0 };
+}
+

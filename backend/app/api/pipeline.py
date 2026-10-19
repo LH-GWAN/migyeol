@@ -86,6 +86,8 @@ def _run_out(r: PipelineRun | None) -> dict | None:
         "ok": r.ok,
         "error_summary": error_summary(r.error),
         "stats": r.stats.get("summary", {}) if isinstance(r.stats, dict) else {},
+        "warnings": [w.get("warning", str(w)) for w in (r.stats.get("warnings", []) if isinstance(r.stats, dict) else [])][:20],
+        "failures": len(r.stats.get("failures", [])) if isinstance(r.stats, dict) else 0,
     }
 
 

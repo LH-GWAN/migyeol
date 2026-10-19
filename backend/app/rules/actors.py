@@ -71,6 +71,7 @@ _STANDALONE_TITLES = (
     "차관",
     "지사",
     "청장",
+    "대변인",
     "본부장",
     "단장",
     "국장",
@@ -181,6 +182,7 @@ _PRIVATE_WORDS = (
     "점주",
     "당",
     "정당",
+    "국민의힘",
 )
 # 기관 직함: 앞에 공공 기관 토큰이 있으면 공공('한국도로공사 사장'), 없으면 민간('식당 사장', '대표')
 _ORG_HEAD_TITLES = ("사장", "대표", "이사장", "회장", "대표이사", "현장소장")
@@ -188,6 +190,7 @@ _ORG_HEAD_TITLES = ("사장", "대표", "이사장", "회장", "대표이사", "
 _PRIVATE_PREFIXES = ("주민", "유가족", "유족", "피해자", "상인", "입주민", "시공사", "감리", "노조", "노총", "민주노총", "한국노총", "입주자")
 _PRIVATE_ORG_TAILS = ("노총", "노조", "연구", "연구소", "연구원", "협회", "조합", "재단", "법인")
 _PERSON_NAME_RE = re.compile(r"^[가-힣]{2,4}$")
+_REGION_SUFFIXES = ("시", "군", "구", "도")
 
 _COMPANY_RE = re.compile(r"^(?:[가-힣A-Za-z]+(?:건설|산업|물산|개발|엔지니어링|건업|종합건설)|㈜.*|주식회사|\(주\))$")
 
@@ -226,9 +229,15 @@ def _org_token(tok: str, followed_by_title: bool, aliases: tuple[str, ...] | lis
         # 뒤에 '관계자' 가 올 때만 기관으로 본다. 직함이 붙어도 이름일 수 있어 기관으로 쓰지 않는다 (LLM 기관명으로 대체).
         # 같은 토큰 안에 직함이 붙은 '가온시장'·'누리군수' 는 기관이다. 다음 토큰이 직함인 '김민구 과장'·'이영도 장관' 은 이름일 수
         # 있어 기관으로 쓰지 않는다 — 단, 다음 토큰이 '관계자'·'대변인' 처럼 기관 뒤에만 오는 말이면 기관으로 본다.
-        name_like = len(stem) <= 2 and not wide and not has_title
-        if name_like and not _followed_by_generic(followed_by_title):
-            return None
+        # 사람 이름 판정(3차 검증 1-2): 성씨 1자 + 이름 2자이고 행정구역 접미(시·군·구·도)이며 사전(시드 지역·기관·별칭 + 광역·기초 지자체)에
+        # 없을 때만 이름으로 본다. 사전에 있으면('청주시', '보령시', '강남구') 직함이 뒤따라도 기관이다.
+        if suffix in _REGION_SUFFIXES and _person_shaped(org, aliases) and not has_title:
+            return None  # '이영도 대변인'·'김민구 관계자' 도 이름 형태면 기관으로 쓰지 않는다 (직함 토큰이 공공 여부를 정한다)
+        if suffix not in _REGION_SUFFIXES and len(stem) <= 2:
+            if not (has_title or followed_by_title or wide):
+                return None  # '도로국'·'안전과' 처럼 부서 접미만 있는 짧은 토큰은 직함·관계자가 뒤따를 때만 기관
+            if _person_shaped_dept(org) and not has_title:
+                return None  # '박정국 국장'·'최영실 실장': 성씨 + 2자이고 부서 명사가 아니면 사람 이름
     if any(org.endswith(pw) for pw in _PRIVATE_WORDS if pw not in ("당",)) or org.endswith(_PRIVATE_ORG_TAILS):
         return None
     return org
@@ -238,19 +247,46 @@ def _followed_by_generic(flag) -> bool:
     return flag == "generic"
 
 
-def looks_like_person(name: str) -> bool:
-    """기관명으로 쓰면 안 되는 사람 이름 형태인지: 한글 2~4자이고 기관 접미·공공 단어·직함이 전혀 없다 ('김민구', '이영도').
-    접미가 있는 '청주시'·'경기도' 는 기관으로 본다 (문맥 판별은 _org_token 이 한다)."""
+def _person_shaped(name: str, lexicon: tuple[str, ...] | list[str] = ()) -> bool:
+    """'성씨 1자 + 이름 2자' 이고 행정구역 사전에 없는 3자 토큰 ('김민구', '이영도'). '청주시'·'강남구'·'중구' 는 사전에 있어 아니다."""
+    from .regions import SURNAMES, is_admin_region
+
+    n = (name or "").strip()
+    if len(n) != 3 or not _PERSON_NAME_RE.match(n):
+        return False
+    if is_admin_region(n, lexicon) or any(_alias_hit(a, n) for a in lexicon if a):
+        return False
+    return n[0] in SURNAMES
+
+
+def _person_shaped_dept(name: str) -> bool:
+    """'박정국'·'최영실' 처럼 부서 접미(국·실·과·부)로 끝나는 3자 토큰이 사람 이름 형태인지 — 성씨로 시작하고 앞 2자가 부서 명사가 아니다."""
+    from .regions import DEPT_NOUNS, SURNAMES
+
+    n = (name or "").strip()
+    return len(n) == 3 and n[0] in SURNAMES and n[:2] not in DEPT_NOUNS and n[1:] not in DEPT_NOUNS
+
+
+def looks_like_person(name: str, lexicon: tuple[str, ...] | list[str] = ()) -> bool:
+    """기관명으로 쓰면 안 되는 사람 이름 형태인지 (규칙 결과와 LLM actor_org 모두에 적용).
+    - '김민구'·'이영도': 성씨 + 2자, 행정구역 사전·시드 사전에 없음 → True
+    - '청주시'·'보령시'·'강남구'·'중구'·'도로국'·'경기도': 사전에 있거나 행정구역 접미가 아닌 부서/기관 접미 → False
+    - 2자·4자 한글만으로 된 이름('홍길동 2자'·'남궁민수')은 접미·공공 단어가 없을 때만 True"""
     n = (name or "").strip()
     if not _PERSON_NAME_RE.match(n):
         return False
     if any(n == w or n.endswith(w) for w in _PUBLIC_WORDS if len(w) >= 2):
         return False
-    if n.endswith(tuple(x for x in _ORG_SUFFIXES if x not in _AMBIGUOUS_SUFFIXES)) or n.endswith(_TITLE_SUFFIXES):
+    from .regions import is_admin_region
+
+    if is_admin_region(n, lexicon):
         return False
-    if n.endswith(_AMBIGUOUS_SUFFIXES):
-        # '김민구'·'이영도' 처럼 2~3자 + 한 글자 접미는 이름일 수 있다. 광역명('경기도')은 기관
-        return len(n) <= 3 and not any(n[:-1] == r for r in _WIDE_REGIONS)
+    if n.endswith(_REGION_SUFFIXES):
+        return _person_shaped(n, lexicon)
+    if n.endswith(("국", "실", "과", "부")):
+        return _person_shaped_dept(n)
+    if n.endswith(_ORG_SUFFIXES) or n.endswith(_TITLE_SUFFIXES):
+        return False
     return True
 
 
@@ -289,7 +325,8 @@ def _analyze4(source: str, aliases: tuple[str, ...] | list[str]) -> tuple[list[s
             if not orgs:
                 privates.append(tok)
             continue
-        if any(tok == pw or (tok.endswith(pw) and tok != pw and not _TITLE_RE.match(tok)) for pw in _PRIVATE_WORDS):
+        # '당' 은 정당명(더불어민주당·개혁신당)처럼 4자 이상일 때만 민간 표시 — '담당'·'해당' 은 아니다
+        if any(tok == pw or (tok.endswith(pw) and tok != pw and not _TITLE_RE.match(tok) and (pw != "당" or len(tok) >= 4)) for pw in _PRIVATE_WORDS):
             if not _GOV_TITLE_RE.search(tok):
                 privates.append(tok)
                 continue
@@ -327,7 +364,7 @@ def normalize_actor_org(source: str, responsible_org: str = "", aliases: list[st
         return None
     for org in orgs:  # 직함 단독 토큰(titles)은 기관을 특정하지 못하므로 쓰지 않는다 ('본부장' -> '본부' 금지)
         name = re.sub(r"(시|군|구|도)청$", r"\1", org)  # 가온시청 -> 가온시
-        if len(name) >= 2:
+        if len(name) >= 2 and not looks_like_person(name, [responsible_org, *aliases]):
             return name
     for w in _PUBLIC_WORDS:
         if len(w) >= 2 and any(t == w or t.endswith(w) for t in _tokens(s)):

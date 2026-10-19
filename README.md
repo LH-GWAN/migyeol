@@ -36,7 +36,7 @@ npm run dev -- -p 3000        # http://localhost:3000
 
 **관리자 화면 보호.** 백엔드 `.env` 의 `ADMIN_TOKEN` 을 설정하면 `/api/admin/*`·`/api/pipeline/run` 은 `X-Admin-Token` 이 있어야 한다. 같은 값을 `frontend/.env.local` 의 `ADMIN_TOKEN` 에도 넣는다 — 프런트 **서버**(서버 컴포넌트와 `/api/admin|pipeline` Route Handler 프록시)가 헤더를 붙이고 브라우저에는 토큰이 내려가지 않는다. 따라서 프런트에 접근할 수 있는 사람은 누구나 관리자 화면을 쓸 수 있다. 토큰은 백엔드를 다른 호스트로부터 지키는 용도이고, 프런트는 localhost 나 별도 접근 제어 뒤에 둔다.
 
-**호출량.** 조용한 사건은 사건당 4회(time_line 2 + search 2)로 끝나지만, 대형 사건은 초기 2주 날짜별·큰 달 상·중·하순 분할로 더 늘어난다. 스케줄러를 켜기 전에 실 시드로 `run_pipeline.py --stage collect` 를 한 번 돌려 `pipeline_runs.stats.collect[].api_calls` 합계를 확인한다.
+**호출량.** 조용한 사건은 사건당 4회(time_line 2 + search 2)로 끝난다. 큰 사건은 초기 2주를 날짜별로 받고, 이후 구간은 조치 상태 질의(완료·준공·착공 …)와 분기별 표본만 받아 월별로 나눠 부르지 않는다(3년 된 중형 사건 ≈ 20회). 스케줄러를 켜기 전에 실 시드로 `run_pipeline.py --stage collect` 를 한 번 돌려 `pipeline_runs.stats.collect[].api_calls` 합계를 확인한다.
 
 **동시 실행.** 파이프라인은 프로세스 Lock 과 파일 Lock(`backend/data/pipeline.lock`)으로 한 번에 하나만 돈다 — 서버와 CLI 를 같이 켜도 겹치지 않고(`409` / `PipelineBusy`), `uvicorn --workers N` 도 막힌다. 다만 관리자 확정·해제 뒤의 규칙 재판정은 Lock 밖에서 바로 실행된다(LLM·API 호출 없음).
 

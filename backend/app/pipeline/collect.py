@@ -1,19 +1,22 @@
 """2. 관련 기사 수집·정제 — 연관어로 질의를 보강하고 뉴스 검색 API 를 구간별로 호출해 Article 로 저장한다.
 
-- 수집 구간: 발생일-1 ~ +14일(초기 보도) 과 그 이후(후속). 구간마다 키워드 트렌드(time_line) 로 날짜/월별 건수를 먼저 보고,
-  상한 안에 다 들어오면 한 번에 받고, 넘치면 날짜(초기)·월(후속) 단위로 상한을 고르게 나눠 받는다(물 채우기 배분).
-  날짜 오름차순 단일 호출로는 대형 사건의 첫 주 기사가 상한을 다 채워 약속·후속 기사를 놓치고,
-  구간을 차례로 돌다 총상한이 차면 최근 달의 착공·완료 기사가 빠지기 때문이다. 호출 수도 조용한 사건은 3~4회로 끝난다.
-- 거의 같은 기사(전재)는 상한을 소모하지 않는다 (상한은 저장하는 기사 수 기준).
+- 초기 구간(발생일-1 ~ +14일): 키워드 트렌드(time_line)로 날짜별 건수를 보고, 상한 안이면 한 번에, 넘치면 날짜별로 상한을 고르게 배분한다.
+- 이후 구간(그 이후 ~ 오늘), 3차 검증 1-4: 판정에 필요한 기사를 **직접 찾는 질의**를 쓴다.
+    조치 상태 질의 = ("완료" OR "준공" OR "개통" OR "착공" OR …) AND (시설·핵심어) AND (지역·기관)
+  범위가 좁아 대부분 상한 안에 들어오고, 넘칠 때만 월 단위(큰 달은 상·중·하순)로 나눈다.
+  그 밖의 일반 후속 보도는 분기별 소량 표본(collect_tail_sample, 0 이면 생략)만 받는다 — 보도량 추이는 time_line 이 이미 제공한다.
+  고른 표본 추출(월별 물 채우기)은 큰 사건에서 호출량만 늘리고 완료·착공 기사를 보장하지 못해 버렸다.
+- 거의 같은 기사(전재)는 상한을 소모하지 않는다. 쓰지 못한 예산은 잘린 구간에 이어 받는다.
 - 수집한 기사는 (event_id, news_id, 질의 종류) 로 EventCandidate 에 기록해 link 단계의 후보로 쓴다.
-  이번 실행의 시드 질의에서 빠진 후보(시드를 좁힌 경우)는 지운다.
+  이번 실행의 시드 질의에서 빠진 후보(시드를 좁힌 경우)는 지운다. 0건 수집이면 지우지 않고 경고한다.
 - 사람 지정 질의(query_override)는 연관어 확장을 하지 않는다.
-- 정렬은 지침서의 객체 형식(`{"date": "asc"}`) 만 쓴다. 다중 정렬 리스트는 실서버 확인 전이라 smoke_live.py 에서만 시험한다.
+- 정렬은 지침서의 객체 형식(`{"date": "asc"}`) 만 쓴다 (실서버는 리스트 형식도 받지만 쓰지 않는다).
 """
 
 from __future__ import annotations
 
 import logging
+import math
 from datetime import date, timedelta
 from difflib import SequenceMatcher
 
@@ -25,7 +28,7 @@ from ..bigkinds.schemas import NewsDocument, NewsSearchArgument, PublishedAt, Ti
 from ..config import Settings
 from ..db.models import Article, Event, EventCandidate
 from .embeddings import EmbeddingBackend, needs_recompute, to_bytes
-from .seeds import Seed, expand_query, seed_from_event
+from .seeds import Seed, _quote, expand_query, seed_from_event
 
 log = logging.getLogger("migyeol.collect")
 
@@ -37,6 +40,8 @@ _STOP = {
 _SORT = {"date": "asc"}  # 지침서 형식. 구간 상한이 한 페이지(≤ PAGE_SIZE) 안이라 동률 페이징 문제가 생기지 않는다
 PAGE_SIZE = 300  # 지침서 return_size 상한(10000) 안. 총상한(300)까지 한 페이지로 받아 페이징 경계의 동률 문제를 피한다
 INITIAL_DAYS = 15  # 발생일 ~ +14일
+# 조치 상태 질의의 행동어 — 완료·진행·재발 기사를 직접 찾는다
+STATUS_TERMS = ("완료", "준공", "개통", "착공", "설치", "공사", "재발", "또", "마무리", "교체", "보강", "복구", "점검")
 
 
 def article_text(a: Article) -> str:
@@ -150,17 +155,40 @@ def _day_windows(start: date, end_exclusive: date) -> list[tuple[date, date]]:
 
 
 def _bucket_label(start: date, interval: str) -> str:
-    return start.strftime("%Y%m%d") if interval == "day" else start.strftime("%Y%m")
+    if interval == "day":
+        return start.strftime("%Y%m%d")
+    if interval == "quarter":
+        return f"{start.year:04d}{((start.month - 1) // 3) * 3 + 1:02d}"
+    return start.strftime("%Y%m")
 
 
 def _decades(start: date, end_exclusive: date) -> list[tuple[date, date]]:
-    """월 구간을 상·중·하순으로 나눈다 (큰 달에서 월초 기사만 받지 않도록)."""
-    cuts = [start, start.replace(day=11), start.replace(day=21), end_exclusive]
+    """구간을 셋으로 나눈다. 한 달 안이면 상·중·하순, 더 길면 길이를 삼등분한다 (앞쪽 기사만 받지 않도록)."""
+    span = (end_exclusive - start).days
+    if span <= 0:
+        return []
+    if span <= 31 and start.month == (end_exclusive - timedelta(days=1)).month:
+        cuts = [start, start.replace(day=11), start.replace(day=21), end_exclusive]
+    else:
+        third = max(1, span // 3)
+        cuts = [start, start + timedelta(days=third), start + timedelta(days=2 * third), end_exclusive]
     out = []
     for a, b in zip(cuts, cuts[1:]):
         a, b = max(a, start), min(b, end_exclusive)
-        if a < b:
+        if a < b and (not out or a >= out[-1][1]):
             out.append((a, b))
+    return out
+
+
+def _quarter_windows(start: date, end_exclusive: date) -> list[tuple[date, date]]:
+    out = []
+    cur = start
+    while cur < end_exclusive:
+        qm = ((cur.month - 1) // 3) * 3 + 1
+        nxt_m = qm + 3
+        nxt = date(cur.year + (nxt_m > 12), (nxt_m - 1) % 12 + 1, 1)
+        out.append((cur, min(nxt, end_exclusive)))
+        cur = nxt
     return out
 
 
@@ -197,7 +225,7 @@ def _fetch_bucket(
     remaining = cap
     resume: list[tuple[date, date, int]] = []
     for i, (pa, pb) in enumerate(parts):
-        share = remaining // (len(parts) - i)
+        share = math.ceil(remaining / (len(parts) - i)) if remaining > 0 else 0  # 올림: cap 4 → 2/1/1 (하순 치우침 방지)
         if share <= 0:
             continue
         got, t, tr, nxt = fetch_articles(client, query, pa, pb, share)
@@ -219,6 +247,7 @@ def fetch_balanced(
     budget: int,
     interval: str,
     per_bucket_cap: int | None = None,
+    month_hits: dict[str, int] | None = None,
 ) -> tuple[list[NewsDocument], int, list[str], int, list[str]]:
     """[start, end) 를 time_line 으로 먼저 보고, 예산 안이면 한 번에, 넘치면 날짜/월 구간별로 배분해 받는다.
 
@@ -230,31 +259,51 @@ def fetch_balanced(
     warnings: list[str] = []
     if start >= end or budget <= 0:
         return [], 0, [], 0, warnings
-    calls = 1
+    calls = 0
+    tl_interval = "month" if interval == "quarter" else interval
     try:
-        tl = client.time_line(TimeLineArgument(query=query, published_at=PublishedAt.of(start, end), interval=interval))
-        hits = {p.label: int(p.hits or 0) for p in tl.time_line}
+        if month_hits is not None and interval in ("month", "quarter"):
+            hits = dict(month_hits)  # 호출자가 이미 받은 월 건수 재사용 (time_line 호출 생략)
+        else:
+            calls += 1
+            tl = client.time_line(TimeLineArgument(query=query, published_at=PublishedAt.of(start, end), interval=tl_interval))
+            hits = {p.label: int(p.hits or 0) for p in tl.time_line}
+        if interval == "quarter":  # 월 건수를 분기로 묶는다
+            q: dict[str, int] = {}
+            for lb, h in hits.items():
+                y, m = int(lb[:4]), int(lb[4:6])
+                k = f"{y:04d}{((m - 1) // 3) * 3 + 1:02d}"
+                q[k] = q.get(k, 0) + h
+            hits = q
         total = sum(hits.values()) if hits else int(tl.total_hits or 0)
     except Exception as exc:  # noqa: BLE001 — 트렌드 실패는 단일 구간 수집으로 대체
+        calls = max(calls, 1)
         warnings.append(f"time_line 실패({type(exc).__name__}) — 구간 {start}~{end} 를 한 번에 수집")
         log.warning(warnings[-1])
         hits, total = {}, -1
     if total == 0:
-        # 교차 확인: 트렌드가 비었는데 검색에는 있으면 트렌드를 믿지 않는다
+        if hits:
+            return [], 0, [], calls, warnings  # 트렌드가 정상 형식(시리즈 있음)으로 0건이면 그대로 믿는다 — 교차 확인 호출을 아낀다
+        # 응답이 비었으면(시리즈 없음) 검색 1회로 교차 확인한다 — 일시 장애·빈 응답으로 조용히 0건이 되지 않게
         probe = client.search_news(NewsSearchArgument(query=query, published_at=PublishedAt.of(start, end), sort=dict(_SORT), return_size=1, fields=["news_id"]))
         calls += 1
         if probe.total_hits > 0:
-            warnings.append(f"time_line 0건이지만 검색 total_hits={probe.total_hits} — 구간 {start}~{end} 를 한 번에 수집")
+            warnings.append(f"time_line 0건이지만 검색 total_hits={probe.total_hits} — 구간 {start}~{end} 를 대체 수집")
             log.warning(warnings[-1])
             hits, total = {}, -1
         else:
             return [], 0, [], calls, warnings
-    if total < 0 or total <= budget:
+    if total < 0:
+        # 트렌드 없이 수집: 날짜 오름차순 한 덩어리가 아니라 상·중·하순처럼 셋으로 나눠 받는다 (1-A 이전 동작으로 돌아가지 않게)
+        docs, got_total, truncated, ncalls, _ = _fetch_bucket(client, query, start, end, budget, split_big_month=True)
+        calls += ncalls
+        return docs, got_total, ([f"{start}~{end}:{got_total}건 중 {len(docs)}건"] if truncated else []), calls, warnings
+    if total <= budget:
         docs, got_total, truncated, _ = fetch_articles(client, query, start, end, budget)
         calls += 1
         return docs, got_total, ([f"{start}~{end}:{got_total}건 중 {len(docs)}건"] if truncated else []), calls, warnings
 
-    windows = _day_windows(start, end) if interval == "day" else _month_windows(start, end)
+    windows = _day_windows(start, end) if interval == "day" else (_quarter_windows(start, end) if interval == "quarter" else _month_windows(start, end))
     labelled = [(a, b, _bucket_label(a, interval)) for a, b in windows]
     plan = allocate({lb: hits.get(lb, 0) for _, _, lb in labelled}, budget, per_bucket_cap)
     docs: list[NewsDocument] = []
@@ -289,8 +338,11 @@ def fetch_balanced(
         extra: dict[str, int] = {}
         for i, (a, b, off) in enumerate(resume):
             share = leftover // (len(resume) - i)
+            lb0 = _bucket_label(a, interval) if interval == "day" else _bucket_label(a.replace(day=1), interval)
+            if per_bucket_cap is not None:
+                share = min(share, per_bucket_cap - got_by_bucket.get(lb0, 0) - extra.get(lb0, 0))  # 이월도 구간 상한을 넘지 않는다
             if share <= 0:
-                break
+                continue
             got, _, _, _ = fetch_articles(client, query, a, b, share, start_offset=off)
             calls += 1
             added = 0
@@ -300,8 +352,7 @@ def fetch_balanced(
                     docs.append(d)
                     added += 1
             leftover -= added
-            lb = _bucket_label(a if interval == "day" else a.replace(day=1), interval)
-            extra[lb] = extra.get(lb, 0) + added
+            extra[lb0] = extra.get(lb0, 0) + added
         if extra:
             truncated_info = []
             for a, b, lb in labelled:
@@ -311,41 +362,72 @@ def fetch_balanced(
     return docs, total, truncated_info, calls, warnings
 
 
-def fetch_windowed(client: BigKindsClient, query: str, occurred: date, today: date, settings: Settings) -> tuple[list[NewsDocument], dict]:
-    """초기 구간(발생-1 ~ +14일, 상한 collect_initial_cap, 날짜별 배분) + 후속 구간(그 이후 ~ 오늘, 총상한의 남은 예산을 월별 배분,
-    월별 상한 collect_month_cap, 큰 달은 상·중·하순 분할). 두 구간의 total_hits 는 모두 합산한다."""
+def status_query(base_query: str) -> str:
+    """조치 상태 질의: (행동어 OR …) AND (<기본 질의>). 기본 질의는 '(주제) AND (범위)' 또는 사람 지정 질의."""
+    return "(" + " OR ".join(_quote(list(STATUS_TERMS))) + ") AND (" + base_query + ")"
+
+
+def fetch_windowed(
+    client: BigKindsClient, query: str, occurred: date, today: date, settings: Settings, mode: str = "seed"
+) -> tuple[list[NewsDocument], dict]:
+    """mode="seed": 초기 구간(날짜별 배분, 상한 collect_initial_cap) + 이후 구간.
+         이후 구간은 기본 질의의 월별 트렌드를 먼저 본다 — 남은 예산 안이면 한 번에 받고(조용한 사건: 호출 4회),
+         넘치면 조치 상태 질의(월별, 월 상한 collect_month_cap)로 판정 기사를 직접 찾고 일반 후속 보도는 분기별 표본
+         (collect_tail_sample, 트렌드 재사용)만 받는다. 총상한 max_articles_per_event. total_hits 는 초기 + 이후 기본 질의 합.
+       mode="narrow": 약속 재검색처럼 이미 좁은 질의 — 전체 기간을 월 단위 배분으로 받는다 (초기 구간·표본 없음)."""
     until = today + timedelta(days=1)  # until 은 제외이므로 오늘을 포함하려면 내일
-    init_start = occurred - timedelta(days=1)
-    init_end = min(occurred + timedelta(days=INITIAL_DAYS), until)
-    info: dict = {"windows": 0, "total_hits": 0, "truncated_windows": [], "api_calls": 0, "warnings": []}
+    info: dict = {"windows": 0, "total_hits": 0, "truncated_windows": [], "api_calls": 0, "warnings": [], "queries": {}}
     docs: list[NewsDocument] = []
     seen: set[str] = set()
 
-    def _take(got: list[NewsDocument]) -> None:
+    def _run(label: str, q: str, start: date, end: date, budget: int, interval: str, cap: int | None = None, month_hits: dict | None = None, count_total: bool = True) -> int:
+        if start >= end or budget <= 0:
+            return 0
+        got, total, trunc, calls, warns = fetch_balanced(client, q, start, end, budget, interval, per_bucket_cap=cap, month_hits=month_hits)
         for d in got:
             if d.news_id not in seen:
                 seen.add(d.news_id)
                 docs.append(d)
-
-    initial_budget = min(settings.collect_initial_cap, settings.max_articles_per_event)
-    got, total, trunc, calls, warns = fetch_balanced(client, query, init_start, init_end, initial_budget, "day")
-    _take(got)
-    info["windows"] += 1
-    info["total_hits"] += max(total, 0)
-    info["truncated_windows"] += trunc
-    info["api_calls"] += calls
-    info["warnings"] += warns
-
-    tail_start = occurred + timedelta(days=INITIAL_DAYS)
-    if tail_start < until:
-        tail_budget = settings.max_articles_per_event - len(docs)
-        got, total, trunc, calls, warns = fetch_balanced(client, query, tail_start, until, tail_budget, "month", per_bucket_cap=settings.collect_month_cap)
-        _take(got)
         info["windows"] += 1
-        info["total_hits"] += max(total, 0)
+        if count_total:
+            info["total_hits"] += max(total, 0)
         info["truncated_windows"] += trunc
         info["api_calls"] += calls
         info["warnings"] += warns
+        info["queries"][label] = {"total_hits": max(total, 0), "fetched": len(got), "api_calls": calls}
+        return max(total, 0)
+
+    if mode == "narrow":
+        _run("narrow", query, occurred, until, settings.max_articles_per_event, "month", cap=settings.collect_month_cap)
+    else:
+        init_start = occurred - timedelta(days=1)
+        init_end = min(occurred + timedelta(days=INITIAL_DAYS), until)
+        _run("initial", query, init_start, init_end, min(settings.collect_initial_cap, settings.max_articles_per_event), "day")
+        tail_start = occurred + timedelta(days=INITIAL_DAYS)
+        if tail_start < until:
+            remaining = settings.max_articles_per_event - len(docs)
+            month_hits: dict[str, int] | None = None
+            tail_total = -1
+            try:
+                info["api_calls"] += 1
+                tl = client.time_line(TimeLineArgument(query=query, published_at=PublishedAt.of(tail_start, until), interval="month"))
+                month_hits = {p.label: int(p.hits or 0) for p in tl.time_line}
+                tail_total = sum(month_hits.values()) if month_hits else int(tl.total_hits or 0)
+            except Exception as exc:  # noqa: BLE001
+                info["warnings"].append(f"time_line 실패({type(exc).__name__}) — 이후 구간을 상태 질의와 표본으로 수집")
+            if 0 <= tail_total <= remaining and month_hits:
+                # 조용한 사건: 기본 질의로 한 번에 (상태 질의 ⊂ 기본 질의)
+                _run("tail", query, tail_start, until, remaining, "month", month_hits=month_hits)
+            else:
+                _run("status", status_query(query), tail_start, until, remaining, "month", cap=settings.collect_month_cap, count_total=False)
+                remaining = settings.max_articles_per_event - len(docs)
+                sample = min(settings.collect_tail_sample, remaining)
+                if sample > 0:
+                    _run("sample", query, tail_start, until, sample, "quarter", month_hits=month_hits)
+                elif tail_total >= 0:
+                    info["total_hits"] += tail_total
+                else:
+                    info["total_hits"] += info["queries"].get("status", {}).get("total_hits", 0)
     if info["truncated_windows"]:
         log.warning("수집 잘림 %s: %s", query[:60], info["truncated_windows"])
     return docs, info
@@ -422,8 +504,8 @@ def collect_event(
             if c.news_id not in current:
                 session.delete(c)
                 stale += 1
-    elif info.get("warnings"):
-        info["warnings"].append("수집 0건 — 기존 후보를 유지")
+    else:
+        info["warnings"].append("수집 0건 — 기존 후보를 유지" + (" (시드 query 지정 — 오타 확인)" if seed.query else ""))
     info["stale_candidates_removed"] = stale
     session.commit()
     stats = {"event": event.key, "query": query, "expansions": expansions, "fetched": len(docs), "new": new, **info}
@@ -463,7 +545,7 @@ def collect_promise_followups(
         evidence = session.get(Article, p.evidence_news_id)
         start = evidence.published_at if evidence and evidence.published_at else event.occurred_at
         query = "(" + " OR ".join(_quote(terms)) + ") AND (" + " OR ".join(_quote(scopes)) + ")"
-        docs, info = fetch_windowed(client, query, start, today, settings)
+        docs, info = fetch_windowed(client, query, start, today, settings, mode="narrow")
         truncated += info["truncated_windows"]
         for d in docs:
             if d.news_id in seen:

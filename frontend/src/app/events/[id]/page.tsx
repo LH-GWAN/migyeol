@@ -120,9 +120,10 @@ export default async function EventPage({ params }: { params: Params }) {
               <span className="text-sm text-gray-600">
                 신뢰도 {judged && card.status_confidence !== null ? formatPercent(card.status_confidence) : "-"}
               </span>
-              {card.pending_followups > 0 && (
+              {card.pending_followups + card.pending_quotations > 0 && (
                 <span className="rounded bg-amber-50 px-1.5 py-0.5 text-xs font-semibold text-amber-800">
-                  잠정 · 분류 대기 {card.pending_followups}건
+                  잠정 · 대기 {card.pending_followups + card.pending_quotations}건
+                  {card.pending_quotations > 0 ? ` (약속 추출 ${card.pending_quotations})` : ""}
                 </span>
               )}
             </div>

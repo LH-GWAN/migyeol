@@ -25,13 +25,35 @@ log = logging.getLogger("migyeol.llm")
 PROMPTS_DIR = Path(__file__).resolve().parent / "prompts"
 PROMPT_VERSIONS = {"promise": "promise_v1", "followup": "followup_v1"}
 MAX_SPAN_CHARS = 100
-# 완료 -> 진행 강등: 미래 표현이 있고, 과거형 완료 표현('마쳤다·준공했다·완료됐다')이 없을 때만.
-# '당초 계획대로 마쳤다', '예정보다 앞당겨 준공했다' 는 완료로 남긴다.
-# '예정보다 앞당겨', '계획대로' 는 비교·방식 표현이라 미래 표현에서 뺀다
-_FUTURE_RE = re.compile(r"(예정(?!보다)|목표|계획(?!대로|보다)|방침|추진하|할\s*것|마무리할|마무리될|완료하겠|완료할|앞두고|전망|예상)")
-_PAST_DONE_RE = re.compile(r"(마쳤|마무리했|마무리됐|완료했|완료됐|완료되었|준공했|준공됐|개통했|개통됐|끝냈|끝났|설치했|설치됐|교체했|교체됐|복구했|복구됐)")
-# 부분 완료('1단계·일부·우선 … 마쳤다')는 진행이다 (명세 §8.2)
-_PARTIAL_RE = re.compile(r"(일부|1단계|1차|부분적|우선|먼저|일단|절반|\d+%)")
+# 완료 -> 진행 강등 규칙 (3차 검증 1-1): '예정·계획·목표' 라는 단어가 문장에 있다는 것만으로는 미래가 아니다.
+#  - 미래는 **문장 끝 서술어** 기준: '…할 예정(이다)', '…ㄹ 계획', '…ㄹ 것', '앞두고 있다', '추진 중이다' 로 끝날 때만.
+#    보고 동사 꼬리('…이라고 밝혔다')는 떼고 본다.
+#  - 부분 완료는 '일부·절반' 단독, 또는 '1단계·우선·먼저 … 나머지·2단계' 짝 구조일 때만.
+#  - '모두·전부·100%·완전히' 가 있으면 완료.
+_REPORT_TAIL_RE = re.compile(r"(이?라고|고|며|다고)\s*(밝혔|말했|전했|설명했|덧붙였|강조했|했)(다|습니다)?\.?$")
+_FUTURE_TAIL_RE = re.compile(
+    r"((할|될|ㄹ|을)\s*(예정|계획|방침|것|전망)(이다|입니다|이라|이며|임)?|(예정|계획|방침|전망|목표)(이다|입니다|이라|이며|임)?"
+    r"|앞두고\s*있다|앞뒀다|앞두었다|(추진|진행|공사)\s*중(이다|입니다)?|마무리할\s*(계획|예정)?|완료할\s*(계획|예정)?|완료하겠다|마치겠다)\.?$"
+)
+_PAST_DONE_RE = re.compile(r"(마쳤|마무리했|마무리됐|완료했|완료됐|완료되었|완공했|완공됐|준공했|준공됐|개통했|개통됐|끝냈|끝났|설치했|설치됐|교체했|교체됐|복구했|복구됐)")
+_FULL_RE = re.compile(r"(모두|전부|100%|100 %|완전히|전\s*구간|전량|일괄|전면)")
+_PARTIAL_SINGLE_RE = re.compile(r"(일부|절반|부분적으로|부분만)")
+_PARTIAL_FIRST_RE = re.compile(r"(1단계|1차|우선|먼저|일단|\d+단계)")
+_PARTIAL_REST_RE = re.compile(r"(나머지|2단계|2차|남은|이어|추가로|다음\s*단계|후속|\d+단계는)")
+
+
+def completion_adjustment(span: str) -> str | None:
+    """'완료' 발췌를 '진행' 으로 낮춰야 하면 사유를, 아니면 None 을 돌려준다."""
+    text = (span or "").strip()
+    if _FULL_RE.search(text):
+        return None
+    core = _REPORT_TAIL_RE.sub("", text).strip()
+    if _FUTURE_TAIL_RE.search(core):
+        return "발췌가 예정·목표(미래 서술어) 표현이라 완료가 아닌 진행으로 조정"
+    if _PARTIAL_SINGLE_RE.search(core) or (_PARTIAL_FIRST_RE.search(core) and _PARTIAL_REST_RE.search(core)):
+        return "발췌가 부분 완료·남은 공정 표현이라 진행으로 조정"
+    return None
+
 
 T = TypeVar("T", bound=BaseModel)
 
@@ -202,10 +224,7 @@ def validate_span(signal: FollowupSignal, inp: FollowupInput) -> FollowupSignal:
     if not (span in hay or span.replace(" ", "") in hay.replace(" ", "")):
         return _demote(signal, "근거 문장이 입력에서 확인되지 않아 불명확 처리")
     if signal.signal == "완료":
-        future, past = bool(_FUTURE_RE.search(span)), bool(_PAST_DONE_RE.search(span))
-        if future and not past:
-            return signal.model_copy(update={"signal": "진행", "rationale": f"발췌가 예정·목표 표현이라 완료가 아닌 진행으로 조정 — {signal.rationale}"})
-        if (future and past) or _PARTIAL_RE.search(span):
-            # '1단계는 마쳤고 2단계는 연말 완료 예정', '일부 끝냈다' — 전체 완료가 아니다
-            return signal.model_copy(update={"signal": "진행", "rationale": f"발췌가 부분 완료·남은 공정 표현이라 진행으로 조정 — {signal.rationale}"})
+        why = completion_adjustment(span)
+        if why:
+            return signal.model_copy(update={"signal": "진행", "rationale": f"{why} — {signal.rationale}"})
     return signal

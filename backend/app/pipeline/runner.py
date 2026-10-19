@@ -44,7 +44,7 @@ def _lock_path() -> Path:
     from ..db.session import db_path
 
     p = db_path()
-    base = p.parent if p is not None else BACKEND_DIR / "data"  # :memory:·비 sqlite 도 실행 위치가 아니라 backend/data 에
+    base = p.parent if p is not None and p.name != ":memory:" else BACKEND_DIR / "data"  # :memory:·비 sqlite 도 실행 위치가 아니라 backend/data 에
     base.mkdir(parents=True, exist_ok=True)
     return base / "pipeline.lock"
 
@@ -117,6 +117,7 @@ class Pipeline:
             stats = self._dispatch(stage, event_id, dates)
             run.ok = True
             run.stats = stats
+            run.error = None  # 다른 프로세스가 기동하며 '중단' 으로 닫았다가 실제로는 끝난 경우를 덮는다
         except Exception as exc:  # 기록 후 재전파 (API 응답에는 요약만)
             self.session.rollback()
             run.ok = False
@@ -170,14 +171,9 @@ class Pipeline:
                     stats.setdefault("warnings", []).append({"stage": "collect", "event": c.get("event"), "warning": w})
         if stage in ("link", "all"):
             stats["link"] = link_mod.link_all(self.session, evs, self.settings, self.embedder, all_facilities=all_facilities, all_events=all_events)
-            if stage == "link":
-                # 연결이 바뀌면 근거·약속(근거 기사가 활성 연결이어야 추적)도 바뀐다 — LLM 없이 규칙 판정만 다시.
-                # 판정 전 사건(judge 미실행)은 그대로 두고, 사건 간 배타 처리로 연결이 바뀐 다른 사건도 포함한다.
-                touched_ids = set(stats["link"][0].get("multi_event_events", [])) if stats["link"] else set()
-                targets = [e for e in all_events if (e in evs or e.id in touched_ids) and judge_mod.is_judged(self.session, e)]
-                stats["rejudge"] = self._per_event(
-                    "rejudge", targets, lambda e: {"event": e.key, "status": judge_mod.rejudge_event(self.session, e, self.settings, self.today).status}, stats
-                )
+            # 연결이 바뀌면 근거·약속(근거 기사가 활성 연결이어야 추적)도 바뀐다 — LLM 없이 규칙 판정만 다시.
+            # 판정 전 사건(judge 미실행)은 그대로 두고, 사건 간 배타 처리로 연결이 바뀐 다른 사건도 포함한다.
+            stats["rejudge"] = self._rejudge_after_link(stats["link"], evs if stage == "link" else [], all_events, stats)
         if stage in ("extract", "all"):
             stats["extract"] = self._per_event(
                 "extract",
@@ -193,6 +189,8 @@ class Pipeline:
                 stats,
             )
             stats["relink"] = link_mod.link_all(self.session, evs, self.settings, self.embedder, all_facilities=all_facilities, all_events=all_events)
+            # 단일 사건 실행의 relink 로 다른 사건이 강등되면 그 사건도 재판정한다 (이 실행의 judge 는 evs 만 다룬다)
+            stats["rejudge_others"] = self._rejudge_after_link(stats["relink"], [], all_events, stats, exclude=evs)
         if stage in ("judge", "all"):
             stats["judge"] = self._per_event(
                 "judge",
@@ -205,6 +203,14 @@ class Pipeline:
         stats["llm_calls_remaining"] = self.call_budget["remaining"]
         stats["summary"] = summarize(stats)
         return stats
+
+    def _rejudge_after_link(self, link_stats: list[dict], direct: list[Event], all_events: list[Event], stats: dict[str, Any], exclude: list[Event] | None = None) -> list[dict]:
+        touched_ids = set(link_stats[0].get("multi_event_events", [])) if link_stats else set()
+        skip = {e.id for e in (exclude or [])}
+        targets = [e for e in all_events if (e in direct or e.id in touched_ids) and e.id not in skip and judge_mod.is_judged(self.session, e)]
+        return self._per_event(
+            "rejudge", targets, lambda e: {"event": e.key, "status": judge_mod.rejudge_event(self.session, e, self.settings, self.today).status}, stats
+        )
 
     def _tracker(self, stats: dict[str, Any], isolate: bool = True) -> None:
         """변경이력 확인. all 안에서는 실패해도 전체를 깨지 않는다 (failures 에 남긴다). 단독 실행이면 실패를 올린다."""

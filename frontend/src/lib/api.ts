@@ -11,6 +11,7 @@
  */
 import * as mock from "./mock";
 import type {
+  AdminEventFlagOut,
   AdminLinkAction,
   AdminLinkOut,
   EventDetailOut,
@@ -228,6 +229,24 @@ export function postAdminLink(eventId: number, newsId: string, action: AdminLink
 export function resolveReport(reportId: number): Promise<ResolveReportOut> {
   if (USE_MOCK) return viaMock(() => mock.mockResolveReport(reportId));
   return request<ResolveReportOut>(`/api/admin/reports/${reportId}/resolve`, { method: "POST" });
+}
+
+/** POST /api/admin/events/{event_id}/llm-retry — clear LLM failure counters and retry on the next run */
+export function llmRetry(eventId: number): Promise<AdminEventFlagOut> {
+  if (USE_MOCK) return viaMock(() => mock.mockAdminEventFlag(eventId));
+  return request<AdminEventFlagOut>(`/api/admin/events/${eventId}/llm-retry`, { method: "POST" });
+}
+
+/** POST /api/admin/events/{event_id}/llm-ack — acknowledge gave-up LLM items (leave the review queue) */
+export function llmAck(eventId: number): Promise<AdminEventFlagOut> {
+  if (USE_MOCK) return viaMock(() => mock.mockAdminEventFlag(eventId));
+  return request<AdminEventFlagOut>(`/api/admin/events/${eventId}/llm-ack`, { method: "POST" });
+}
+
+/** POST /api/admin/events/{event_id}/clear-change-flag — tracker review done */
+export function clearChangeFlag(eventId: number): Promise<AdminEventFlagOut> {
+  if (USE_MOCK) return viaMock(() => mock.mockAdminEventFlag(eventId));
+  return request<AdminEventFlagOut>(`/api/admin/events/${eventId}/clear-change-flag`, { method: "POST" });
 }
 
 /** POST /api/pipeline/run (dev/demo only; 403 when PIPELINE_API_ENABLED=false, 409 while a run is in progress, 404 for unknown event_id) */

@@ -48,9 +48,23 @@ async def lifespan(app: FastAPI):
 
 def _close_interrupted_runs() -> None:
     """서버가 죽어 finished_at 이 비어 남은 실행 기록을 실패로 닫는다 (헤더가 '실행 중' 으로 영원히 보이지 않게)."""
+    import fcntl
+
     from .db.models import PipelineRun, _now
     from .db.session import session_factory
+    from .pipeline.runner import _lock_path
 
+    # 다른 프로세스(CLI·다른 워커)가 파일 Lock 을 쥐고 실행 중이면 그 실행은 살아 있다 — 닫지 않는다 (3차 1-7)
+    try:
+        fh = open(_lock_path(), "a+")
+        try:
+            fcntl.flock(fh.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError:
+            log.info("파이프라인이 다른 프로세스에서 실행 중 — 미완료 실행 기록을 닫지 않는다")
+            fh.close()
+            return
+    except OSError:
+        fh = None
     session = session_factory()()
     try:
         stale = session.query(PipelineRun).filter(PipelineRun.finished_at.is_(None)).all()
@@ -63,6 +77,11 @@ def _close_interrupted_runs() -> None:
             log.warning("중단된 실행 %d건을 실패로 닫았다", len(stale))
     finally:
         session.close()
+        if fh is not None:
+            try:
+                fcntl.flock(fh.fileno(), fcntl.LOCK_UN)
+            finally:
+                fh.close()
 
 
 def create_app() -> FastAPI:

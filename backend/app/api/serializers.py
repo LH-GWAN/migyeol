@@ -77,7 +77,7 @@ def promise_out(session: Session, p: Promise, event: Event, today: date) -> dict
     link = next((l for l in event.links if l.news_id == p.evidence_news_id), None)
     return {
         "id": p.id,
-        "actor_org": p.actor_org,
+        "actor_org": p.actor_org or "기관 미상",
         "actor_raw": p.actor_raw,
         "action": p.action,
         "deadline_raw": p.deadline_raw,
@@ -170,6 +170,9 @@ def event_card(session: Session, event: Event, today: date) -> dict:
         "needs_check": needs_check(event.status, passed) if j else False,
         "needs_review": bool(event.needs_review),
         "pending_followups": int(event.pending_followups or 0),  # LLM 분류를 아직 못 받은 후속 기사 수 (0 이 아니면 잠정 판정)
+        "pending_quotations": int(event.pending_quotations or 0),  # 약속 추출을 아직 못 받은 공공 인용문 수
+        "llm_gave_up": any(v >= 2 for k, v in (event.llm_failures or {}).items() if not k.startswith("_")),  # 2회 실패 항목 있음 (관리자 재시도/확인함)
+        "llm_acked": bool((event.llm_failures or {}).get("_acked")),
         "deadline_date": _iso(pp.deadline_date) if pp else None,
         "deadline_precision": pp.deadline_precision if pp and pp.deadline_date else None,
         "deadline_passed_days": passed,
@@ -180,7 +183,7 @@ def event_card(session: Session, event: Event, today: date) -> dict:
         "article_count": len(active_links(event)),
         "primary_promise": (
             {
-                "actor_org": pp.actor_org,
+                "actor_org": pp.actor_org or "기관 미상",
                 "action": pp.action,
                 "deadline_date": _iso(pp.deadline_date),
                 "deadline_precision": pp.deadline_precision,

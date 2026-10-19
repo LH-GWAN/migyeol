@@ -25,7 +25,9 @@ function sameSite(req: NextRequest): boolean {
   const origin = req.headers.get("origin");
   if (!origin) return true; // non-browser client (curl) without Origin: not a CSRF vector
   try {
-    return new URL(origin).host === req.headers.get("host");
+    const host = new URL(origin).host;
+    const forwarded = (req.headers.get("x-forwarded-host") || "").split(",")[0].trim();
+    return host === req.headers.get("host") || (forwarded !== "" && host === forwarded); // 리버스 프록시 뒤에서도 같은 사이트로 인정
   } catch {
     return false;
   }

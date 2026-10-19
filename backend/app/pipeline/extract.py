@@ -84,6 +84,8 @@ _DEADLINE_PATTERNS = (
     re.compile(r"^(\d{4})\s*[-./]\s*(\d{1,2})\s*[-./]\s*(\d{1,2})"),  # 2026-06-30, 2026.06.30, 2026. 6. 30., 2026/6/30
     re.compile(r"^(\d{4})\s*[-./]\s*(\d{1,2})(?![\d])"),  # 2026-06, 2026.6, 2026. 6
     re.compile(r"^(\d{4})(\d{2})(\d{2})$"),  # 20260630
+    re.compile(r"^(\d{4})\s+(\d{1,2})\s+(\d{1,2})"),  # 2026 6 30 (공백만)
+    re.compile(r"^(\d{4})\s+(\d{1,2})(?![\d])"),  # 2026 6
     re.compile(r"^(\d{4})년\s*(\d{1,2})월\s*(\d{1,2})일"),  # 2026년 6월 30일
     re.compile(r"^(\d{4})년\s*(\d{1,2})월"),  # 2026년 6월
     re.compile(r"^(\d{4})년?(?![\d])"),  # 2026, 2026년
@@ -147,8 +149,8 @@ def _merge_duplicates(event: Event, embedder: EmbeddingBackend | None) -> int:
     for p in promises:
         dup = None
         for k in kept:
-            if k.actor_org != p.actor_org:
-                continue
+            if k.actor_org != p.actor_org or not p.actor_org:
+                continue  # 기관 미상("")은 서로 다른 기관일 수 있어 병합하지 않는다
             same = k.action == p.action
             if not same and vecs:
                 same = float(np.dot(vecs[k.id], vecs[p.id])) >= 0.85
@@ -174,6 +176,11 @@ def _merge_duplicates(event: Event, embedder: EmbeddingBackend | None) -> int:
     return merged
 
 
+def count_pending_quotations(event: Event) -> int:
+    active = {l.news_id for l in event.links if l.is_active}
+    return sum(1 for q in event.quotations if q.is_public_actor and not q.promises and q.news_id in active)
+
+
 def extract_event(
     session: Session,
     client: BigKindsClient,
@@ -190,6 +197,7 @@ def extract_event(
     query = quotation_query(event)
     docs, truncated = fetch_quotations(client, query, start, until) if query else ([], [])
     aliases = [event.responsible_org, *(event.org_aliases or [])]
+    lexicon = [event.region, event.responsible_org, *(event.org_aliases or [])]  # 사람 이름 판정용 사전 (3차 1-2)
     existing = {(q.news_id, q.source, q.quotation): q for q in event.quotations}
     stats = {
         "event": event.key, "quotes": len(docs), "linked_quotes": 0, "public": 0, "llm_calls": 0, "llm_failed": 0,
@@ -212,7 +220,7 @@ def extract_event(
                 quotation=d.quotation,
                 published_at=d.published_date,
                 provider=d.provider,
-                is_public_actor=is_public_actor(d.source, aliases),
+                is_public_actor=is_public_actor(d.source, lexicon),
             )
             event.quotations.append(q)
             existing[key] = q
@@ -267,9 +275,14 @@ def extract_event(
 
     # 3) 결과 저장
     for q, res in results:
-        actor = normalize_actor_org(q.source, event.responsible_org, aliases)
-        if not actor or (looks_like_person(actor) and res.actor_org and not looks_like_person(res.actor_org)):
-            actor = res.actor_org or actor or ""  # 규칙이 기관을 못 찾거나 사람 이름 형태면 LLM 의 기관명을 쓴다 (§2-4: 개인명은 추적 키가 아니다)
+        # 주체 기관: 규칙 결과가 있으면 그것을 쓴다 (LLM 값이 '충청북도'·'청주시청 도로과' 처럼 달라도 덮어쓰지 않는다 — 병합 키 일관성).
+        # 규칙이 못 찾으면 LLM 값을 쓰되, 사람 이름 형태('김민구')면 버린다. 둘 다 없으면 "" = 기관 미상 (병합·추적 키에서 제외).
+        actor = normalize_actor_org(q.source, event.responsible_org, lexicon)
+        if actor and looks_like_person(actor, lexicon):
+            actor = None
+        if not actor:
+            cand = (res.actor_org or "").strip()
+            actor = cand if cand and not looks_like_person(cand, lexicon) else ""
         deadline, why = parse_deadline(res.deadline_date, q.published_at)
         if why:
             stats["deadline_rejected"] += 1
@@ -302,8 +315,8 @@ def extract_event(
     session.flush()
     session.refresh(event)
     stats["merged"] = _merge_duplicates(event, embedder)
-    # 아직 추출을 못 받은 공공 인용문 수 — 잠정 판정·검토 큐 표시 (호출 상한 이월·1회 실패)
-    event.pending_quotations = sum(1 for q in event.quotations if q.is_public_actor and not q.promises)
+    # 아직 추출을 못 받은 공공 인용문 수 — 잠정 판정·검토 큐 표시 (호출 상한 이월·1회 실패). 활성 연결 기사의 인용문만 센다
+    event.pending_quotations = count_pending_quotations(event)
     stats["pending_quotations"] = event.pending_quotations
     from .review import recompute_needs_review
 

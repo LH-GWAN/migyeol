@@ -46,7 +46,10 @@ def get_engine(url: str | None = None) -> Engine:
                 cur.execute("PRAGMA foreign_keys=ON")
                 cur.execute("PRAGMA busy_timeout=30000")
                 if ":memory:" not in resolved:
-                    cur.execute("PRAGMA journal_mode=WAL")
+                    try:
+                        cur.execute("PRAGMA journal_mode=WAL")
+                    except Exception as exc:  # noqa: BLE001 — 동시 첫 기동에서 journal 전환이 잠기면 다음 연결이 한다
+                        log.warning("journal_mode=WAL 전환 실패(%s) — 이번 연결은 기본 모드로", exc)
                 cur.close()
 
         _SessionLocal = sessionmaker(bind=_engine, autoflush=False, expire_on_commit=False)

@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import AdminLinkActions from "@/components/AdminLinkActions";
+import AdminLlmActions from "@/components/AdminLlmActions";
 import { ArticleLink, ArticleMeta } from "@/components/ArticleItem";
 import Disclaimer from "@/components/Disclaimer";
 import ErrorBox from "@/components/ErrorBox";
@@ -73,9 +74,13 @@ export default async function AdminPage() {
                           ) : (
                             <span className="rounded border border-dashed border-gray-400 px-1.5 py-0.5 text-xs text-gray-600">판정 전</span>
                           )}
-                          {c.pending_followups > 0 && (
-                            <p className="mt-1 text-[11px] font-semibold text-amber-800">잠정 · 분류 대기 {c.pending_followups}건</p>
+                          {c.pending_followups + c.pending_quotations > 0 && (
+                            <p className="mt-1 text-[11px] font-semibold text-amber-800">
+                              잠정 · 대기 {c.pending_followups + c.pending_quotations}건
+                              {c.pending_quotations > 0 ? ` (약속 추출 ${c.pending_quotations})` : ""}
+                            </p>
                           )}
+                          {c.llm_gave_up && <AdminLlmActions eventId={c.id} acked={c.llm_acked} />}
                         </td>
                         <td className="py-3 pr-3">{c.judged && c.status_confidence !== null ? formatPercent(c.status_confidence) : "-"}</td>
                         <td className="py-3 pr-3">{c.priority_score.toFixed(1)}</td>

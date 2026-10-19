@@ -76,7 +76,9 @@ def gate(event: Event, article: Article) -> tuple[bool, list[str]]:
     return (scope_ok and topic_ok), reasons
 
 
-def is_strong(reasons: list[str]) -> bool:
+def is_strong(reasons: list[str], promise_candidate: bool = False) -> bool:
+    """promise_candidate: 약속 키워드 재검색으로 들어온 후보 — 지역·기관 + 약속 행동 키워드 2개면 강한 규칙 (3차 1-8).
+    책임기관이 지역과 같은 사건에서 시설명 없는 기관 명의 완료 기사('가온시청 "배수펌프 증설 완료"')를 놓치지 않기 위해."""
     scoped = "region" in reasons or "org" in reasons
     has_facility = "facility" in reasons
     seed_hit = any(r.startswith("seed-kw=") for r in reasons)
@@ -87,6 +89,8 @@ def is_strong(reasons: list[str]) -> bool:
         return True
     if "org" in reasons and promise_hit:
         return True  # 책임기관 명의 + 약속 행동 키워드 2개 (일반어는 terms._STOP 에서 걸러진다)
+    if promise_candidate and scoped and promise_hit:
+        return True
     return scoped and promise_hit and (has_facility or seed_hit)
 
 
@@ -120,7 +124,9 @@ def link_event(
     others = [f for f in (other_facilities or []) if f and f != event.facility]
     stats = {"event": event.key, "candidates": 0, "linked": 0, "review": 0, "dropped": 0, "removed": 0, "skipped": 0}
 
-    candidate_ids = {c.news_id for c in session.query(EventCandidate).filter_by(event_id=event.id).all()}
+    candidate_rows = session.query(EventCandidate).filter_by(event_id=event.id).all()
+    candidate_ids = {c.news_id for c in candidate_rows}
+    promise_ids = {c.news_id for c in candidate_rows if c.source == "promise"}
     for art in candidate_articles(session, event):
         stats["candidates"] += 1
         link = existing.get(art.news_id)
@@ -154,7 +160,7 @@ def link_event(
             art.embedding_backend = embedder.name
         score = cosine(from_bytes(art.embedding), np.asarray(seed_vec))
         text = article_text(art)
-        strong = is_strong(reasons)
+        strong = is_strong(reasons, promise_candidate=art.news_id in promise_ids)
         other_hit = any(f in text for f in others) and "facility" not in reasons
 
         if other_hit:

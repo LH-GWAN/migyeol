@@ -114,3 +114,42 @@ def clear_change_flag(event_id: int = Path(..., ge=1, le=MAX_ID), session: Sessi
     recompute_needs_review(session, ev)
     session.commit()
     return {"event_id": event_id, "needs_review": ev.needs_review}
+
+
+@router.post("/events/{event_id}/llm-retry")
+def llm_retry(event_id: int = Path(..., ge=1, le=MAX_ID), session: Session = Depends(get_session)):
+    """LLM 실패 카운터를 초기화한다. 2회 실패로 '해당없음'/'불명확' 으로 기록된 항목을 지워 다음 실행에서 다시 시도한다."""
+    from ..db.models import FollowupSignal, Promise
+
+    ev = session.get(Event, event_id)
+    if ev is None:
+        raise HTTPException(status_code=404, detail=f"event {event_id} not found")
+    removed = 0
+    for p in list(ev.promises):
+        if p.strength == "해당없음" and "실패" in (p.rationale or "") and not p.is_trackable:
+            session.delete(p)
+            removed += 1
+    for sig in list(ev.signals):
+        if sig.signal == "불명확" and "실패" in (sig.rationale or ""):
+            session.delete(sig)
+            removed += 1
+    ev.llm_failures = {}
+    session.flush()
+    recompute_needs_review(session, ev)
+    session.commit()
+    return {"event_id": event_id, "removed": removed, "needs_review": ev.needs_review}
+
+
+@router.post("/events/{event_id}/llm-ack")
+def llm_ack(event_id: int = Path(..., ge=1, le=MAX_ID), session: Session = Depends(get_session)):
+    """2회 실패 항목을 사람이 확인했다고 표시한다 — 검토 큐에서 빠진다 (새 실패가 나면 표시는 풀린다)."""
+    ev = session.get(Event, event_id)
+    if ev is None:
+        raise HTTPException(status_code=404, detail=f"event {event_id} not found")
+    counts = dict(ev.llm_failures or {})
+    counts["_acked"] = 1
+    ev.llm_failures = counts
+    recompute_needs_review(session, ev)
+    session.commit()
+    return {"event_id": event_id, "needs_review": ev.needs_review}
+

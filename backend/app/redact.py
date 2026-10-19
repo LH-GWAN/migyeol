@@ -15,12 +15,18 @@ MASK = "<access_key>"
 
 
 def register_secret(value: str | None) -> None:
-    if value and len(value) >= 8:
-        _SECRETS.add(value)
+    """키와 그 변형(하이픈 제거, `%2D`·`_` 구분, 대문자)을 함께 등록한다 — 내부 기록 어디에도 남지 않게."""
+    if not value or len(value) < 8:
+        return
+    forms = {value, value.replace("-", ""), value.replace("-", "%2D"), value.replace("-", "%2d"), value.replace("-", "_")}
+    for f in list(forms):
+        forms.add(f.upper())
+        forms.add(f.lower())
+    _SECRETS.update(f for f in forms if len(f) >= 8)
 
 
 def mask(text: object) -> str:
     s = str(text)
-    for secret in _SECRETS:
+    for secret in sorted(_SECRETS, key=len, reverse=True):
         s = s.replace(secret, MASK)
     return _UUID_RE.sub(MASK, s)

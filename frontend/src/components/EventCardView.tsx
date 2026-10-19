@@ -91,12 +91,12 @@ export default function EventCardView({ card }: Props) {
           <span className="text-xs text-gray-500">
             신뢰도 {card.judged && card.status_confidence !== null ? formatPercent(card.status_confidence) : "-"}
           </span>
-          {card.pending_followups > 0 && (
+          {card.pending_followups + card.pending_quotations > 0 && (
             <span
               className="rounded bg-amber-50 px-1.5 py-0.5 text-[11px] font-semibold text-amber-800"
-              title="후속 기사 일부가 아직 분류되지 않아(호출 상한·실패 이월) 잠정 판정입니다"
+              title="후속 기사 분류나 약속 추출을 아직 못 받은 항목이 있어(호출 상한·실패 이월) 잠정 판정입니다"
             >
-              잠정 · 분류 대기 {card.pending_followups}건
+              잠정 · 대기 {card.pending_followups + card.pending_quotations}건
             </span>
           )}
           <Link

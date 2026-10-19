@@ -27,7 +27,7 @@ from app.rules.actors import is_public_actor, normalize_actor_org
 from app.rules.terms import action_terms
 from tests.test_pipeline_behaviors import fresh  # noqa: F401 — 공용 픽스처
 
-KEY = "0e944c47-aaaa-bbbb-cccc-123456789abc"
+KEY = "aaaaaaaa-aaaa-bbbb-cccc-123456789abc"
 
 
 # ----------------------------------------------------------------------------- 0-1 키 노출

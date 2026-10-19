@@ -71,7 +71,8 @@ class Settings(BaseSettings):
     stale_followup_days: int = 60
     max_articles_per_event: int = 300  # 수집 총 상한 (구간별 상한과 별개)
     collect_initial_cap: int = 150  # 발생일-1 ~ +14일 구간 상한
-    collect_month_cap: int = 80  # 이후 월별 구간 상한
+    collect_month_cap: int = 80  # 이후 구간: 조치 상태 질의의 월별 상한 (큰 달은 상·중·하순 분할)
+    collect_tail_sample: int = 40  # 이후 구간: 조치 상태 질의 밖의 일반 후속 보도 표본 (분기별, 0 이면 생략 — 추이는 time_line 이 제공)
     quotation_window_days: int = 90
     followup_grace_days: int = 7
 

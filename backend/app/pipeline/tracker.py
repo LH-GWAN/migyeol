@@ -41,7 +41,7 @@ def check_changes(
     call_budget: dict | None = None,
 ) -> dict:
     from .collect import upsert_article
-    from .judge import classify_followups, rejudge_event
+    from .judge import classify_followups, is_judged, rejudge_event
 
     stats = {"pages": 0, "items": 0, "matched": 0, "updated": 0, "cancelled": 0, "events_flagged": [], "rejudged": []}
     page = 1
@@ -98,7 +98,8 @@ def check_changes(
             stats["events_flagged"].append({"event": event.key, "news_ids": sorted(hit)})
         recompute_needs_review(session, event)
         session.commit()
-        if settings is not None and today is not None and linked_hit:
+        if settings is not None and today is not None and linked_hit and is_judged(session, event):
+            # 판정 전 사건(judge 미실행)은 그대로 둔다 — 05:00 tracker 단독 실행이 '판정됨' 을 만들지 않는다 (3차 1-5)
             if llm is not None:
                 classify_followups(session, event, llm, settings, call_budget)  # 지운 신호를 바로 다시 분류
             rejudge_event(session, event, settings, today)

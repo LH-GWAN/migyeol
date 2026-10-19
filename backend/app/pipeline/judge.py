@@ -46,6 +46,7 @@ def note_llm_failure(event: Event, key: str) -> int:
     """항목별 LLM 실패 횟수를 올린다. 반환: 누적 횟수."""
     counts = dict(event.llm_failures or {})
     counts[key] = int(counts.get(key, 0)) + 1
+    counts.pop("_acked", None)  # 새 실패가 나면 관리자 '확인함' 은 무효
     event.llm_failures = counts
     return counts[key]
 

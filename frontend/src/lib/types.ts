@@ -129,6 +129,12 @@ export interface EventCard {
   needs_review: boolean;
   /** followup articles still waiting for LLM classification (call cap / failures) — >0 means the judgment is provisional */
   pending_followups: number;
+  /** public quotations still waiting for promise extraction — >0 means the judgment is provisional */
+  pending_quotations: number;
+  /** an item failed LLM twice and was recorded as 불명확/해당없음; admin can retry or acknowledge */
+  llm_gave_up: boolean;
+  /** admin acknowledged the gave-up items (cleared from the review queue until a new failure) */
+  llm_acked: boolean;
   deadline_date: string | null;
   /** precision of `deadline_date` (null when there is no deadline) */
   deadline_precision: DeadlinePrecision | null;
@@ -317,6 +323,13 @@ export interface ResolveReportOut {
   resolved: boolean;
 }
 
+/** POST /api/admin/events/{id}/llm-retry | llm-ack | clear-change-flag */
+export interface AdminEventFlagOut {
+  event_id: number;
+  needs_review: boolean;
+  removed?: number;
+}
+
 // ---------- POST /api/pipeline/run ----------
 // 409 when a run is already in progress, 404 for an unknown event_id.
 
@@ -363,6 +376,10 @@ export interface LastRun {
   error_summary: string | null;
   event_id: number | null;
   stats: PipelineStats;
+  /** collection warnings (time_line fallback, empty override query …), at most 20 */
+  warnings?: string[];
+  /** per-event failures isolated inside the run */
+  failures?: number;
 }
 
 export interface MetaOut {
