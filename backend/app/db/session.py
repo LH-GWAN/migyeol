@@ -151,6 +151,9 @@ def migrate_missing_columns(engine: Engine) -> list[str]:
 
 
 def init_db(url: str | None = None, drop: bool = False) -> Engine:
+    # v2: 트랙별 모델 모듈을 여기서 import 해 Base.metadata 에 등록한다 (create_all 이 보게)
+    from ..notices import models as _notice_models  # noqa: F401
+
     engine = get_engine(url)
     if drop:
         Base.metadata.drop_all(engine)

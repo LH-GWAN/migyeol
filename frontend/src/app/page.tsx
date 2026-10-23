@@ -1,147 +1,120 @@
 import Link from "next/link";
 import ErrorBox from "@/components/ErrorBox";
-import EventCardView from "@/components/EventCardView";
-import EventFilters from "@/components/EventFilters";
+import Hero from "@/components/dashboard/Hero";
+import IncidentBars from "@/components/dashboard/IncidentBars";
+import KpiTiles from "@/components/dashboard/KpiTiles";
+import NeedsCheckTop from "@/components/dashboard/NeedsCheckTop";
+import OrgTable from "@/components/dashboard/OrgTable";
+import Panel from "@/components/dashboard/Panel";
+import RecentFeed from "@/components/dashboard/RecentFeed";
+import StatusBreakdown from "@/components/dashboard/StatusBreakdown";
+import TimeseriesChart from "@/components/dashboard/TimeseriesChart";
 import { getEvents, safe } from "@/lib/api";
-import { filterQuery, type FilterState } from "@/lib/filters";
-import { isEventStatus, isSortKey, STATUSES } from "@/lib/types";
+import {
+  getByIncident,
+  getByOrg,
+  getDashboardSummary,
+  getRecentFollowups,
+  getTimeseries,
+  type OrgSort,
+  type TimeseriesRow,
+} from "@/lib/dashboard";
 
 export const dynamic = "force-dynamic";
 
 type SearchParams = Record<string, string | string[] | undefined>;
 
-const PAGE_SIZE = 20;
+const ORG_SORTS: readonly OrgSort[] = ["followup", "rate", "events"];
 
-function first(value: string | string[] | undefined): string | undefined {
-  return Array.isArray(value) ? value[0] : value;
+function sumOrNull(rows: TimeseriesRow[], key: "dead" | "injured"): number | null {
+  const vals = rows.map((r) => r[key]).filter((v): v is number => typeof v === "number");
+  return vals.length ? vals.reduce((a, b) => a + b, 0) : null;
 }
 
-function buildHref(filters: FilterState, page: number): string {
-  const qs = filterQuery(filters);
-  if (page > 1) qs.set("page", String(page));
-  const s = qs.toString();
-  return s ? `/?${s}` : "/";
-}
-
-export default async function HomePage({ searchParams }: { searchParams: Promise<SearchParams> }) {
+/** v2 화면 0 — 시민용 대시보드. 숫자는 전부 /api/dashboard/* 와 /api/events 에서 온다. */
+export default async function DashboardPage({ searchParams }: { searchParams: Promise<SearchParams> }) {
   const sp = await searchParams;
-  const rawStatus = first(sp.status);
-  const rawSort = first(sp.sort);
-  const status = isEventStatus(rawStatus) ? rawStatus : undefined;
-  const filters: FilterState = {
-    status: status ?? "",
-    region: first(sp.region) ?? "",
-    incident_type: first(sp.incident_type) ?? "",
-    needs_check: first(sp.needs_check) !== "false", // default ON
-    sort: isSortKey(rawSort) ? rawSort : "priority",
-  };
-  const page = Math.max(1, Number.parseInt(first(sp.page) ?? "1", 10) || 1);
+  const rawSort = Array.isArray(sp.org_sort) ? sp.org_sort[0] : sp.org_sort;
+  const orgSort: OrgSort = ORG_SORTS.includes(rawSort as OrgSort) ? (rawSort as OrgSort) : "followup";
 
-  const result = await safe(
-    getEvents({
-      status,
-      region: filters.region || undefined,
-      incident_type: filters.incident_type || undefined,
-      // ON -> only needs_check=true; OFF -> no filter (show everything)
-      needs_check: filters.needs_check ? true : undefined,
-      sort: filters.sort,
-      page,
-      size: PAGE_SIZE,
-    }),
-  );
+  const [summary, month, day, incidents, orgs, recent, top] = await Promise.all([
+    safe(getDashboardSummary()),
+    safe(getTimeseries("month")),
+    safe(getTimeseries("day")),
+    safe(getByIncident()),
+    safe(getByOrg(orgSort)),
+    safe(getRecentFollowups(10)),
+    safe(getEvents({ needs_check: true, sort: "priority", size: 5 })),
+  ]);
 
-  const options = result.ok
-    ? result.data.filters
-    : { statuses: [...STATUSES], regions: [], incident_types: [] };
-
-  // Range text is computed from what was actually returned, not from page*size.
-  const rangeStart = result.ok ? (result.data.page - 1) * result.data.size + 1 : 0;
-  const rangeEnd = result.ok ? rangeStart + result.data.items.length - 1 : 0;
-  const outOfRange = result.ok && result.data.items.length === 0 && result.data.total > 0;
+  if (!summary.ok) {
+    return (
+      <div className="flex flex-col gap-4">
+        <h1 className="text-2xl font-bold text-gray-900">대시보드</h1>
+        <ErrorBox title="대시보드 집계를 불러오지 못했습니다" error={summary.error} />
+        <Link href="/events" className="text-sm text-blue-700 hover:underline">
+          사건 목록으로 →
+        </Link>
+      </div>
+    );
+  }
+  const s = summary.data;
+  const casualties = month.ok ? { dead: sumOrNull(month.data, "dead"), injured: sumOrNull(month.data, "injured") } : { dead: null, injured: null };
 
   return (
-    <div className="flex flex-col gap-5">
-      <div>
-        <h1 className="text-2xl font-bold text-gray-900">후속 확인 필요 목록</h1>
-        <p className="mt-1 text-sm text-gray-600">
-          공공기관이 발표한 조치가 이후 보도로 확인되었는지 추적합니다. 우선순위가 높은 사건부터 표시합니다.
-        </p>
+    <div className="flex flex-col gap-6">
+      <Hero s={s} />
+
+      <KpiTiles s={s} casualties={casualties} />
+
+      <Panel
+        title="언제 일어났고, 언제 다시 보도됐나"
+        subtitle="사건 발생 수(막대)와 그 사건의 후속보도 기사 수(선). 그래프 위에 마우스를 올리면(휴대폰은 누르면) 자세히 보입니다."
+        disclaimer={s.disclaimer}
+      >
+        {month.ok && day.ok ? (
+          <TimeseriesChart month={month.data} day={day.data} asOf={s.as_of} />
+        ) : (
+          <ErrorBox title="시계열을 불러오지 못했습니다" error={!month.ok ? month.error : !day.ok ? day.error : null} />
+        )}
+      </Panel>
+
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+        <Panel title="재난 유형별 후속보도" subtitle="유형별 추적 사건 수와 그중 후속보도가 확인된 사건" disclaimer={s.disclaimer}>
+          {incidents.ok ? <IncidentBars rows={incidents.data} /> : <ErrorBox title="유형별 집계를 불러오지 못했습니다" error={incidents.error} />}
+        </Panel>
+        <Panel title="사건 상태" subtitle="후속 기사에서 확인한 근거에 따라 다섯 가지로 표시합니다" disclaimer={s.disclaimer}>
+          <StatusBreakdown byStatus={s.by_status} />
+        </Panel>
       </div>
 
-      <EventFilters
-        statuses={options.statuses}
-        regions={options.regions}
-        incidentTypes={options.incident_types}
-        current={filters}
-      />
+      <Panel
+        id="orgs"
+        title="기관별 후속보도 현황"
+        subtitle="책임 기관별로 묶었습니다. 후속보도가 확인된 기관이 위에 옵니다. 기관명을 누르면 그 기관의 사건만 봅니다."
+        disclaimer={s.disclaimer}
+      >
+        {orgs.ok ? <OrgTable rows={orgs.data} sort={orgSort} /> : <ErrorBox title="기관별 집계를 불러오지 못했습니다" error={orgs.error} />}
+      </Panel>
 
-      {!result.ok ? (
-        <ErrorBox title="사건 목록을 불러오지 못했습니다" error={result.error} />
-      ) : (
-        <>
-          <p className="text-sm text-gray-500">
-            총 <span className="font-semibold text-gray-800">{result.data.total}</span>건
-            {result.data.total > result.data.size && result.data.items.length > 0 && (
-              <>
-                {" "}
-                · {result.data.page}페이지 ({rangeStart}–{rangeEnd}번째)
-              </>
-            )}
-            {filters.needs_check && <span className="ml-2 text-gray-400">확인 필요 사건만 표시 중</span>}
-          </p>
-
-          {outOfRange ? (
-            <div className="rounded-lg border border-dashed border-gray-300 bg-white p-10 text-center text-sm text-gray-500">
-              페이지 범위를 벗어났습니다.{" "}
-              <Link href={buildHref(filters, 1)} className="text-blue-700 underline">
-                1페이지로 이동
-              </Link>
-            </div>
-          ) : result.data.items.length === 0 ? (
-            <div className="rounded-lg border border-dashed border-gray-300 bg-white p-10 text-center text-sm text-gray-500">
-              조건에 맞는 사건이 없습니다.
-              {filters.needs_check && (
-                <>
-                  {" "}
-                  <Link href={buildHref({ ...filters, needs_check: false }, 1)} className="text-blue-700 underline">
-                    확인 필요 조건을 해제하고 전체 보기
-                  </Link>
-                </>
-              )}
-            </div>
-          ) : (
-            <ul className="flex flex-col gap-4">
-              {result.data.items.map((card) => (
-                <li key={card.id}>
-                  <EventCardView card={card} />
-                </li>
-              ))}
-            </ul>
-          )}
-
-          {result.data.total > result.data.size && (
-            <nav className="flex items-center justify-center gap-4 text-sm" aria-label="페이지 이동">
-              {result.data.page > 1 ? (
-                <Link href={buildHref(filters, result.data.page - 1)} className="text-blue-700 hover:underline">
-                  ← 이전
-                </Link>
-              ) : (
-                <span className="text-gray-300">← 이전</span>
-              )}
-              <span className="text-gray-500">
-                {result.data.page} / {Math.max(1, Math.ceil(result.data.total / result.data.size))}
-              </span>
-              {result.data.page * result.data.size < result.data.total ? (
-                <Link href={buildHref(filters, result.data.page + 1)} className="text-blue-700 hover:underline">
-                  다음 →
-                </Link>
-              ) : (
-                <span className="text-gray-300">다음 →</span>
-              )}
-            </nav>
-          )}
-        </>
-      )}
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-5">
+        <Panel className="lg:col-span-3" title="최근 후속보도" subtitle="조치 완료·진행 또는 새로운 문제를 전한 최신 기사" disclaimer={s.disclaimer}>
+          {recent.ok ? <RecentFeed items={recent.data} /> : <ErrorBox title="최근 후속보도를 불러오지 못했습니다" error={recent.error} />}
+        </Panel>
+        <Panel
+          className="lg:col-span-2"
+          title="지금 확인이 필요한 사건"
+          subtitle="후속보도 공백이 길거나 발표 기한이 지난 사건부터"
+          disclaimer={s.disclaimer}
+          action={
+            <Link href="/events" className="text-xs font-semibold text-blue-700 hover:underline">
+              더 보기 →
+            </Link>
+          }
+        >
+          {top.ok ? <NeedsCheckTop cards={top.data.items} /> : <ErrorBox title="사건 목록을 불러오지 못했습니다" error={top.error} />}
+        </Panel>
+      </div>
     </div>
   );
 }

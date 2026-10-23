@@ -48,6 +48,10 @@ class Seed:
     keywords: list[str] = field(default_factory=list)
     summary: str = ""
     query: str = ""  # 사람 지정 질의 (있으면 그대로 사용, 연관어 확장 안 함)
+    # v2 §4.2 실험 자동 시드 (트랙 A). 사람이 만든 시드에는 없어도 된다
+    source_news_id: str = ""
+    source_quotation: str = ""
+    auto_seed: bool = False
 
     def subjects(self) -> list[str]:
         subs = [s for s in [self.facility, *self.keywords] if _clean(s)]
@@ -105,6 +109,9 @@ def load_seeds(path: Path) -> list[Seed]:
             keywords=[str(k) for k in (raw.get("keywords", []) or [])],
             summary=str(raw.get("summary", "") or ""),
             query=str(raw.get("query", "") or ""),
+            source_news_id=str(raw.get("source_news_id", "") or ""),
+            source_quotation=str(raw.get("source_quotation", "") or "")[:300],
+            auto_seed=bool(raw.get("auto_seed", False)),
         )
         if seed.key in keys:
             raise SeedError(f"시드 key 중복: {seed.key}")
@@ -142,6 +149,9 @@ def upsert_events(session: Session, seeds: list[Seed]) -> list[Event]:
         ev.summary = s.summary
         ev.query_override = s.query.strip()
         ev.active = True
+        ev.source_news_id = s.source_news_id or None
+        ev.source_quotation = s.source_quotation or None
+        ev.auto_seed = s.auto_seed
         if ev.query_override:
             ev.seed_query = ev.query_override
         elif not ev.seed_query:

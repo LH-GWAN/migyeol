@@ -190,6 +190,10 @@ class AnthropicLLM:
 def build_llm(settings: Settings) -> LLMClient:
     if settings.llm_mode == "stub":
         return StubLLM(settings.fixtures_dir / "llm" / "stub_answers.json")
+    if settings.llm_mode == "rules":
+        from .rules_adapter import RulesLLM  # v2 §5 — 트랙 A 가 구현
+
+        return RulesLLM(settings)
     return AnthropicLLM(settings)
 
 

@@ -1,0 +1,314 @@
+"""LLM_MODE=rules — LLM 키 없이 규칙으로 두 역할(ⓐ 약속 추출, ⓑ 후속 신호 분류)을 대신하는 어댑터 (v2 §5).
+
+LLMClient 프로토콜(extract_promise, classify_followup)을 그대로 구현하므로 파이프라인 코드는 모드를 모른다.
+산출물의 model 은 "rules-v1" — live·stub 결과와 섞이지 않고, 캐시 키(model)가 달라 live 로 바꾸면 다시 분류된다.
+
+ⓐ 약속 추출
+  - 행동 동사(하겠다·할 계획·추진·마련·설치·보강·점검·전수조사·교체·확충·신설·강화·복구·정비·예정 …)가 있으면 is_promise.
+  - action = 행동 동사를 포함한 절(최대 40자, 인용문의 부분 문자열).
+  - 기한: 'N월까지·연내·올해 안·상반기·하반기·내년·N일 내·YYYY년 M월' 을 정규식으로 찾고 발언일 기준으로 날짜를 정한다.
+  - strength: 기한 + 단정형 → 확약 / 구체 행동만 → 계획 / 검토·노력·공감 → 의사표명 / 그 외 → 해당없음.
+  - confidence 는 규칙별 고정값(확약 0.8 / 계획 0.7 / 의사표명 0.6 / 해당없음 0.5).
+ⓑ 후속 신호
+  - 제목·하이라이트·인용문을 문장으로 나누고, 추적 약속의 행동 키워드와 겹치는 문장만 본다.
+  - 새로운문제(재발·또다시·지연·차질·백지화 …) / 완료(client._PAST_DONE_RE) / 진행(착공·공사 중·예산 확보·설계·발주 …).
+  - 완료 발췌가 미래 서술어·부분 완료면 completion_adjustment 로 진행으로 낮춘다 (validate_span 도 다시 검사한다).
+  - confidence: 겹침 2개 이상 0.75, 1개 0.65. 겹침이 없으면 무관(표현 없음) 또는 불명확(표현은 있으나 약속과 무관).
+"""
+
+from __future__ import annotations
+
+import calendar
+import re
+from datetime import date, timedelta
+
+from ..config import Settings
+from ..rules.orgs import canonical_org
+from ..rules.terms import action_terms
+from .client import MAX_SPAN_CHARS, _PAST_DONE_RE, completion_adjustment
+from .schemas import FollowupInput, FollowupSignal, PromiseExtraction, PromiseInput, PromiseRef
+
+RULES_MODEL = "rules-v1"
+
+# ---------------------------------------------------------------- ⓐ 약속 추출
+# 구체 행동 동사 (명사형 어간). '…하겠다' 앞에 오면 계획 이상
+_CONCRETE = (
+    "전수조사", "재발 방지", "재발방지", "마련", "설치", "보강", "점검", "교체", "확충", "신설", "강화", "복구", "정비", "증설", "개선",
+    "철거", "도입", "구축", "배치", "확대", "보수", "정밀안전진단", "안전진단", "진단", "준설", "이전", "재건축", "개통", "준공", "완공",
+    "착공", "시행", "추진", "늘리", "높이", "줄이", "없애", "막겠", "갖추", "지원", "보상", "배상", "제정", "개정", "폐쇄", "통제", "감독", "단속", "수립",
+)
+_MODAL_RE = re.compile(r"(하겠다|하겠습니다|겠다|겠습니다|할 계획|할 방침|할 예정|예정이다|예정입니다|계획이다|계획입니다|방침이다|할 것이다|추진한다|추진할|추진하겠)")
+_SOFT_RE = re.compile(r"(검토|노력|공감|고민|살펴보|살피|협의|논의|모색|최선을 다|만전을 기|노력하)")
+# 지시·당위·가정('…해야 한다', '…했어야', '…하라', '…해 달라')은 기관이 스스로 하겠다는 약속이 아니다
+_DIRECTIVE_RE = re.compile(r"(해야\s*(한다|합니다|할|하며|하고)?|했어야|하라|하십시오|해\s*달라|해\s*주길|돼야|되어야|바란다|당부|촉구)")
+_ACTION_RE = re.compile("(" + "|".join(sorted({*_CONCRETE, "하겠다", "하겠습니다", "할 계획", "예정"}, key=len, reverse=True)) + ")")
+_CLAUSE_SPLIT_RE = re.compile(r"[.!?。\n]|(?<=다)\s|,\s|·")
+_ACTION_MAX = 40
+
+_REL_DEADLINES: tuple[tuple[re.Pattern[str], str], ...] = (
+    (re.compile(r"(\d{4})\s*년\s*(\d{1,2})\s*월\s*(\d{1,2})\s*일\s*(까지|안에|내|중)?"), "ymd"),
+    (re.compile(r"(\d{4})\s*년\s*(상반기|하반기)\s*(까지|안에|내|중)?"), "y-half"),
+    (re.compile(r"(\d{4})\s*년\s*(\d{1,2})\s*월\s*(말|까지|안에|내|중)?"), "ym"),
+    (re.compile(r"(\d{4})\s*년\s*(까지|안에|내|중|말)"), "y"),
+    (re.compile(r"내년\s*(\d{1,2})\s*월\s*(말|까지|안에|내|중)?"), "next-m"),
+    (re.compile(r"내년\s*(상반기|하반기)\s*(까지|안에|내|중)?"), "next-half"),
+    (re.compile(r"내년\s*(말|까지|안에|중|안)"), "next-y"),
+    (re.compile(r"(\d{1,2})\s*월\s*(\d{1,2})\s*일\s*(까지|안에|내)"), "md"),
+    (re.compile(r"(\d{1,2})\s*월\s*(말|까지|안에|내|중)"), "m"),
+    (re.compile(r"(올해\s*(상반기|하반기))\s*(까지|안에|내|중)?"), "this-half"),
+    (re.compile(r"(?<!내년\s)(?<!\d년\s)(상반기|하반기)\s*(까지|안에|내|중)"), "half"),
+    (re.compile(r"(연내|연말까지|올해\s*안|올해\s*말|올해\s*내|올 연말|금년\s*내|금년\s*중|올해\s*중)"), "this-y"),
+    (re.compile(r"이달\s*(말|안|중|내)"), "this-m"),
+    (re.compile(r"다음\s*달\s*(말|까지|안|중)?"), "next-month"),
+    (re.compile(r"(\d{1,3})\s*일\s*(이내|내|안에)"), "n-days"),
+    (re.compile(r"(\d{1,2})\s*개월\s*(이내|내|안에)"), "n-months"),
+)
+
+
+def _month_end(y: int, m: int) -> date:
+    return date(y, m, calendar.monthrange(y, m)[1])
+
+
+def parse_relative_deadline(text: str, published: date) -> tuple[str | None, date | None, str]:
+    """기한 표현을 찾아 (원문, 날짜, 정밀도). 상대 표현은 발언일 기준, 월 단위는 말일, 반기는 6/30·12/31."""
+    for pat, kind in _REL_DEADLINES:
+        m = pat.search(text or "")
+        if not m:
+            continue
+        raw = m.group(0).strip()
+        y = published.year
+        try:
+            if kind == "ymd":
+                return raw, date(int(m.group(1)), int(m.group(2)), min(int(m.group(3)), calendar.monthrange(int(m.group(1)), int(m.group(2)))[1])), "day"
+            if kind == "ym":
+                return raw, _month_end(int(m.group(1)), int(m.group(2))), "month"
+            if kind == "y":
+                return raw, date(int(m.group(1)), 12, 31), "year"
+            if kind == "y-half":
+                yy = int(m.group(1))
+                return raw, date(yy, 6, 30) if m.group(2) == "상반기" else date(yy, 12, 31), "month"
+            if kind == "next-m":
+                return raw, _month_end(y + 1, int(m.group(1))), "month"
+            if kind == "next-half":
+                return raw, date(y + 1, 6, 30) if m.group(1) == "상반기" else date(y + 1, 12, 31), "month"
+            if kind == "next-y":
+                return raw, date(y + 1, 12, 31), "year"
+            if kind == "md":
+                mo, d = int(m.group(1)), int(m.group(2))
+                yy = y if (mo, d) >= (published.month, published.day) else y + 1
+                return raw, date(yy, mo, min(d, calendar.monthrange(yy, mo)[1])), "day"
+            if kind == "m":
+                mo = int(m.group(1))
+                yy = y if mo >= published.month else y + 1
+                return raw, _month_end(yy, mo), "month"
+            if kind in ("this-half", "half"):
+                half = "상반기" if "상반기" in raw else "하반기"
+                cand = date(y, 6, 30) if half == "상반기" else date(y, 12, 31)
+                if cand < published:
+                    cand = date(y + 1, cand.month, cand.day)
+                return raw, cand, "month"
+            if kind == "this-y":
+                return raw, date(y, 12, 31), "year"
+            if kind == "this-m":
+                return raw, _month_end(y, published.month), "month"
+            if kind == "next-month":
+                nm = published.month % 12 + 1
+                return raw, _month_end(y + (1 if nm == 1 else 0), nm), "month"
+            if kind == "n-days":
+                return raw, published + timedelta(days=int(m.group(1))), "day"
+            if kind == "n-months":
+                k = int(m.group(1))
+                yy, mo = divmod(published.month - 1 + k, 12)
+                return raw, _month_end(y + yy, mo + 1), "month"
+        except ValueError:
+            return raw, None, "none"
+    return None, None, "none"
+
+
+def _action_clause(quotation: str) -> str | None:
+    """행동 동사를 포함한 절 하나(최대 40자, 인용문의 부분 문자열). 구체 행동 동사가 있는 절을 먼저 고른다."""
+    text = re.sub(r"\s+", " ", quotation or "").strip()
+    clauses = [c.strip() for c in _CLAUSE_SPLIT_RE.split(text) if c and c.strip()]
+    best = None
+    for c in clauses:
+        m = _ACTION_RE.search(c)
+        if not m:
+            continue
+        concrete = any(v in c for v in _CONCRETE)
+        score = (1 if concrete else 0, 1 if _MODAL_RE.search(c) else 0)
+        if best is None or score > best[0]:
+            best = (score, c, m)
+    if best is None:
+        return None
+    _, clause, m = best
+    if len(clause) <= _ACTION_MAX:
+        return clause
+    # 행동 동사 어절 끝까지를 포함하는 40자 창
+    end = clause.find(" ", m.end())
+    end = len(clause) if end < 0 else end
+    start = max(0, end - _ACTION_MAX)
+    return clause[start:end].strip()
+
+
+def _strength(quotation: str, has_deadline: bool) -> str:
+    q = quotation or ""
+    concrete_hits = [v for v in _CONCRETE if v in q]
+    modal = bool(_MODAL_RE.search(q))
+    soft = bool(_SOFT_RE.search(q))
+    # '설치를 검토하겠다' 처럼 구체 행동이 검토·노력에 걸리면 의사표명. 다른 절에 단정 행동이 따로 있으면 그 절을 따른다
+    firm_concrete = any(re.search(re.escape(v) + r"\S{0,6}\s?(하겠|할 계획|할 예정|예정|계획|방침|한다|할 것|키로|하기로|하고\s|하며|한 뒤|하는 한편)", q) and not re.search(re.escape(v) + r"\S{0,12}\s?(검토|노력|고민|협의|논의|모색)", q) for v in concrete_hits)
+    if _DIRECTIVE_RE.search(q) and not re.search(r"(하겠|할 계획|할 예정|키로|하기로)", q):
+        return "의사표명"
+    if soft and not firm_concrete:
+        return "의사표명"
+    if has_deadline and (modal or firm_concrete):
+        return "확약"
+    if concrete_hits and (modal or firm_concrete or not soft):
+        return "계획"
+    if modal:
+        return "의사표명"
+    return "해당없음"
+
+
+_CONF = {"확약": 0.8, "계획": 0.7, "의사표명": 0.6, "해당없음": 0.5}
+
+# ---------------------------------------------------------------- ⓑ 후속 신호
+_PROGRESS_RE = re.compile(
+    r"(착공|착수|추진\s*중|추진하고\s*있|진행\s*중|진행하고\s*있|공사\s*중|공사를\s*(시작|벌이|진행)|공사에\s*들어|예산\s*(을\s*)?확보|예산을\s*편성|국비\s*확보|"
+    r"설계\s*(중|용역|를\s*마치|에\s*들어)|실시설계|발주|입찰|일부\s*완료|부분\s*개통|시범\s*운영|시행\s*중|본격\s*(추진|시행)|단계적으로|"
+    r"(완료|준공|개통|완공|마무리|설치|교체|증설)\s*(할|될|을|될\s*것으로)?\s*(예정|계획|전망))"
+)
+_NEW_PROBLEM_RE = re.compile(
+    r"(또다시|또 다시|재발했|재발해|재발됐|되풀이|다시\s*(발생|침수|붕괴|사고|무너|불)|또\s*(사고|침수|붕괴|화재|폭발|사망|무너|물에\s*잠|유실|파손|균열|누수|정전|탈선)|재(유실|침수|붕괴|파손)|추가\s*(사고|붕괴|피해)|"
+    r"지연(되|돼|됐|으로|에)(?!\s*없)|늦어지|늦어져|차질(?!\s*(없|이\s*없|을\s*빚지\s*않))|백지화|무산|연기(됐|되)|중단(됐|되)|제자리|하세월|지지부진|늑장)"
+)
+_SENT_SPLIT_RE = re.compile(r"(?<=[.!?。])\s+|\n+")  # 제목의 '…' 는 같은 기사의 두 절이라 나누지 않는다
+_NEUTRAL = re.compile(r"[\"“”‘’'<>《》「」]")
+
+
+def _sentences(inp: FollowupInput) -> list[str]:
+    out: list[str] = []
+    for part in [inp.article_title, inp.hilight, *inp.quotations]:
+        for s in _SENT_SPLIT_RE.split(part or ""):
+            s = (s or "").strip()
+            if len(s) >= 4 and s not in out:
+                out.append(s)
+    return out
+
+
+# 겹침 판정에서 빼는 말: 재난 자체를 가리키는 말(사건 기사 어디에나 있다)·때·정도·일반 기관어·용언꼴
+_OVERLAP_STOP = {
+    "화재", "산불", "침수", "붕괴", "폭발", "사고", "참사", "태풍", "호우", "폭우", "지진", "산사태", "피해", "사망", "부상", "재난", "재해", "안전",
+    "일단", "향후", "앞으로", "위해", "중심", "상황", "이내", "이상", "이하", "최대", "최소", "모든", "각종", "관련", "통해", "대해", "따라", "함께",
+    "시청", "군청", "구청", "도청", "정부", "지자체", "관계기관", "기관", "당국", "합동", "협력", "협력체계", "체계", "인력", "투입", "현장", "주민", "국민",
+    "영업", "중단", "출입", "통제", "대처", "초동", "신속", "정확", "실무", "실무중심", "훈련", "대비", "예방", "노력", "최선", "대응", "지원", "강화",
+}
+_TERM_VERBISH = re.compile(r"(고|어야|았어야|었어야|했어야|예정|하고|되고|됐고|해야|하며|되며|으며|면서|도록|는데|지만|였고|이고)$")
+
+
+def _promise_terms(p: PromiseRef) -> list[str]:
+    terms = action_terms(p.action, limit=8)
+    # action_terms 는 '설치·교체' 같은 일반 행동어를 거른다 — 겹침 판정에는 약속의 대상 명사만 쓴다
+    return [t for t in terms if len(t) >= 2 and t not in _OVERLAP_STOP and not _TERM_VERBISH.search(t)][:6]
+
+
+def _window(sentence: str, m: re.Match[str]) -> str:
+    """100자 넘는 문장은 매칭 위치를 포함하는 100자 창 (입력의 부분 문자열 유지)."""
+    if len(sentence) <= MAX_SPAN_CHARS:
+        return sentence
+    start = max(0, min(m.start() - 40, len(sentence) - MAX_SPAN_CHARS))
+    return sentence[start : start + MAX_SPAN_CHARS].strip()
+
+
+class RulesLLM:
+    """LLMClient 프로토콜의 규칙 구현. 외부 호출이 없어 실패(LLMFailure)를 내지 않는다."""
+
+    mode = "rules"
+    model = RULES_MODEL
+
+    def __init__(self, settings: Settings | None = None):
+        self.settings = settings
+        self.usage = {"calls": 0, "promise_calls": 0, "followup_calls": 0}
+
+    # ---------------------------------------------------------- ⓐ
+    def extract_promise(self, inp: PromiseInput, *, key: str = "") -> PromiseExtraction:
+        self.usage["calls"] += 1
+        self.usage["promise_calls"] += 1
+        q = re.sub(r"\s+", " ", inp.quotation or "").strip()
+        try:
+            published = date.fromisoformat(inp.published_at[:10])
+        except ValueError:
+            published = date.today()
+        from ..rules.actors import normalize_actor_org
+
+        actor = canonical_org(normalize_actor_org(inp.source, inp.responsible_org) or inp.source) or None
+        action = _action_clause(q) if _ACTION_RE.search(q) else None
+        if not action:
+            return PromiseExtraction(
+                is_promise=False, actor_org=actor, actor_raw=inp.source, action=None, strength="해당없음",
+                confidence=_CONF["해당없음"], rationale="행동 동사 없음 (규칙)",
+            )
+        raw, deadline, precision = parse_relative_deadline(q, published)
+        if deadline is not None and deadline < published:
+            raw, deadline, precision = raw, None, "none"
+        strength = _strength(q, deadline is not None)
+        return PromiseExtraction(
+            is_promise=strength != "해당없음",
+            actor_org=actor,
+            actor_raw=inp.source,
+            action=action,
+            deadline_raw=raw,
+            deadline_date=deadline.isoformat() if deadline else None,
+            deadline_precision=precision if deadline else "none",
+            strength=strength,
+            confidence=_CONF[strength],
+            rationale=f"규칙: 행동 동사 + {'기한(' + raw + ')' if raw else '기한 없음'} → {strength}",
+        )
+
+    # ---------------------------------------------------------- ⓑ
+    def classify_followup(self, inp: FollowupInput, *, key: str = "") -> FollowupSignal:
+        self.usage["calls"] += 1
+        self.usage["followup_calls"] += 1
+        terms_by_promise = {p.id: _promise_terms(p) for p in inp.promises}
+        best: tuple | None = None  # (overlap, priority, signal, span, promise_id)
+        expression_without_overlap = False
+        priority = {"새로운문제": 3, "완료": 2, "진행": 1}
+        for s in _sentences(inp):
+            found: list[tuple[str, re.Match[str]]] = []
+            m_new = _NEW_PROBLEM_RE.search(s)
+            if m_new:
+                found.append(("새로운문제", m_new))
+            m_done = _PAST_DONE_RE.search(s)
+            if m_done:
+                found.append(("완료", m_done))
+            m_prog = _PROGRESS_RE.search(s)
+            if m_prog:
+                found.append(("진행", m_prog))
+            if not found:
+                continue
+            pid, overlap = None, 0
+            for p_id, terms in terms_by_promise.items():
+                k = sum(1 for t in terms if t in s)
+                if k > overlap:
+                    pid, overlap = p_id, k
+            if overlap == 0:
+                expression_without_overlap = True
+                continue
+            # 한 문장에 여러 표현이 있으면: 새로운문제 > 완료 > 진행. 단 '완료' 가 미래 서술어면 진행으로 본다
+            sig, m = max(found, key=lambda x: priority[x[0]])
+            span = _window(s, m)
+            if sig == "완료" and completion_adjustment(span):
+                sig = "진행"
+            cand = (min(overlap, 2), priority[sig], sig, span, pid)
+            if best is None or cand[:2] > best[:2]:
+                best = cand
+        if best is None:
+            if expression_without_overlap:
+                return FollowupSignal(signal="불명확", promise_id=None, matches_promise=False, evidence_span="", confidence=0.4, rationale="조치 표현은 있으나 약속 행동 키워드와 겹치는 문장이 없음 (규칙)")
+            return FollowupSignal(signal="무관", promise_id=None, matches_promise=False, evidence_span="", confidence=0.6, rationale="조치 상태 표현 없음 (규칙)")
+        overlap, _, sig, span, pid = best
+        conf = 0.75 if overlap >= 2 else 0.65
+        return FollowupSignal(
+            signal=sig, promise_id=pid, matches_promise=True, evidence_span=span, confidence=conf,
+            rationale=f"규칙: 약속 키워드 {overlap}개 겹침 + {sig} 표현",
+        )

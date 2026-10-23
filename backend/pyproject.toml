@@ -15,6 +15,7 @@ dependencies = [
   "numpy>=1.26",
   "pyyaml>=6",
   "python-dateutil>=2.9",
+  "beautifulsoup4>=4.12",  # 공공기관 게시판 목록 파싱 (app/notices/ 에서만, v2 §3)
 ]
 
 [project.optional-dependencies]

@@ -1,0 +1,175 @@
+# 공공기관 공식 게시판 등록부 (v2 §3) — 트랙 C
+#
+# - orgs     : 이 게시판이 맡는 기관. rules/orgs.canonical_org() 키와 같은 값 (서울시, 부산시, 경기도, 충남, 국토교통부 …)
+# - domain   : 요청 허용 도메인에 더해진다. 뉴스 도메인은 등록할 수 없다(로드 시 거부)
+# - list_url : 게시판 "목록" 페이지. {page} = 1부터. 최신 글이 먼저 나오는 기본 정렬
+# - search_url: 게시판 자체 제목 검색(결과도 같은 목록 형식). 있으면 사건 시설명·핵심어로 검색 목록을 읽는다
+# - item / title / link / date / snippet : 목록 항목과 그 안의 CSS 선택자. date 가 없으면 항목 글자에서 날짜를 찾는다
+# - body     : 상세 페이지 본문 선택자 — 제목이 사건과 매칭된 항목만, 첫 300자
+# - link_id_regex + link_template : javascript: 링크에서 글 번호를 뽑아 상세 URL 을 만든다
+# - verified : scripts/run_notices.py --check-sites 로 실제 목록 파싱을 확인한 기록 (docs/NOTICES.md 에 같은 표)
+#
+# robots.txt 가 목록 경로를 막는 게시판(세종시·제주도·대구시 info.daegu·충북)은 등록하지 않는다 — docs/NOTICES.md 참고.
+
+sites:
+  - key: seoul-press
+    name: 서울특별시 보도자료
+    orgs: [서울시]
+    domain: seoul.go.kr
+    list_url: "https://www.seoul.go.kr/news/news_report.do?bbsNo=158&curPage={page}"
+    search_url: "https://www.seoul.go.kr/news/news_report.do?bbsNo=158&srchKey=sj&srchText={query}&curPage={page}"
+    item: "table.sib-lst-type-basic tbody tr"
+    title: "td.sib-lst-type-basic-subject a"
+    link: "td.sib-lst-type-basic-subject a"
+    date: "td:last-child"
+    link_id_regex: "fnTbbsView\\('(\\d+)'\\)"
+    link_template: "https://www.seoul.go.kr/news/news_report.do?bbsNo=158&nttNo={id}"
+    body: "div.sib-viw-type-basic-cont, div#viewTable .view-cont, div#viewTable"
+    note: "robots.txt 가 / 를 막고 /news 를 허용 (RFC 9309 최장 일치로 허용)"
+    verified: {date: "2026-10-22", page1_items: 10, page2_items: 10, search: true}
+
+  - key: busan-press
+    name: 부산광역시 보도자료
+    orgs: [부산시]
+    domain: busan.go.kr
+    list_url: "https://www.busan.go.kr/nbtnewsBU?curPage={page}"
+    search_url: "https://www.busan.go.kr/nbtnewsBU?srchKey=sj&srchText={query}&curPage={page}"
+    item: "div.boardTextGallery ul > li"
+    title: "div.bTitle"
+    link: "a.item"
+    date: "div.writer"
+    snippet: "div.tgTxt div.txtL:not(.writer)"
+    body: "div.boardView div.form-group:nth-of-type(1), div.boardView"
+    note: "robots.txt 가 401 — RFC 9309 2.3.1.3 에 따라 제한 없음으로 본다"
+    verified: {date: "2026-10-22", page1_items: 12, page2_items: 12, search: true}
+
+  - key: incheon-press
+    name: 인천광역시 보도자료
+    orgs: [인천시]
+    domain: incheon.go.kr
+    list_url: "https://www.incheon.go.kr/IC010205?curPage={page}"
+    search_url: "https://www.incheon.go.kr/IC010205?srchRepTitle={query}&curPage={page}"
+    item: "div.board-blog-list ul > li"
+    title: "strong.subject"
+    link: "a"
+    date: "dl.item dd"
+    snippet: "div.txt"
+    body: "div.board-view-contents"
+    note: "robots.txt 없음(404)"
+    verified: {date: "2026-10-22", page1_items: 10, page2_items: 10, search: true}
+
+  - key: gwangju-press-archive
+    name: (구)광주광역시 보도자료 (2026-06-30까지)
+    orgs: [광주시]
+    domain: gwangju.go.kr
+    list_url: "https://www.gwangju.go.kr/boardList.do?boardId=BD_0000000027&pageId=www789&movePage={page}"
+    search_url: "https://www.gwangju.go.kr/boardList.do?boardId=BD_0000000027&pageId=www789&searchTy=T&searchQuery={query}&movePage={page}"
+    item: "div.board_list_body div.body_row"
+    title: "div.subject a"
+    link: "div.subject a"
+    date: "div.date"
+    body: "div.board_view_body"
+    note: "2026-07-01 전남광주통합특별시 출범으로 갱신 중단된 기록 게시판. 통합 이후 글은 jeonnam-gwangju-press"
+    verified: {date: "2026-10-22", page1_items: 15, page2_items: 15, search: true}
+
+  - key: jeonnam-gwangju-press
+    name: 전남광주통합특별시 보도자료
+    orgs: [광주시, 전남, 전남광주통합특별시]
+    domain: jeonnam-gwangju.go.kr
+    list_url: "https://www.jeonnam-gwangju.go.kr/boardList.do?boardId=JG_0000000003&pageId=jngj22&movePage={page}"
+    search_url: "https://www.jeonnam-gwangju.go.kr/boardList.do?boardId=JG_0000000003&pageId=jngj22&searchTy=T&searchQuery={query}&movePage={page}"
+    item: "table.b_tbl_board tbody tr"
+    title: "td.subject a"
+    link: "td.subject a"
+    body: "div.b_cont_description"
+    note: "2026-07-01 출범한 통합특별시 임시 누리집"
+    verified: {date: "2026-10-22", page1_items: 10, page2_items: 10, search: true}
+
+  - key: jeonnam-press-archive
+    name: (구)전라남도 보도자료 (2026-06-30까지)
+    orgs: [전남]
+    domain: jeonnam.go.kr
+    list_url: "https://www.jeonnam.go.kr/M7116/boardList.do?menuId=jeonnam0202000000&pageIndex={page}"
+    search_url: "https://www.jeonnam.go.kr/M7116/boardList.do?menuId=jeonnam0202000000&searchType=0&searchText={query}&pageIndex={page}"
+    item: "table.bbs_table tbody tr"
+    title: "td.title a"
+    link: "td.title a"
+    body: "div.bbs_view_contnet"
+    note: "통합특별시 출범으로 갱신 중단된 기록 게시판"
+    verified: {date: "2026-10-22", page1_items: 10, page2_items: 10, search: true}
+
+  - key: ulsan-press
+    name: 울산광역시 보도자료
+    orgs: [울산시]
+    domain: ulsan.go.kr
+    list_url: "https://www.ulsan.go.kr/u/rep/bbs/list.do?bbsId=BBS_0000000000000027&mId=001004003001000000&page={page}"
+    search_url: "https://www.ulsan.go.kr/u/rep/bbs/list.do?bbsId=BBS_0000000000000027&mId=001004003001000000&searchType=DATA_TITLE&searchTxt={query}&page={page}"
+    item: "table tbody tr"
+    title: "td.ta_l a"
+    link: "td.ta_l a"
+    body: "div#bbsAreaDiv .bbs_vcont, div#bbsAreaDiv td.view_cont, div#bbsAreaDiv"
+    verified: {date: "2026-10-22", page1_items: 10, page2_items: 10, search: true}
+
+  - key: gyeonggi-press
+    name: 경기도 보도자료 (경기도뉴스포털)
+    orgs: [경기도]
+    domain: gg.go.kr
+    list_url: "https://gnews.gg.go.kr/briefing/brief_gongbo.do?BS_CODE=s017&page={page}"
+    search_url: "https://gnews.gg.go.kr/briefing/brief_gongbo.do?BS_CODE=s017&search=8&keyword={query}&page={page}"
+    item: "div#contents table tbody tr"
+    title: "td.tit a"
+    link: "td.tit a"
+    body: "div.postBody"
+    verified: {date: "2026-10-22", page1_items: 11, page2_items: 11, search: true}
+
+  - key: gangwon-press
+    name: 강원특별자치도 보도자료
+    orgs: [강원도]
+    domain: gwd.go.kr
+    list_url: "https://state.gwd.go.kr/portal/briefing/pressRelease?pageIndex={page}"
+    search_url: "https://state.gwd.go.kr/portal/briefing/pressRelease?searchCondition=title&searchKeyword={query}&pageIndex={page}"
+    item: "table.skinTb tbody tr"
+    title: "td.skinTb-sbj a"
+    link: "td.skinTb-sbj a"
+    body: "div#content-bx td.skinTb-cont, div#content-bx .skinTb-data-bgSbj td"
+    verified: {date: "2026-10-22", page1_items: 15, page2_items: 15, search: true}
+
+  - key: chungnam-press
+    name: 충청남도 보도자료
+    orgs: [충남]
+    domain: chungnam.go.kr
+    list_url: "https://www.chungnam.go.kr/cnportal/media/article/list.do?menuNo=500181&pageIndex={page}"
+    search_url: "https://www.chungnam.go.kr/cnportal/media/article/list.do?menuNo=500181&sdate=2020-01-01&edate=2030-12-31&searchCnd=1&searchWrd={query}&pageIndex={page}"
+    item: "ul.article-ul li.article-li"
+    title: "p.article-title"
+    link: "a.article-link"
+    date: "p.article-date"
+    snippet: "p.article-content"
+    verified: {date: "2026-10-22", page1_items: 10, page2_items: 10, search: true}
+
+  - key: daejeon-press
+    name: 대전광역시 보도자료
+    orgs: [대전시]
+    domain: daejeon.go.kr
+    list_url: "https://www.daejeon.go.kr/drh/board/boardNormalList.do?boardId=normal_0189&menuSeq=1632&pageIndex={page}"
+    search_url: "https://www.daejeon.go.kr/drh/board/boardNormalList.do?boardId=normal_0189&menuSeq=1632&searchCondition=title&searchKeyword={query}&pageIndex={page}"
+    item: "table.board_table_list tbody tr"
+    title: "td.subject a"
+    link: "td.subject a"
+    body: "div.board_view .view_cont, div.board_view td.cont, div.board_view"
+    note: "robots.txt 가 / 를 막고 /drh 를 허용 (RFC 9309 최장 일치로 허용)"
+    verified: {date: "2026-10-22", page1_items: 11, page2_items: 11, search: true}
+
+  - key: korea-press
+    name: 정책브리핑 보도자료 (중앙부처·위원회)
+    orgs: [국토교통부, 행정안전부, 고용노동부, 환경부, 해양수산부, 산업통상자원부, 농림축산식품부, 소방청, 경찰청, 해양경찰청, 산림청, 기상청, 교육부, 보건복지부]
+    domain: korea.kr
+    list_url: "https://www.korea.kr/briefing/pressReleaseList.do?pageIndex={page}"
+    search_url: "https://www.korea.kr/briefing/pressReleaseList.do?srchWord={query}&startDate=2023-01-01&endDate=2030-12-31&pageIndex={page}"
+    item: "div.list_type ul > li"
+    title: "span.text strong"
+    link: "a"
+    date: "span.source"
+    snippet: "span.lead"
+    note: "정책브리핑 RSS 는 2026-07-01 중단(정책브리핑 공지) — 보도자료 목록 페이지를 같은 방식으로 읽는다"
+    verified: {date: "2026-10-22", page1_items: 20, page2_items: 20, search: true}

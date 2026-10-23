@@ -5,6 +5,7 @@ import { ArticleLink, ArticleMeta } from "@/components/ArticleItem";
 import Disclaimer from "@/components/Disclaimer";
 import ErrorBox from "@/components/ErrorBox";
 import ReportForm from "@/components/ReportForm";
+import OrgNoticePanel from "@/components/notices/OrgNoticePanel";
 import StatusBadge from "@/components/StatusBadge";
 import { getEvidence, isEventNotFound, safe } from "@/lib/api";
 import {
@@ -16,6 +17,7 @@ import {
   parseId,
   SIGNAL_LABELS,
 } from "@/lib/format";
+import { getEventNotices } from "@/lib/notices";
 import type { SignalKind } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
@@ -74,7 +76,7 @@ export default async function EvidencePage({ params }: { params: Params }) {
   const eventId = parseId(id);
   if (eventId === null) notFound();
 
-  const result = await safe(getEvidence(eventId));
+  const [result, notices] = await Promise.all([safe(getEvidence(eventId)), safe(getEventNotices(eventId))]);
   if (!result.ok) {
     // Only the backend's own "event N not found" becomes a 404 page; any other failure is shown inline.
     if (isEventNotFound(result.error, eventId)) notFound();
@@ -100,7 +102,7 @@ export default async function EvidencePage({ params }: { params: Params }) {
   return (
     <div className="flex flex-col gap-6">
       <nav className="text-sm text-gray-500" aria-label="경로">
-        <Link href="/" className="text-blue-700 hover:underline">
+        <Link href="/events" className="text-blue-700 hover:underline">
           목록
         </Link>
         <span className="mx-2">›</span>
@@ -279,6 +281,9 @@ export default async function EvidencePage({ params }: { params: Params }) {
         )}
       </section>
 
+      {/* v2 §3 기관 발표 확인 (트랙 C) */}
+      <OrgNoticePanel eventId={ev.event_id} result={notices} />
+
       {/* Low-confidence links */}
       <section className="rounded-lg border border-gray-200 bg-white p-5">
         <h2 className="text-base font-bold text-gray-900">
@@ -340,7 +345,7 @@ export default async function EvidencePage({ params }: { params: Params }) {
         <Link href={`/events/${ev.event_id}`} className="text-sm text-blue-700 hover:underline">
           ← 사건 타임라인으로
         </Link>
-        <Link href="/" className="text-sm text-blue-700 hover:underline">
+        <Link href="/events" className="text-sm text-blue-700 hover:underline">
           목록으로
         </Link>
       </div>

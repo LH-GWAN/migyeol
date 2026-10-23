@@ -115,11 +115,11 @@
 ## 엔드포인트
 
 ### GET `/api/events`
-쿼리: `status`(5개 중 하나), `region`, `incident_type`(접두 일치), `needs_check`(`true`/`false`), `sort`(`priority`|`recent`|`occurred`, 기본 `priority`), `page`(기본 1), `size`(기본 20, 최대 100)
+쿼리: `status`(5개 중 하나), `region`, `incident_type`(접두 일치), `needs_check`(`true`/`false`), `org`(v2: 정규화 기관 키 — `rules/orgs.canonical_org(responsible_org)`, 빈 기관은 `기관 미상`), `followup`(v2: `true` = 후속보도 확인됨(완료·진행), `false` = 그 밖), `sort`(`priority`|`recent`|`occurred`, 기본 `priority`), `page`(기본 1), `size`(기본 20, 최대 100)
 - `recent` 는 마지막 후속 기사일 내림차순이며 후속 기사가 없는 사건은 뒤로 간다.
 ```json
 { "items": [ { "...": "EventCard" } ], "total": 7, "page": 1, "size": 20,
-  "filters": { "statuses": [...5개...], "regions": ["가온시", "누리군"], "incident_types": ["재해>자연재해>홍수", "사고>산업사고>붕괴"] } }
+  "filters": { "statuses": [...5개...], "regions": ["가온시", "누리군"], "incident_types": ["재해>자연재해>홍수", "사고>산업사고>붕괴"], "orgs": ["가온시", "누리군"] } }
 ```
 
 ### GET `/api/events/{id}`
@@ -228,6 +228,42 @@
 - `error_summary` 는 분류 문구만이다: `빅카인즈 API 오류` / `LLM 호출 오류` / `실행 중복` / `입력·설정 오류` / `질의 구문 오류` / `시드 오류` / `서버 종료로 중단` / `실행 오류`. `last_run.warnings` 는 수집 경고 문장(최대 20개), `failures` 는 사건 단위로 격리된 실패 수. 서버 원문(키·경로가 섞일 수 있음)은 `pipeline_runs.error` 와 서버 로그에만 남는다. `/api/pipeline/run` 의 500 `detail` 도 같은 분류 문구다.
 
 ### GET `/api/health` — `{ "ok": true }`
+
+## v2 (2026-10-22 멘토 피드백 반영) 추가 엔드포인트
+
+집계 공통 규칙: 사건 = `Event.active=true`; 후속 기사 = 활성 연결만(`judge.followup_articles`, 카드 `followup_count` 와 같음); 유효 신호 = 현재 prompt_version · 현재 추적 약속 집합 해시 · `rules.status.is_valid`; **후속보도 확인 사건 = 유효 신호 ≥ 1**; 기관 키 = `canonical_org(responsible_org)`(빈 값은 `기관 미상`). 목록 화면 숫자와 어긋나지 않도록 같은 함수를 쓴다.
+
+### GET `/api/dashboard/summary`
+`{ events_total, with_followup, followup_rate, overdue, with_org_notice, followup_articles, orgs, by_status{5개}, last_run, as_of, bigkinds_mode, experiment, disclaimer }`
+- `overdue` = 대표 약속 기한이 지났고 상태 ≠ `조치 완료 근거 확인`. `with_org_notice` = `Event.org_notice_found` 합.
+- `experiment` = `reports/experiment_latest.json`(`EXPERIMENT_LATEST_PATH`)에서 큰 목록(`by_incident_type`·`by_org`·`timeseries`·`daily`)을 뺀 요약, 파일이 없으면 `null`.
+
+### GET `/api/dashboard/timeseries?interval=month|day&from=&until=`
+`[{ bucket, occurred, followup_articles, confirmed_followups, dead, injured }]` — 빈 구간은 0. 기본 범위 = 가장 이른 발생일 ~ 기준일(일별은 최대 1500일, 초과·`from > until` 은 422). `dead/injured` 는 실험 JSON 의 월별 값이 있으면 그것, 없으면 `Event.dead/injured` 합계, 둘 다 없으면 `null`(추정하지 않는다).
+
+### GET `/api/dashboard/by-incident`
+`[{ incident_type, label, events, with_followup, rate, subtypes }]` — 계열(앞 두 단계, 예 `재해>자연재해`) 단위.
+
+### GET `/api/dashboard/by-org?sort=followup|rate|events`
+`[{ org, events, with_followup, rate, latest_followup_at, last_article_at, confirmed_signals, event_ids, raw_names }]` — 기본 `followup` 내림차순(동률은 `rate`). `raw_names` 는 정규화 전 이름들.
+
+### GET `/api/dashboard/recent-followups?limit=10` (1~50)
+`[{ event_id, event_title, event_status, org, signal, confidence, evidence_span, news_id, title, provider, published_at, link }]` 최신순.
+
+### GET `/api/dashboard/experiment`
+`experiment_latest.json` 그대로(개발 프롬프트 v2 §4.6 스키마). 없으면 404, 깨졌으면 503.
+
+### GET `/api/press/draft` · `/api/press/draft?event_id=` · `/api/press/events`
+보도자료 초안(공개). `{ scope: "all"|"event", event_id, title, header_note, markdown, sections: [{heading, body}], sources: [{ref, news_id, title, provider, published_at, link}], generated_at, writer, stats, data_source: "experiment"|"db", experiment_generated_at, disclaimer }`
+- 본문의 `[n]` 은 `sources[].ref` 와 대응한다. `writer` 는 `template-v1`(기본) 또는 `LLM_MODE=live` 일 때 `llm(<모델>)`. `data_source` 가 `experiment` 면 리드·유형별·기관별 숫자를 실험 리포트에서 가져온다.
+- `/api/press/events` 는 사건별 초안 선택 목록 `[{id, title, status}]`.
+
+### GET `/api/notices/events/{event_id}` (공개, 외부 요청 없음)
+`{ event_id, org, triggered, reason, basis_date, trigger_days, state, state_label, note, checked_at, sites: [{name, org, url}], items: [{title, published_at, url, snippet, match_score, matched_terms, site_name}], disclaimer }`
+- `state` ∈ `found` / `not_triggered` / `no_site` / `not_found` / `not_checked` / `error`. 기관 게시판 항목은 **보조 근거**이며 5개 상태를 바꾸지 않는다(v2 §3).
+
+### POST `/api/notices/run` (관리자 토큰)
+`{ event_id? }` → 트리거된 사건에 대해 확인 실행. `{ events, triggered, found, items, requests }`. CLI `scripts/run_notices.py --all|--event-id N|--check-sites` 와 같은 함수. 스케줄러는 매일 05:30 KST 에 같은 일을 한다.
 
 ## 오류 형식
 `{ "detail": "..." }` (FastAPI 기본). 401(관리자 토큰), 403(파이프라인 API 꺼짐), 404, 409(실행 중), 422, 429, 500(요약 메시지만).

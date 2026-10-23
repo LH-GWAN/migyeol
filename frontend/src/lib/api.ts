@@ -180,6 +180,8 @@ export function getEvents(params: EventListParams = {}): Promise<EventListOut> {
       region: params.region,
       incident_type: params.incident_type,
       needs_check: params.needs_check,
+      org: params.org,
+      followup: params.followup,
       sort: params.sort,
       page: params.page,
       size: params.size,

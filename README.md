@@ -70,21 +70,48 @@ TODAY_OVERRIDE=2026-09-11 .venv/bin/python scripts/evaluate.py --sweep link_auto
 | 키워드 트렌드 | `/time_line` | `pipeline/trend.py` | 월별 기사 건수 → 보도량 급감(`drop_ratio`) 정량화 |
 | 뉴스 변경이력 | `/changeTracker/news` | `pipeline/tracker.py` | 근거 기사가 `Update`/`Cancelled` 면 재검토 표시, 신호 재분류·재판정, 삭제 기사의 약속 추적 중단 |
 
-데이터 이용 범위: 뉴스 `content` 200자·`hilight` 200/300자 등 API 반환 범위만 저장하며 원문은 `provider_link_page` 외부 링크로만 연결한다. 크롤링 코드는 없다.
+데이터 이용 범위: 뉴스 `content` 200자·`hilight` 200/300자 등 API 반환 범위만 저장하며 원문은 `provider_link_page` 외부 링크로만 연결한다. 언론사 원문 크롤링 코드는 없다. 공공기관 공식 게시판 확인(`app/notices/`, v2 §3)은 뉴스가 아닌 기관 발표를 트리거 조건 아래에서만 읽는 별도 기능이다(`docs/NOTICES.md`).
 
 ## 구조
 
 ```
 backend/app/bigkinds   요청·응답 모델(지침서 필드명 그대로) · mock/record/live 클라이언트 · 코드표
 backend/app/pipeline   discover → collect → link → extract → judge (+ trend, tracker, scheduler)
-backend/app/rules      공공 주체 판별·정규화 · 상태 판정 R1~R5 · 우선순위
-backend/app/llm        프롬프트 2종(약속 추출 / 후속 신호) · 구조화 출력 스키마 · stub/live 어댑터
-backend/app/api        /api/events, /api/admin, /api/pipeline, /api/meta
-frontend/src/app       /  목록 · /events/[id] 타임라인 · /events/[id]/evidence 근거 · /admin
-docs/                  ARCHITECTURE · API_CONTRACT · CHANGELOG · DEMO_SCRIPT · screenshots/
+backend/app/rules      공공 주체 판별·정규화(orgs: 서울특별시/서울/서울시 → 서울시) · 상태 판정 R1~R5 · 우선순위
+backend/app/llm        프롬프트 3종(약속 추출 / 후속 신호 / 보도자료 문장) · 구조화 출력 스키마 · stub/rules/live 어댑터
+backend/app/experiment v2 실험: 원천 기사 100건 → 자동 시드 → 군집 → 후속보도 탐지 → 지표(reports/experiment_latest.json)
+backend/app/notices    v2 공공기관 게시판 확인(트리거형, 뉴스 도메인 거부) · sites.yaml 등록부
+backend/app/press      v2 보도자료 초안 작성기(템플릿 / LLM)
+backend/app/api        /api/events, /api/dashboard, /api/press, /api/notices, /api/admin, /api/pipeline, /api/meta
+frontend/src/app       /  대시보드 · /events 목록 · /events/[id] 타임라인 · /events/[id]/evidence 근거(+기관 발표 확인) · /press 보도자료 초안 · /about · /admin
+docs/                  ARCHITECTURE · API_CONTRACT · CHANGELOG · DEMO_SCRIPT · EXPERIMENT · NOTICES · screenshots/
 ```
 
 자세한 설계는 [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md), API 응답 형식은 [docs/API_CONTRACT.md](docs/API_CONTRACT.md), 예선/본선 개발 범위 구분은 [docs/CHANGELOG.md](docs/CHANGELOG.md).
+
+## v2 (2026-10-22 멘토 피드백 반영) — 실험·대시보드·보도자료·기관 게시판
+
+멘토 피드백의 요지는 "합성 데이터 말고 실제 API로 돌려서 후속보도가 실제로 얼마나 나오는지 정량 지표로 보여라, 첫 화면은 시민용 대시보드, 후속보도가 없으면 기관 게시판까지 확인해 보도자료 초안까지"였다. 개발 프롬프트 v2 §0 에 결정 표가 있다.
+
+```bash
+cd backend
+# 실험 (실 API, record 모드로 녹화·재생). --dry-run 은 호출 계획만 출력
+BIGKINDS_MODE=record LLM_MODE=rules EMBEDDING_BACKEND=st .venv/bin/python scripts/experiment.py --stage all --dry-run
+BIGKINDS_MODE=record LLM_MODE=rules EMBEDDING_BACKEND=st .venv/bin/python scripts/experiment.py --stage all --today 2026-10-22 --max-pages 2
+#   --today 는 기준일(녹화 키에 들어가므로 재생할 때도 같은 날짜). .env 의 TODAY_OVERRIDE(가상 픽스처용)는 바꾸지 않는다
+.venv/bin/python scripts/experiment.py --stage report --today 2026-10-22   # 라벨 CSV 를 채운 뒤 지표만 다시
+#   -> seeds/experiment.draft.yaml (자동 시드) · reports/experiment_<일시>.md · reports/experiment_latest.json
+#   -> gold/experiment_labels.csv · cluster_sample.csv · org_sample.csv (사람 열만 비어 있음)
+.venv/bin/python scripts/labels_to_gold.py          # 라벨 CSV -> gold/events.yaml
+.venv/bin/python scripts/export_dashboard.py        # 일별/재난별/기관별 집계 -> reports/dashboard_<날짜>.json
+.venv/bin/python scripts/run_notices.py --all       # 트리거된 사건의 책임기관 게시판 확인 (스케줄러는 05:30 KST)
+.venv/bin/python scripts/run_notices.py --check-sites --query 안전   # 등록 게시판 12곳 파싱 점검 (시연 전)
+```
+
+- `LLM_MODE=rules`(`app/llm/rules_adapter.py`)는 LLM 키 없이 약속 추출·후속 신호를 규칙으로 낸다. 키가 오면 `LLM_MODE=live` 로만 바꾼다(프로토콜·프롬프트·스키마 동일).
+- 화면: `/` 대시보드(KPI·월별/일별 시계열·재난 유형별·기관별 후속보도 현황·최근 후속보도·확인 필요 상위 5) → `/events`(탭 확인 필요 / 후속보도 확인됨, `?org=` 기관 필터) → 타임라인 → 근거(「기관 발표 확인」 패널) → `/press` 보도자료 초안(전체·사건별, 복사·Markdown 다운로드). 캡처는 `docs/screenshots/dashboard_*.png`, `press_*.png`.
+- 공공기관 게시판 확인은 뉴스 크롤링이 아니다: `후속보도 부족`·`판단 불가` 상태로 90일 이상 조용한 사건만, 책임기관의 공식 보도자료 게시판(`app/notices/sites.yaml`, 광역 11 + 정책브리핑)만, robots.txt·2초 간격·목록 제목 위주로 읽고, 결과는 상태를 바꾸지 않는 보조 근거다(`docs/NOTICES.md`).
+- 실험 방법·호출 수·지표·한계는 `docs/EXPERIMENT.md`, 최신 숫자는 `reports/experiment_latest.json`(대시보드와 보도자료가 같은 파일을 읽는다).
 
 ## 예선 목업 평가 결과
 

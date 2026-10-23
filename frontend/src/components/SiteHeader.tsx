@@ -17,6 +17,15 @@ function modeBadge(mode: BigKindsMode | string): { label: string; className: str
   }
 }
 
+/** v2 내비게이션: 시민용 대시보드가 첫 화면, 기자용 목록은 /events. */
+const NAV: ReadonlyArray<{ href: string; label: string }> = [
+  { href: "/", label: "대시보드" },
+  { href: "/events", label: "사건 목록" },
+  { href: "/press", label: "보도자료 초안" },
+  { href: "/about", label: "소개" },
+  { href: "/admin", label: "관리자" },
+];
+
 /** Service header: name, tagline, nav, data source + last refresh from GET /api/meta. */
 export default async function SiteHeader() {
   const meta = await safe(getMeta());
@@ -35,13 +44,12 @@ export default async function SiteHeader() {
           <p className="text-xs text-gray-500">뉴스는 끝났지만, 문제도 끝났습니까?</p>
         </div>
 
-        <nav aria-label="주 메뉴" className="flex items-center gap-1 text-sm font-medium">
-          <Link href="/" className="rounded-md px-3 py-1.5 text-gray-700 hover:bg-gray-100">
-            목록
-          </Link>
-          <Link href="/admin" className="rounded-md px-3 py-1.5 text-gray-700 hover:bg-gray-100">
-            관리자
-          </Link>
+        <nav aria-label="주 메뉴" className="flex max-w-full items-center gap-1 overflow-x-auto whitespace-nowrap text-sm font-medium">
+          {NAV.map((item) => (
+            <Link key={item.href} href={item.href} className="rounded-md px-3 py-1.5 text-gray-700 hover:bg-gray-100">
+              {item.label}
+            </Link>
+          ))}
         </nav>
 
         <div className="ml-auto text-right text-xs leading-relaxed text-gray-500">

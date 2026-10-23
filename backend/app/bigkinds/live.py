@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import json
 import logging
+import threading
 import time
 from typing import Any
 
@@ -68,6 +69,7 @@ class LiveBigKindsClient:
         self.max_retries = max_retries
         self._http = http or httpx.Client(timeout=timeout, headers={"Content-Type": "application/json; charset=utf-8"})
         self._last_call = 0.0
+        self._throttle_lock = threading.Lock()  # 실험 수집(트랙 A)이 스레드 몇 개로 동시에 부를 때도 시작 간격(rps)을 지킨다
         self.call_log: list[dict[str, Any]] = []
 
     def close(self) -> None:
@@ -77,9 +79,11 @@ class LiveBigKindsClient:
     def _throttle(self) -> None:
         if self.min_interval <= 0:
             return
-        wait = self.min_interval - (time.monotonic() - self._last_call)
-        if wait > 0:
-            time.sleep(wait)
+        with self._throttle_lock:
+            wait = self.min_interval - (time.monotonic() - self._last_call)
+            if wait > 0:
+                time.sleep(wait)
+            self._last_call = time.monotonic()  # 시작 시각을 예약한다 (응답 뒤에도 갱신된다)
 
     def _call(self, endpoint: str, argument: dict[str, Any]) -> dict[str, Any]:
         """POST {access_key, argument} -> return_object."""

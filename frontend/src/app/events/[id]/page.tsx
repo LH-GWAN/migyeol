@@ -42,7 +42,7 @@ export default async function EventPage({ params }: { params: Params }) {
     if (isEventNotFound(result.error, eventId)) notFound();
     return (
       <div className="flex flex-col gap-4">
-        <Link href="/" className="text-sm text-blue-700 hover:underline">
+        <Link href="/events" className="text-sm text-blue-700 hover:underline">
           ← 목록으로
         </Link>
         <ErrorBox title={`사건 #${eventId} 정보를 불러오지 못했습니다`} error={result.error} />
@@ -61,7 +61,7 @@ export default async function EventPage({ params }: { params: Params }) {
   return (
     <div className="flex flex-col gap-6">
       <nav className="text-sm text-gray-500" aria-label="경로">
-        <Link href="/" className="text-blue-700 hover:underline">
+        <Link href="/events" className="text-blue-700 hover:underline">
           목록
         </Link>
         <span className="mx-2">›</span>
@@ -255,7 +255,7 @@ export default async function EventPage({ params }: { params: Params }) {
       </details>
 
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <Link href="/" className="text-sm text-blue-700 hover:underline">
+        <Link href="/events" className="text-sm text-blue-700 hover:underline">
           ← 목록으로
         </Link>
         <Link href={`/events/${card.id}/evidence`} className="text-sm font-semibold text-blue-700 hover:underline">

@@ -63,6 +63,173 @@
 - **2장**: 순별 올림 배분, 이월의 월 상한, 트렌드 실패 대체 수집 3분할, 정상 0건 구간 교차 확인 생략, override 0건 경고(meta 노출), `:memory:` Lock 경로, WAL 전환 실패 무시, redact 변형, 기한 '2026 6 30', 프록시 `X-Forwarded-Host`, API_CONTRACT 분류 목록·신규 엔드포인트.
 - 미반영(기록): mock.ts 데이터 수치, 실 시드 호출량 측정(스케줄러 전 권고).
 
+## 2026-10-22 ~ 10-23 본선 v2 — 멘토 피드백 반영 (개발 프롬프트 v2)
+
+멘토 피드백(10-22): 합성 데이터 대신 **실제 API 로 원천 기사 → 동일 사건 군집 → 후속보도 탐지 → 정량 지표**, 첫 화면은 시민용 **대시보드**(일별/재난별/기관별, 후속보도 잘한 기관 상단), 후속보도가 없으면 **공공기관 게시판**까지 확인해 **보도자료 초안**까지. 결정 표는 `개발_프롬프트_미결.md` §0. LLM 키 없이 진행(`LLM_MODE=rules`). 세 트랙을 같은 폴더에서 병렬 개발한 뒤 통합했다.
+
+### 통합 (공용 파일)
+- `config.py`: `llm_mode` 에 `rules`, 실험(`EXPERIMENT_*`)·게시판 확인(`NOTICE_*`) 설정. `main.py`: `/api/dashboard`·`/api/press`·`/api/notices` 라우터. `db/session.py`: `notices.models` 등록. `llm/client.build_llm` rules 분기. `rules/orgs.canonical_org` 공용 기관 정규화.
+- `api/events.py`: `org`(정규화 기관 키)·`followup`(완료·진행 여부) 필터, `filters.orgs`. `pipeline/scheduler.py`: 05:30 KST 게시판 확인 잡. `tests/test_integration_v2.py` 3건.
+- 프런트: 목록 `/` → `/events`, 첫 화면 대시보드, 내비게이션(대시보드·사건 목록·보도자료 초안·소개·관리자, 모바일 가로 스크롤), `lib/filters.ts`·`types.ts`·`api.ts` 에 `org`·`followup`.
+- 문서: `API_CONTRACT.md`(v2 엔드포인트), `ARCHITECTURE.md`(v2 구조·실험에서 본 실응답 차이·질의 400건 규칙), `README.md`(v2 실행), `DEMO_SCRIPT.md`(v2 동선), `EXPERIMENT.md`, `NOTICES.md`.
+- 실험 DB(`backend/data/migyeol.db`, 사건 150건)에 게시판 확인(`run_notices.py --all`)과 집계 내보내기(`export_dashboard.py`)를 실행하고 `experiment.py --stage report` 로 리포트를 갱신했다.
+- `test_repo_rules.py` discover 픽스처는 임시 Lock 을 쓴다(실험이 `backend/data/pipeline.lock` 을 쥐고 있어도 테스트가 돈다). 실험 상한(질의 400건·수집 600건)은 `EXPERIMENT_QUERY_HIT_LIMIT`·`EXPERIMENT_MAX_ARTICLES_PER_EVENT` 설정으로 옮겼다.
+- 남은 일: `gold/experiment_labels.csv` 사람 라벨(2인 분담) → `--stage report` 재실행으로 precision/recall·군집 정밀도 채우기, 자동 시드 150건 중 기사 제목이 사건명으로 들어간 것 다듬기, 시연용 사건 확정.
+
+### 트랙 A — 데이터·실험
+2026-10-22 ~ . 개발 프롬프트 v2 §4·§5·§8·§11-A. 커밋 전 (통합 단계에서 한 번에).
+
+#### 추가
+
+- `backend/app/llm/rules_adapter.py` — `RulesLLM` (`LLM_MODE=rules`, model `rules-v1`). LLMClient 프로토콜 그대로: 약속 추출(행동 동사·상대 기한·강도·고정 신뢰도), 후속 신호(약속 키워드 겹침 문장의 완료·진행·새로운문제, `completion_adjustment` 강등 유지). 외부 호출이 없어 LLMFailure 를 내지 않는다.
+- `backend/app/experiment/` — 실험 파이프라인.
+  - `sources.py` 원천 기사 수집: 인용문 검색(월별 × 계열, `_score` 상위 표본, 공공 주체 + 확약·계획 발언 + 제목 재난 어휘·국내) + 이슈 랭킹 날짜 순회(재난 어휘 토픽만 상세 조회, 3계열 비율 ≥ 0.3) + 인용문 경로에 없던 이슈 사건의 보강 인용문 검색. 스레드 풀(기본 4, 시작 간격은 `BIGKINDS_RPS`).
+  - `autoseed.py` 유니크화(지역·시설·±14일·기관, 전재) → 점수(사고 뒤 대응 > 예방·계절 대비) → (계열, 연도) 층별 선택 → `seeds/experiment.draft.yaml`.
+    시드 질의는 (고유 시설명 / 재난어 AND 기초 지역)으로 좁히고, 후보 1.5배를 `time_line` 으로 전체 기간 건수를 본 뒤 상한(400건) 안으로 좁혀진 사건만 고른다
+    (좁힐 때는 그룹 제목 2건 이상에 함께 나온 말·이슈 토픽 키워드만 쓴다). 넓은 질의는 collect 가 월·순별 상태 질의로 사건당 100회 넘게 부르기 때문.
+  - `followups.py` 약속 키워드 재검색의 호출 예산판(사건당 한 질의, `time_line` 건수 ≤ 400 일 때만). 파이프라인판은 실데이터에서 약속당 100회 넘게 불러 실험에서는 쓰지 않는다.
+  - `text.py` 지역·시설·재난 어휘·사망/부상자 정규식, 실기사 문장의 단정 표현 가림(`scrub`).
+  - `metrics.py` §4.6 지표(키 고정), `labels.py` 라벨 CSV 3종(사람 열 보존), `report.py` 마크다운 리포트, `runner.py` 단계 실행·호출 수·비용 누적(`data/experiment/state.json`).
+    followup 단계는 규칙 어댑터 산출물(약속·신호)을 지우고 다시 만든다(결정적·무료). 실험 실행에만 수집 총상한 600·초기 구간 300·LLM 호출 상한 해제(설정 사본).
+- `backend/scripts/experiment.py --stage discover|seed|collect|link|followup|report|all [--dry-run] [--seeds PATH] [--today]`. 호출 계획이 예산(5,000)의 2배를 넘으면 멈춘다.
+- `backend/scripts/labels_to_gold.py` — 라벨 CSV → 정답셋 YAML(evaluate.py 형식).
+- DB(§8): `Event.source_news_id·source_quotation·auto_seed·dead·injured·org_notice_found`, 테이블 `experiment_runs`. 모두 nullable/기본값 → 기존 DB 는 기동 시 간이 마이그레이션.
+- 테스트: `tests/test_rules_adapter.py`(stub 정답 대비 일치율 출력 + 회귀 하한 + 대표 문장), `tests/test_experiment.py`(mock 전 단계, §4.6 스키마 고정, 라벨 보존, 유니크화·선택·질의·기관 정규화·텍스트 규칙).
+
+#### 변경
+
+- `backend/app/rules/orgs.py` — `canonical_org()` 사전 보강(시그니처 동일): 광역·기초 지자체(시청·시장·군수·구청장·지사 꼬리), 중앙부처·청·위원회 약칭, 공사·공단(LH·코레일·한전·수공·LX …), 지역 해경·소방본부, 사람 이름이 붙은 형태. `org_aliases()`·`is_department_only()` 추가.
+- `backend/app/pipeline/seeds.py` — 시드 YAML 의 `source_news_id`·`source_quotation`·`auto_seed` 를 Event 로 옮김(최소 수정, 없으면 빈 값).
+- `backend/app/bigkinds/live.py` — throttle 에 Lock(여러 스레드가 불러도 시작 간격 유지). 단일 스레드 동작은 같다.
+
+#### 실행 결과 (2026-10-22)
+
+원천 기사 1,559건 → 유니크 사건 그룹 1,017 → 추적 150건 → 후속보도 확인 87건(58.0%), 창별 30/90/180/365일 = 35/51/57/73. 요청 5,406회(녹화 6,678 파일).
+자세한 표는 `reports/experiment_20261022_2054.md`, 방법·한계는 `docs/EXPERIMENT.md`. 규칙 판정이라 정밀도는 사람 라벨로 확인해야 한다(눈대중 약 절반).
+
+#### 규칙 어댑터 보정 (실데이터 확인 후)
+
+- 지시·당위·가정 발언('…해야 한다', '…했어야', '…하라', '…해 달라')은 의사표명 — 추적 약속에서 빠진다.
+- 신호 겹침 판정에서 재난어(화재·산불 …)·일반어(일단·향후·영업·중단·출입·합동 …)·용언꼴을 뺀다.
+- 새로운문제 표현에서 '지연제'·'차질 없이'·'지연 없이' 오탐 제거. 일치율(stub 대비) 신호 89% → 94%.
+
+#### 실응답이 지침서와 다른 점 (통합 때 ARCHITECTURE.md 로)
+
+- `search/quotation` 은 `category_incident` 필터를 걸어도 (월, 계열)당 1만 건 이상(2023-07 산업사고 11,666 · 자연재해 13,265 · 교통 1,605) — 본문까지 매칭하고, 인용문의 분류는 기사 분류를 그대로 물려받아 해외·정치 발언도 섞인다. `return_from` 상한(1000) 때문에 전수 대신 `sort: {"_score": "desc"}` 상위 표본을 받는다(정렬 인자는 받아들여진다).
+- `_score` 정렬 인용문 검색은 호출당 5~15초(가끔 30초 타임아웃 → 재시도). 동시 요청 4개로 나눠 받는다.
+- 인용문 문서에는 `title` 이 없다(fields 에 넣어도 None) — 원천 기사 제목은 `news_ids` 상세 조회로 받는다.
+- 이슈 랭킹 클러스터 100건 `news_ids` 상세 조회는 30초 타임아웃이 잦다 — 앞 20건만 조회해 3계열 비율을 본다.
+- `search/news` 의 넓은 질의(재난어 OR + 지역 OR 중앙부처 별칭)는 3년 치 후속 구간에서 사건당 70~130회 호출로 번진다(collect 의 월·순별 상태 질의 분할). 사건 질의는 건수 400건 안으로 좁혀야 사건당 4~5회.
+- 인용문 `category_incident` 는 3단계 명칭('사고>산업사고>화재')으로 온다(코드 아님). 필터는 '사고>산업사고' 명칭과 '2,9' 코드 둘 다 같은 결과.
+
+### 트랙 B — 대시보드·집계 API
+#### 2026-10-22 — v2 화면 0·1·about, §7.1 집계 API
+
+##### 백엔드
+- `backend/app/api/dashboard.py` — `/api/dashboard/*` 6개 엔드포인트.
+  | 경로 | 응답 요약 |
+  |---|---|
+  | `GET /summary` | `events_total, with_followup, followup_rate, overdue, with_org_notice, followup_articles, orgs, by_status{5}, last_run, as_of, bigkinds_mode, experiment(요약|null), disclaimer` |
+  | `GET /timeseries?interval=month\|day&from=&until=` | `[{bucket, occurred, followup_articles, confirmed_followups, dead, injured}]` — 빈 구간 0 채움. 기본 범위 = 가장 이른 발생일 ~ 기준일(일별은 최대 1500일). `from > until`·일별 1500일 초과는 422 |
+  | `GET /by-incident` | `[{incident_type, label, events, with_followup, rate, subtypes}]` — 계열(앞 두 단계, 예 `재해>자연재해`) 단위 |
+  | `GET /by-org?sort=followup\|rate\|events` | `[{org, events, with_followup, rate, latest_followup_at, last_article_at, confirmed_signals, event_ids, raw_names}]` — 기본 followup desc(동률 rate) |
+  | `GET /recent-followups?limit=10` (1~50) | `[{event_id, event_title, event_status, org, signal, confidence, evidence_span, news_id, title, provider, published_at, link}]` 최신순 |
+  | `GET /experiment` | `experiment_latest.json` 그대로. 없으면 404, 깨졌으면 503 |
+- 집계 규칙(목록 숫자와 일치하도록 `judge`·`serializers` 함수 재사용)
+  - 사건 = `Event.active=true`. 후속 기사 = `judge.followup_articles`(활성 연결만, 카드 `followup_count` 와 같음).
+  - 유효 신호 = 현재 prompt_version · 현재 추적 약속 집합 해시 · `rules.status.is_valid`(일치 + 신뢰도 ≥ SIGNAL_MIN_CONF + 완료·진행·새로운문제) — `rejudge_event` 가 쓰는 집합 그대로.
+  - **후속보도 확인 사건 = 유효 신호 ≥ 1** (§4.4). R1~R3 상태 사건은 항상 포함되고, R4·R5 사건도 유효 신호가 있으면 포함된다(기준 미달 새로운문제 등).
+  - 기한 경과 = 대표 약속 기한이 지났고 상태 ≠ `조치 완료 근거 확인` (needs_check 기준).
+  - 기관 키 = `canonical_org(event.responsible_org)`, 비면 `기관 미상`. `raw_names` 에 정규화 전 이름.
+  - 피해 규모 `dead/injured`: 실험 JSON 의 월별 `timeseries` 값이 있으면 그것, 없으면 `Event.dead/injured`(트랙 A 컬럼, 아직 없으면 null) 합계. 추정하지 않는다.
+  - `with_org_notice` = `Event.org_notice_found`(트랙 A 컬럼, 없으면 0).
+  - `summary.experiment` = 실험 JSON 에서 `by_incident_type·by_org·timeseries·daily` 를 뺀 나머지(키 이름 §4.6 그대로).
+- `backend/scripts/export_dashboard.py` → `reports/dashboard_<기준일 YYYYMMDD>.json` (`summary, daily, monthly, by_incident, by_org, recent_followups(50), disclaimer`). `--out-dir` 지정 가능. API 와 같은 함수(`build_dashboard`)를 쓴다.
+- `backend/tests/test_dashboard_api.py` 17건 — 모듈 전용 mock DB, 실험 경로는 항상 임시 경로(저장소 `reports/` 와 무관). 6개 엔드포인트, 실험 JSON 없음/있음(§4.6 예시)/깨짐, 목록 API 와 숫자 일치, 기관 별칭 병합(서울특별시+서울시청→서울시), 해제된 연결의 신호 제외, 금지어, 내보내기 파일.
+
+##### 프런트
+- `frontend/src/app/page.tsx` — 대시보드: 머리 배너(후속보도 확인 비율 링, 실험 리포트가 있으면 "기관 대응 발언 기사 N건 → 사건 M건 → 후속보도 확인 K건"), KPI 타일(추적 사건·후속보도 확인·기한 경과·기관 발표 확인·[보도된 인명 피해: 값이 있을 때만]·마지막 갱신), 시계열(월별/일별 × 전체/2023~2025/최근 12개월, 마우스오버 툴팁, 표로 보기), 재난 유형별 막대, 사건 상태 분포, 기관별 표(확인된 기관 위·없는 기관 아래, `?org_sort=` 정렬, 기관명 → `/events?org=`), 최근 후속보도 피드, 확인 필요 상위 5. 모든 패널에 면책 문구.
+- `frontend/src/components/dashboard/*` — `Hero, KpiTiles, Panel, TimeseriesChart(client, SVG), IncidentBars, StatusBreakdown, OrgTable, RecentFeed, NeedsCheckTop`. 차트 라이브러리는 추가하지 않았다(SVG 직접, `package.json` 변경 없음).
+- `frontend/src/lib/dashboard.ts` — 타입 + fetch (`API_BASE`·`ApiError` 재사용, `api.ts` 수정 없음). `getEventsWithOrg` 는 `org` 를 백엔드로 넘긴다(목 모드에서는 기존 `getEvents`).
+- `frontend/src/app/events/page.tsx` — 탭 `확인 필요`(기본) / `후속보도 확인됨`(`?tab=followup`, 완료·진행 두 상태를 각각 조회해 상태별 묶음으로 표시), `?org=` 칩. 백엔드가 org 를 아직 거르지 않으면 "기관별 보기는 준비 중" 안내만 띄우고 프런트에서 거르지 않는다.
+- `frontend/src/app/about/page.tsx` — 서비스 설명, 다섯 단계, 다섯 상태, 데이터 출처, 다음 단계(정치인 공약·기업 공개 약속·기관별 모아보기·순위), 팀.
+- 캡처: `docs/screenshots/dashboard_desktop_{1,2,3}.png`, `dashboard_mobile_{1,2,3}.png`(375px), `dashboard_experiment_desktop.png`(§4.6 예시 JSON 주입), `dashboard_events_followup_tab.png`, `dashboard_about.png`.
+
+##### 통합 요청 (공용 파일 — 직접 고치지 않음)
+1. `backend/app/api/events.py` — `GET /api/events` 에 `org` 쿼리: `canonical_org(ev.responsible_org) == org` (빈 값이면 `기관 미상`). 대시보드 기관 링크가 이걸 쓴다. 프런트는 이미 `org` 를 보낸다.
+2. `backend/app/api/events.py` — `status` 다중값(`status=A&status=B`) 또는 `followup=true` 필터. 지금 `후속보도 확인됨` 탭은 두 상태를 따로 받아(각 최대 100건) 묶음으로 보여 준다 — 100건 초과 시 상태별 전체 보기 링크로 넘긴다.
+3. `frontend/src/lib/filters.ts`(공용 성격) — `FilterState` 에 `org` 추가. 지금 `EventFilters` 에서 필터를 바꾸면 `org` 가 URL 에서 빠진다(페이지 이동 링크는 보존함).
+4. `frontend/src/lib/types.ts` — `lib/dashboard.ts` 의 대시보드 타입을 옮길지 결정(지금은 dashboard.ts 에만 있음). `EventListParams` 에 `org?: string`.
+5. `frontend/src/components/SiteHeader.tsx` — 375px 에서 내비게이션 글자가 두 줄로 꺾인다(`대시보\n드`). `whitespace-nowrap` + `overflow-x-auto` 권장.
+6. `docs/API_CONTRACT.md` — 위 표의 `/api/dashboard/*` 6개와 집계 규칙을 옮긴다. 응답에 계약 외 추가 키(`followup_articles, orgs, bigkinds_mode, confirmed_followups, label, subtypes, last_article_at, confirmed_signals, raw_names, event_status, org, confidence`)가 있다.
+7. `backend/app/db/models.py`(트랙 A) — `Event.dead/injured/org_notice_found` 가 생기면 대시보드가 `getattr` 로 바로 읽는다. 코드 변경 필요 없음.
+8. 실데이터 전환 시 `scripts/export_dashboard.py` 를 트랙 A DB(`DATABASE_URL` 기본)로 한 번 돌려 `reports/dashboard_<date>.json` 을 만든다(이번엔 mock 데이터를 `reports/` 에 남기지 않으려고 스크래치에만 출력해 확인).
+
+##### 알려진 한계
+- 프런트 목 모드(`NEXT_PUBLIC_USE_MOCK=1`)에는 대시보드 집계가 없어 오류 상자가 뜬다(`/events` 는 동작).
+- 가상 픽스처는 4개 기관이 모두 후속보도가 있어 "아직 확인되지 않은 기관" 묶음은 화면에 안 나온다(테스트로만 확인).
+
+### 트랙 C — 보도자료 초안·공공기관 게시판 확인
+2026-10-22 · v2 §3, §6 화면 4·근거 패널, §7.2·7.3, §8-C, §11-C
+
+#### 만든 것
+
+##### 백엔드
+| 파일 | 내용 |
+|---|---|
+| `app/notices/models.py` | `org_notices`(사건·기관·게시판·제목·게시일·URL·본문 300자·매칭 점수·매칭 용어), `notice_checks`(트리거 여부·사유·결과·게시판별 쪽수/항목/오류·요청 수) |
+| `app/notices/guard.py` | 요청 URL 검사: http(s)만 → **뉴스 도메인 거부**(언론사·방송·지역지·포털 뉴스·빅카인즈 웹, 하위 도메인 포함, `news.*` 비공공 호스트) → 허용 접미(`NOTICE_ALLOWED_DOMAINS`)·등록부 도메인 |
+| `app/notices/robots.py` | robots.txt RFC 9309 구현(그룹 선택, `*`·`$`, 최장 일치·Allow 우선, 4xx 제한 없음 / 5xx·연결 실패 접근 안 함) |
+| `app/notices/fetcher.py` | `HttpFetcher`(guard → robots → 호스트별 2초 간격 → UA, 리다이렉트 단계별 재검사, HTML 아닌 응답·3MB 초과 거부, 요청 수 집계), 테스트용 `FixtureFetcher` |
+| `app/notices/parser.py` | bs4 목록 파서(항목·제목·링크·날짜·요약 선택자, javascript 링크 → 상세 URL 템플릿, 날짜 정규식), 상세 본문 첫 300자. **저장소에서 HTML 파서를 import 하는 유일한 곳** |
+| `app/notices/matcher.py` | 시설명 0.6 · 핵심어 0.3 · 약속 행동 키워드 0.3 토큰 겹침, 포함 용어 중복 제거 |
+| `app/notices/sites.py`, `sites.yaml` | 등록부 로더(뉴스 도메인 등록 거부, orgs 는 canonical_org 키) + **실제 게시판 12곳**(광역 11 + 정책브리핑), 각 항목 `verified` 기록 |
+| `app/notices/service.py` | 트리거 판정(`trigger_for`), 사건별 확인(`check_event`: 검색 목록/목록 → 발생일 이전이면 멈춤 → 제목 매칭 → 매칭 항목만 본문 → 저장·`org_notice_found`), `run_checks`, API 응답(`notices_out`: `state` = found / not_triggered / no_site / not_found / not_checked / error) |
+| `app/api/notices.py` | `GET /api/notices/events/{id}`(공개, 외부 요청 없음), `POST /api/notices/run`(관리자 토큰) |
+| `scripts/run_notices.py` | `--all` / `--event-id N` / `--check-sites [--site --query --pages --detail]` |
+| `app/press/data.py` | 초안 자료원: 활성 사건 · 활성 연결 · 현재 약속 집합으로 분류된 유효 신호(judge 와 같은 기준, `trackable_promises`·`promise_set_hash`·`followup_articles` 재사용) · 기관(canonical_org) · 게시판 결과 · `experiment_latest.json`(있으면 리드·유형별·기관별 숫자) |
+| `app/press/writer.py` | `PressWriter` 프로토콜, `TemplateWriter`(string.Template 문장 틀, 근거 번호 [n] ↔ sources, 조사 처리), `LLMWriter`(LLM_MODE=live 만: 일부 절 문장 다듬기, 숫자·[n]·금지 표현 검증 실패 시 템플릿 유지), `build_writer` |
+| `app/llm/prompts/press_v1.md` | 보도자료 문장 교정 시스템 프롬프트 |
+| `app/api/press.py` | `GET /api/press/draft`(전체), `?event_id=`(사건별), `GET /api/press/events`(선택 목록) |
+| `pyproject.toml` | `beautifulsoup4>=4.12` 1개 추가 (`uv pip install --python .venv/bin/python -e .` 또는 `beautifulsoup4` 설치) |
+| `tests/test_repo_rules.py` | 크롤링 금지 검사 추가: `app/notices/` 밖 HTML 파서 import 금지, 코드의 뉴스 도메인 URL 금지(빅카인즈 API 호스트 제외) + 허용 접미(.or.kr)의 뉴스 서비스도 거부 |
+| `tests/test_notices.py` (30) | 파서 3종 구조, 도메인 차단(8 + 4 파라미터), 등록부 ≥10·광역 ≥10·URL 허용, robots RFC 9309, 요청기(간격·UA·robots·뉴스 리다이렉트 차단·5xx robots·바이너리 거부), 매칭 |
+| `tests/test_notices_api.py` (10) | 트리거(상태·90일 경계·기준일 계산), 미트리거/게시판 없음 = 요청 0, 매칭 저장·본문·중복 방지·쪽 예산·오류 기록, API 상태·항목·관리자 토큰 |
+| `tests/test_press.py` (15) | 전체/사건별 초안 숫자 = 판정 기준, 절 구성, [n] = sources, 대표 사례 3건, 게시판 결과, 실험 리포트 반영·깨진 파일 무시, 금지어·비난어 없음, 조사, LLMWriter 검증·대체 |
+
+##### 프런트
+| 파일 | 내용 |
+|---|---|
+| `src/app/press/page.tsx` | 화면 4: 상단 안내문, 전체/사건별 탭 + 사건 선택, 통계 타일, 초안 본문, 근거 기사, 면책 |
+| `src/components/press/DraftBody.tsx` | 문단·목록·번호 목록 렌더, `[n]` → 근거 기사 앵커, URL 링크, 근거 기사 목록(새 창) |
+| `src/components/press/DraftActions.tsx` | 초안 복사(클립보드 → 막히면 textarea 대체), Markdown 다운로드(`migyeol_press_{all|eventN}_YYYYMMDD.md`) |
+| `src/components/press/EventPicker.tsx` | 사건 선택 → `/press?event_id=` |
+| `src/components/notices/OrgNoticePanel.tsx` | 근거 화면 「기관 발표 확인」 패널: 항목(제목·게시일·게시판·요약·매칭 용어·점수) 또는 상태 설명, 등록 게시판·마지막 확인, 사건 초안 링크 |
+| `src/lib/press.ts`, `src/lib/notices.ts` | 타입 + 서버 fetch (`lib/api.ts` 의 API_BASE·ApiError·safe 패턴, api.ts 는 수정 안 함) |
+| `src/app/events/[id]/evidence/page.tsx` | 패널 추가만(import 2줄, 병렬 fetch 1줄, JSX 1블록) |
+
+##### 문서
+`docs/NOTICES.md`(규칙·등록 12곳 확인표·제외 사유·한계), 이 파일, 캡처 `docs/screenshots/press_all_top.png`·`press_all_cases.png`·`press_event.png`·`press_evidence_notice_panel.png`·`press_mobile.png`.
+
+#### 결과
+- 백엔드 테스트 359 통과(기존 225 + 트랙 A·B 신규 포함). 트랙 C 신규 57 = notices 30(파라미터 포함) + notices_api 10 + press 15 + repo_rules 2. `npx tsc --noEmit`·`npx eslint src` 깨끗.
+- 등록 게시판 12곳 모두 목록 1·2쪽 실제 파싱(10~20건/쪽), 검색 URL 12곳 동작(2026-10-22, 요청 58회).
+- mock DB(가상 8건, 기준일 2026-09-11): 트리거 2건(달빛지하차도 190일·청솔산) → 「등록된 게시판 없음」, 6건 「트리거 조건 미충족」, 요청 0회.
+
+#### 통합 요청 (공용 파일 — 직접 고치지 않음)
+1. `pipeline/scheduler.py`: 05:00 tracker 뒤에 `notices.service.run_checks(session, settings)` 일 1회(트리거된 사건만 요청). 파이프라인 Lock 밖에서 돌려도 됨(빅카인즈·LLM 호출 없음, DB 쓰기는 `org_notices`·`notice_checks`·`events.org_notice_found` 뿐).
+2. `frontend/src/lib/types.ts`·`api.ts`: `lib/press.ts`·`lib/notices.ts` 의 타입·fetch 를 옮길지 결정(현재 독립 파일, 동작에는 지장 없음). 관리자 화면에 「기관 게시판 확인 실행」 버튼을 달려면 `/api/notices/run` 을 admin 프록시 경로에 추가해야 한다(`next.config.ts` rewrite 는 지금 토큰 없이 프록시 — ADMIN_TOKEN 설정 시 401).
+3. `docs/API_CONTRACT.md`: §7.2·7.3 응답에 실제 필드 반영 — press: `event_id, header_note, writer, stats, data_source, experiment_generated_at`, `sources[].ref/provider/published_at`, `GET /api/press/events`; notices: `org, basis_date, trigger_days, state, state_label, note, disclaimer, sites[].name, items[].site_name`.
+4. `docs/ARCHITECTURE.md` §6 "크롤링·원문 파싱 코드는 없다(grep beautifulsoup 결과 없음)" 문장 갱신: "언론사 원문 크롤링 없음. HTML 파서(bs4)는 `app/notices/`(공공기관 공식 게시판, §3 조건)에서만 — `tests/test_repo_rules.py` 가 고정".
+5. 트랙 A `rules/orgs.py`: ① '전남광주통합특별시'(2026-07-01 출범) 별칭 정리 — 통합 이후 사건의 책임기관 키를 무엇으로 둘지(현재 등록부는 광주시·전남·전남광주통합특별시 셋 다 통합 누리집에 연결). ② 가상 기관 '누리철도공사' 가 `한국철도공사` 로 정규화됨(접미 '철도공사' 별칭이 앞 단어를 무시) — 실데이터에서 '○○철도공사'(예: 부산교통공사 계열) 오정규화 가능.
+6. `README.md`·`DEMO_SCRIPT.md`: PT 마지막 단계 「근거(기관 발표 확인) → 보도자료 초안」 동선, `run_notices.py --check-sites` 를 시연 전 점검 항목으로.
+
+#### 못 한 것
+- 가상 사건은 등록부에 없는 기관이라 화면에서 「기관 발표 확인(항목 있음)」 상태는 실데이터 통합 후에만 보인다(테스트로는 고정). 가짜 게시판 항목을 DB 에 넣어 캡처하지 않았다.
+- 전북·경남 보도자료 목록 URL 을 찾지 못했고, 경북은 목록이 스크립트 렌더링이라 제외. 세종·제주·대구·충북은 robots.txt 불허로 제외.
+- 강원도 상세 본문 선택자는 맞지 않아 본문 요약 없이 제목·날짜·링크만 저장된다. 서울·울산·대전 상세 본문 요약에는 부서·등록일 메타가 섞인다.
+- `LLMWriter` 는 실 키로 호출해 보지 않았다(가짜 클라이언트로 검증·대체 경로만 테스트).
+
 ## 본선 단계 (2026-10-12 ~ 10-30) — Phase 1~3 (예정)
 
 - Phase 1: `BIGKINDS_MODE=record` 전환, 첫 실호출 응답 키 검증 후 스키마·픽스처 보정, `discover` 초안 → 시드 20~30건 확정, 연결 정확도 1차 측정

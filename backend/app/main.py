@@ -11,7 +11,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from .api import admin, events, pipeline
+from .api import admin, dashboard, events, notices, pipeline, press
 from .config import get_settings
 from .db.session import init_db
 
@@ -86,7 +86,7 @@ def _close_interrupted_runs() -> None:
 
 def create_app() -> FastAPI:
     settings = get_settings()
-    app = FastAPI(title="미결(未結) API", version="0.2.0", lifespan=lifespan)
+    app = FastAPI(title="미결(未結) API", version="0.3.0", lifespan=lifespan)
     app.add_middleware(
         CORSMiddleware,
         allow_origins=settings.cors_origin_list(),
@@ -96,6 +96,9 @@ def create_app() -> FastAPI:
     app.include_router(events.router)
     app.include_router(admin.router)
     app.include_router(pipeline.router)
+    app.include_router(dashboard.router)  # v2 트랙 B
+    app.include_router(press.router)  # v2 트랙 C
+    app.include_router(notices.router)  # v2 트랙 C
     return app
 
 

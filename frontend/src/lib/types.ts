@@ -156,6 +156,10 @@ export interface EventListParams {
   region?: string;
   incident_type?: string;
   needs_check?: boolean;
+  /** v2: 정규화 기관 키 */
+  org?: string;
+  /** v2: true = 후속보도 확인됨(완료·진행) */
+  followup?: boolean;
   sort?: SortKey;
   page?: number;
   size?: number;

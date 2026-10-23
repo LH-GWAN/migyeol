@@ -12,6 +12,7 @@ from ..config import STATUSES, get_settings
 from ..db.models import Event, Report
 from ..db.session import get_session
 from ..pipeline.review import recompute_needs_review
+from ..rules.orgs import canonical_org
 from . import serializers as ser
 from .deps import event_or_404
 
@@ -26,6 +27,8 @@ def list_events(
     region: str | None = None,
     incident_type: str | None = None,
     needs_check_q: bool | None = Query(default=None, alias="needs_check"),
+    org: str | None = Query(default=None, max_length=100),  # v2: 정규화 기관 키 (대시보드 기관 링크)
+    followup: bool | None = Query(default=None),  # v2: true = 후속보도 확인됨(완료·진행), false = 그 밖
     sort: Literal["priority", "recent", "occurred"] = "priority",
     page: int = Query(default=1, ge=1),
     size: int = Query(default=20, ge=1, le=100),
@@ -37,10 +40,16 @@ def list_events(
         raise HTTPException(status_code=422, detail=f"status must be one of {list(STATUSES)}")
     events = session.query(Event).filter(Event.active.is_(True)).all()
     cards = {ev.id: ser.event_card(session, ev, today) for ev in events}
+    org_key = (org or "").strip()
+    followup_statuses = {STATUSES[0], STATUSES[1]}  # 조치 완료 근거 확인 · 조치 진행 정황 확인
     rows = []
     for ev in events:
         card = cards[ev.id]
         if status and ev.status != status:
+            continue
+        if org_key and (canonical_org(ev.responsible_org) or "기관 미상") != org_key:
+            continue
+        if followup is not None and (ev.status in followup_statuses) != followup:
             continue
         if region and ev.region != region:
             continue
@@ -67,6 +76,7 @@ def list_events(
             "statuses": list(STATUSES),
             "regions": sorted({e.region for e in events if e.region}),
             "incident_types": sorted({e.incident_type for e in events if e.incident_type}),
+            "orgs": sorted({canonical_org(e.responsible_org) or "기관 미상" for e in events}),
         },
     }
 

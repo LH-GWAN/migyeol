@@ -53,6 +53,14 @@ class Event(Base):
     pending_quotations: Mapped[int] = mapped_column(Integer, default=0)  # 아직 약속 추출을 못 받은 공공 인용문 수 (호출 상한·실패 이월)
     llm_failures: Mapped[dict] = mapped_column(JSON, default=dict)  # 항목별 LLM 실패 횟수 {"followup:<news_id>": n, "promise:<quotation_id>": n}
 
+    # v2 §8 트랙 A (실험): 원천 기사·자동 시드·피해 규모. 기관 게시판 확인 표시는 트랙 C 가 갱신한다
+    source_news_id: Mapped[str | None] = mapped_column(String(64), nullable=True)  # 원천 기사 (공공 주체 대응 발언이 인용된 기사)
+    source_quotation: Mapped[str | None] = mapped_column(String(400), nullable=True)  # 대표 발언 (≤300자)
+    auto_seed: Mapped[bool] = mapped_column(Boolean, default=False)  # 실험의 자동 시드로 만든 사건
+    dead: Mapped[int | None] = mapped_column(Integer, nullable=True)  # 제목·하이라이트 정규식 사망자 수 (없으면 null, 추정 금지)
+    injured: Mapped[int | None] = mapped_column(Integer, nullable=True)  # 같은 방식의 부상자 수
+    org_notice_found: Mapped[bool] = mapped_column(Boolean, default=False)  # 책임기관 공식 게시판에서 관련 발표 확인 (트랙 C)
+
     created_at: Mapped[datetime] = mapped_column(DateTime, default=_now)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=_now, onupdate=_now)
 
@@ -251,3 +259,18 @@ class PipelineRun(Base):
     ok: Mapped[bool] = mapped_column(Boolean, default=False)
     stats: Mapped[dict] = mapped_column(JSON, default=dict)
     error: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+
+class ExperimentRun(Base):
+    """v2 §4.6 실험 실행 기록 — 설정 스냅샷과 지표 JSON (reports/experiment_latest.json 과 같은 값)."""
+
+    __tablename__ = "experiment_runs"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    run_id: Mapped[str] = mapped_column(String(32), index=True)  # YYYYMMDD_HHMM
+    stage: Mapped[str] = mapped_column(String(16), default="all")
+    config: Mapped[dict] = mapped_column(JSON, default=dict)  # 모드·기간·계열·임계값·시드 파일
+    metrics: Mapped[dict] = mapped_column(JSON, default=dict)
+    report_path: Mapped[str | None] = mapped_column(String(300), nullable=True)
+    ok: Mapped[bool] = mapped_column(Boolean, default=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=_now)

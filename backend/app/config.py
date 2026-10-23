@@ -54,7 +54,7 @@ class Settings(BaseSettings):
     bigkinds_replay_only: bool = False  # record 모드에서 녹화만 재생 (키·네트워크 없이 시연)
 
     # LLM
-    llm_mode: Literal["stub", "live"] = "stub"
+    llm_mode: Literal["stub", "rules", "live"] = "stub"  # rules: LLM 없이 규칙 어댑터 (v2 §5)
     llm_model: str = "claude-opus-5"
     anthropic_api_key: str = ""
     llm_max_calls_per_run: int = 400  # 실행당 LLM 호출 상한 (넘으면 나머지는 다음 실행으로)
@@ -83,6 +83,22 @@ class Settings(BaseSettings):
     scheduler_enabled: bool = False
     today_override: date | None = None
     cors_origins: str = "http://localhost:3000,http://127.0.0.1:3000"
+
+    # ---- v2 실험 (§4) ----
+    experiment_from: date = date(2023, 1, 1)
+    experiment_until: date = date(2025, 12, 31)
+    incident_prefixes: str = ""  # 비우면 codes.MVP_INCIDENT_PREFIXES. 쉼표 구분으로 넓힐 수 있다 ("사고>,재해>")
+    experiment_latest_path: Path = REPO_DIR / "reports" / "experiment_latest.json"
+    experiment_query_hit_limit: int = 400  # 시드 질의의 전 기간 건수 상한 — 넘으면 좁힌다 (0 이면 보정 안 함). 넓은 질의는 사건당 100회 넘게 부른다
+    experiment_max_articles_per_event: int = 600  # 실험 수집 총상한 (기본 파이프라인 300 과 별개)
+
+    # ---- v2 공공기관 게시판 확인 (§3) ----
+    notice_trigger_days: int = 90  # 후속보도 부족·판단 불가 사건이 이 일수 이상 조용하면 책임기관 게시판 확인
+    notice_max_pages: int = 5  # 사이트당 목록 페이지 상한
+    notice_request_interval_sec: float = 2.0
+    notice_user_agent: str = "migyeol/0.3 (news-aftercare hackathon prototype)"
+    notice_allowed_domains: str = ".go.kr,.or.kr,korea.kr"  # 쉼표 구분 접미. sites.yaml 의 도메인은 추가 허용
+    notice_match_threshold: float = 0.5
 
     fixtures_dir: Path = BACKEND_DIR / "fixtures"
     # 비워 두면 모드로 정한다: mock 은 가상 픽스처(fixtures/seeds·gold), record/live 는 실사건(seeds/·gold/).

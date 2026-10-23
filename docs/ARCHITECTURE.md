@@ -112,7 +112,7 @@
 ## 6. 데이터 이용 범위 (법적 안전장치)
 
 - 뉴스 검색 `content` 는 200자, `hilight` 는 뉴스 200자·인용문 300자 — API 반환 범위만 저장한다(`content_200`, `hilight`).
-- 원문은 `provider_link_page` 외부 링크로만 연결한다. 크롤링·원문 파싱 코드는 없다 (`grep -r "beautifulsoup\|selenium\|requests.get(" backend/` 결과 없음).
+- 원문은 `provider_link_page` 외부 링크로만 연결한다. **언론사 원문 크롤링·파싱 코드는 없다.** HTML 파서(bs4)는 `app/notices/`(v2 §3 — 공공기관 공식 게시판, 트리거 조건 충족 사건만, 뉴스 도메인은 코드에서 거부)에서만 import 하며 `tests/test_repo_rules.py` 가 그 밖의 import 와 코드 안의 뉴스 도메인 URL 을 금지한다.
 - 근거로 쓰인 기사가 변경이력 API 에서 `Update`/`Cancelled` 로 나오면 사건에 `change_flagged` 를 세운다(관리자가 `clear-change-flag` 로 내린다). Cancelled 근거 기사의 약속은 추적을 멈추고, 바뀐 기사의 후속 신호는 지운 뒤 즉시 재분류·재판정한다.
 
 ## 7. 저장소 구조
@@ -161,3 +161,21 @@ migyeol/
 - **기동**: 다른 프로세스가 `pipeline.lock` 을 쥐고 있으면 미완료 실행 기록을 닫지 않는다. 성공한 실행은 `error` 를 비운다. `:memory:` DB 도 Lock 은 `backend/data/` 에 둔다.
 - **프록시**: `X-Forwarded-Host` 도 같은 사이트로 인정한다. redact 는 키의 하이픈 제거·`%2D`·`_`·대문자 변형도 가린다.
 
+
+## 2026-10-22 v2 (멘토 피드백 반영) 구조 메모
+
+- **첫 화면**: 시민용 대시보드 `/`(`api/dashboard.py` 집계 6종) → 기자용 목록 `/events`(탭 확인 필요 / 후속보도 확인됨, `org=` 기관 필터) → 타임라인 → 근거(「기관 발표 확인」 패널) → 보도자료 초안 `/press`.
+- **실험**(`app/experiment/`, `scripts/experiment.py`): 인용문 검색(월별 × 계열, `_score` 상위 표본, 공공 주체 + 확약·계획 발언) + 이슈 랭킹(재난 어휘 토픽만)으로 원천 기사를 모아 유니크화(지역·시설·±14일·기관) → 자동 시드 → 기존 collect/link/extract/judge → §4.6 지표 → `reports/experiment_latest.json`(대시보드·보도자료가 읽는다). 자세한 방법·호출 수·한계는 `docs/EXPERIMENT.md`.
+- **LLM 없이**: `LLM_MODE=rules`(`app/llm/rules_adapter.py`, model `rules-v1`)가 약속 추출·후속 신호를 규칙으로 낸다. 프로토콜·프롬프트 파일·스키마는 그대로라 키가 오면 `live` 로만 바꾼다. 보도자료는 `app/press/writer.py` 의 `TemplateWriter`(기본) / `LLMWriter`(live 일 때 문장 다듬기만, 숫자·근거 번호 검증 실패 시 템플릿 유지).
+- **공공기관 게시판 확인**(`app/notices/`): 트리거(후속보도 부족·판단 불가 + `NOTICE_TRIGGER_DAYS` 경과) → 등록부 `sites.yaml`(광역 11 + 정책브리핑) → guard(뉴스 도메인 거부·허용 접미) → robots.txt(RFC 9309) → 호스트별 2초 간격 → 목록 제목·날짜·URL, 매칭 항목만 본문 300자 → `org_notices`·`notice_checks`, `Event.org_notice_found`. 상태 5종은 바꾸지 않는 **보조 근거**. 스케줄러 05:30 KST. 등록부와 확인 기록은 `docs/NOTICES.md`.
+- **기관 정규화**: `rules/orgs.canonical_org()` — 광역·기초 지자체(청·장·지사 꼬리), 중앙부처 약칭, 공사·공단 — 대시보드 기관별 집계·목록 `org` 필터·보도자료·게시판 등록부가 같은 키를 쓴다.
+
+## 지침서와 실제 응답 차이 — 2026-10-22 실험(원천 기사 수집, 사건 150건 수집)
+
+- `search/quotation` 은 `category_incident` 필터를 걸어도 (월, 계열)당 1만 건 이상(2023-07 산업사고 11,666 · 자연재해 13,265 · 교통 1,605) — 본문까지 매칭하고, 인용문의 분류는 기사 분류를 그대로 물려받아 해외·정치 발언도 섞인다. `return_from` 상한(1000) 때문에 전수 대신 `sort: {"_score": "desc"}` 상위 표본(구간당 200건)을 받는다. 정렬 인자는 받아들여진다.
+- `_score` 정렬 인용문 검색은 호출당 5~15초, 30초 타임아웃이 잦다(재시도). 실험은 동시 요청 4개로 나눠 받는다(`bigkinds/live.py` throttle 에 Lock).
+- 인용문 문서에는 `title` 이 없다(`fields` 에 넣어도 None) — 원천 기사 제목은 `news_ids` 상세 조회로 받는다.
+- 이슈 랭킹 클러스터 100건 `news_ids` 상세 조회는 30초 타임아웃이 잦다 — 앞 20건만 조회해 3계열 비율을 본다.
+- 인용문 `category_incident` 는 3단계 명칭('사고>산업사고>화재')으로 온다(코드 아님). 필터는 '사고>산업사고' 명칭과 '2,9' 코드 둘 다 같은 결과.
+- **질의 건수 규칙**: `search/news` 의 넓은 질의(재난어 OR + 지역 OR 중앙부처 별칭)는 3년 치 후속 구간에서 collect 가 월·순별 상태 질의로 쪼개 사건당 70~130회를 부른다. 시드 질의는 `time_line` 으로 전 기간 건수를 먼저 보고 **400건 안**(`EXPERIMENT_QUERY_HIT_LIMIT`)으로 좁힌다 — 그러면 사건당 4~5회. 파이프라인의 약속 키워드 재검색도 실데이터에서는 약속 하나에 100회 넘게 번져, 실험은 사건당 한 질의·400건 이하일 때만 받는 실험판(`experiment/followups.py`)을 쓴다.
+- 최종 실행 요청 5,406회(녹화 파일 6,678개, 버린 시도 포함), 약 34분. 같은 `--today` 로 다시 돌리면 녹화 재생이라 호출 비용이 없다. 자세한 수치는 `docs/EXPERIMENT.md`.
