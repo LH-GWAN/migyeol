@@ -76,6 +76,12 @@
 - `test_repo_rules.py` discover 픽스처는 임시 Lock 을 쓴다(실험이 `backend/data/pipeline.lock` 을 쥐고 있어도 테스트가 돈다). 실험 상한(질의 400건·수집 600건)은 `EXPERIMENT_QUERY_HIT_LIMIT`·`EXPERIMENT_MAX_ARTICLES_PER_EVENT` 설정으로 옮겼다.
 - 남은 일: `gold/experiment_labels.csv` 사람 라벨(2인 분담) → `--stage report` 재실행으로 precision/recall·군집 정밀도 채우기, 자동 시드 150건 중 기사 제목이 사건명으로 들어간 것 다듬기, 시연용 사건 확정.
 
+### 2026-10-23 밤 — 시드 정리·재실행·에이전트 라벨 (워크플로우 2개, 에이전트 24개)
+- **시드 정리**(워크플로우 1, 6+1 에이전트): 자동 시드 150건 → `seeds/events.yaml` 90건. 사건명(기사 제목 → 지역·시설·유형), 실제 발생일, 기관 단위 책임기관, 고유어, 좁힌 질의. 제외 60건(예방·정책 28, 중복 16, 집계형·비사건 10, 범죄·형사·정치 5, 해외 1)과 사유는 `docs/EXPERIMENT.md` §4.
+- **재실행**: `--seeds seeds/events.yaml --today 2026-10-22`(실 API ≈ 3,100회 추가, 2h17m). 사건 90, 연결 기사 중앙값 118, 자동 후속보도 확인 62(69%). 게시판 확인 재실행: 트리거 19, 발표 확인 4.
+- **라벨**(워크플로우 2, 16 에이전트): `gold/experiment_labels.csv` 90행(후속보도 O/X·근거·군집·기관) — 후속보도 O 49건은 반박 검증자가 재검토해 13건 조정; `cluster_sample.csv` 434행; `org_sample.csv` 300행. 결과: 라벨 후속보도 42/90(47%), 자동 판정 precision 0.53 / recall 0.79, 군집 정밀도 0.58, 기관 정규화 0.82. **사람 라벨이 아님**을 CSV 메모·문서·시연 대본에 명시.
+- 공용: `tests/test_repo_rules.py` discover 픽스처가 빈 시드 파일을 쓰도록(실사건 시드가 채워진 뒤에도 통과). README 결과 표, DEMO_SCRIPT 숫자·시연 사건(영도구 스쿨존 완료 / 군위 제방 기한 경과 + 기관 발표 / 통복터널·5호선 기관 발표), EXPERIMENT §4·§5.
+
 ### 트랙 A — 데이터·실험
 2026-10-22 ~ . 개발 프롬프트 v2 §4·§5·§8·§11-A. 커밋 전 (통합 단계에서 한 번에).
 

@@ -134,7 +134,7 @@ def discover_pipeline(tmp_path):
     from app.pipeline import runner as runner_mod
 
     seeds = tmp_path / "events.yaml"
-    shutil.copy(BACKEND_DIR / "seeds" / "events.yaml", seeds)
+    seeds.write_text("events: []\n", encoding="utf-8")  # 빈 실사건 시드 (실제 seeds/events.yaml 은 v2 실험 뒤 채워져 있다)
     settings = Settings(seeds_file=seeds)
     reset_engine()
     init_db(f"sqlite:///{tmp_path / 'discover.db'}", drop=True)
