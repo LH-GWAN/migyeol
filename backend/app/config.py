@@ -66,6 +66,12 @@ class Settings(BaseSettings):
     # Rules (12절 평가로 조정하는 값)
     link_auto: float = 0.55
     link_review: float = 0.40
+    # 사건별 단어 가중치 (rules/weights.py). 셋 다 0 이면 이전 동작과 같다. 기본값 = 2026-10-24 라벨 스윕(docs/EXPERIMENT.md §6)
+    weight_min: float = 0.15  # 강한 규칙이 아닌 기사의 weighted_overlap 하한 (게이트)
+    weight_alpha: float = 0.5  # 연결 점수 = (1-α)·임베딩 코사인 + α·weighted_overlap
+    weight_rule_min: float = 0.25  # 강한 규칙 기사도 이 값 미만이면 강한 규칙으로 보지 않는다 (0 = 끔)
+    followup_top_sentences: int = 3  # 규칙 후속 신호: 관련도 상위 N 문장만 본다
+    followup_sentence_min: float = 0.0  # 규칙 후속 신호: 문장 관련도(임베딩 코사인 + 가중치 단어 점수) 하한
     signal_min_conf: float = 0.6
     completion_min_conf: float = 0.7
     stale_followup_days: int = 60

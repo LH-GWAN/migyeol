@@ -4,6 +4,10 @@
   python scripts/evaluate.py --sweep link_auto=0.45,0.50,0.55,0.60      # DB 사본에서 실행 (운영 DB 를 바꾸지 않는다)
   python scripts/evaluate.py --sweep completion_min_conf=0.6,0.7,0.8
 
+실험 라벨(gold/cluster_sample.csv·experiment_labels.csv) 기준 — record 모드 실험 DB 용 (app/experiment/label_eval.py)
+  python scripts/evaluate.py --labels [--before-db data/_backup/x.db]      # 현재 DB(와 이전 DB)의 군집 정밀도·후속보도 P/R
+  python scripts/evaluate.py --label-sweep "weight_min=0,0.15 weight_alpha=0,0.3 link_auto=0.55,0.6"   # DB 사본에서 가중치 재계산 후 설정 조합 표
+
 정답셋 형식 (gold/events.yaml)
   as_of: 2026-09-11                      # 판정 기준일 (없으면 settings.today(), 다르면 경고)
   events:
@@ -359,9 +363,15 @@ def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--sweep", default=None, help="예: link_auto=0.45,0.50,0.55 (DB 사본에서 실행)")
     ap.add_argument("--out", default=None)
+    ap.add_argument("--labels", action="store_true", help="실험 라벨 CSV 기준 지표 (현재 DB)")
+    ap.add_argument("--before-db", default=None, help="--labels 와 함께: 비교할 이전 DB 파일 (사본에서 읽는다)")
+    ap.add_argument("--label-sweep", default=None, help='예: "weight_min=0,0.15 weight_alpha=0,0.3 link_auto=0.55,0.6"')
+    ap.add_argument("--no-followup", action="store_true", help="--label-sweep 에서 후속보도 재분류 생략 (군집만)")
     args = ap.parse_args()
 
     settings = get_settings()
+    if args.labels or args.label_sweep:
+        return label_main(settings, args)
     try:
         gold = load_gold(settings.gold_file)
     except (GoldError, FileNotFoundError) as exc:
@@ -407,6 +417,83 @@ def main() -> int:
     stamp = datetime.now().strftime("%Y%m%d_%H%M")
     suffix = f"_sweep_{args.sweep.split('=')[0]}" if args.sweep else ""
     out = Path(args.out) if args.out else settings.reports_dir / f"eval_{stamp}{suffix}.md"
+    out.parent.mkdir(parents=True, exist_ok=True)
+    out.write_text(md, encoding="utf-8")
+    print(md)
+    print(f"\n-> {out}")
+    return 0
+
+
+def _copy_db(src: Path, name: str) -> Path:
+    """sqlite backup API 로 사본을 만든다 (WAL 까지). 사본은 간이 마이그레이션(term_weights 등 새 컬럼)을 받는다."""
+    tmp = BACKEND_DIR / "data" / f"{src.stem}.{name}.db"
+    for p in (tmp, tmp.with_name(tmp.name + "-wal"), tmp.with_name(tmp.name + "-shm")):
+        if p.exists():
+            p.unlink()
+    with sqlite3.connect(src) as src_conn, sqlite3.connect(tmp) as dst_conn:
+        src_conn.backup(dst_conn)
+    return tmp
+
+
+def _drop_db(tmp: Path) -> None:
+    for p in (tmp, tmp.with_name(tmp.name + "-wal"), tmp.with_name(tmp.name + "-shm")):
+        if p.exists():
+            p.unlink()
+
+
+def label_main(settings, args) -> int:
+    from app.experiment import label_eval as LE
+    from app.pipeline.link import refresh_term_weights
+
+    gold_dir = BACKEND_DIR / "gold"
+    src = db_path()
+    if src is None or not src.exists():
+        raise SystemExit("라벨 평가는 SQLite 파일 DB 에서만 지원한다")
+    lines = [f"# 라벨 기준 평가 ({datetime.now().strftime('%Y-%m-%d %H:%M')})", "", f"- DB: `{src.name}` · 라벨: gold/cluster_sample.csv · gold/experiment_labels.csv", ""]
+    snap_cols = ["db", "cluster_kept", "cluster_precision", "o_retained", "x_removed", "system_positive", "tp", "fp", "fn", "followup_precision", "followup_recall", "followup_f1"]
+    if args.labels:
+        rows = []
+        targets = ([("before", Path(args.before_db))] if args.before_db else []) + [("current", src)]
+        for name, path in targets:
+            tmp = _copy_db(path if path.is_absolute() else BACKEND_DIR / path, f"labels_{name}")
+            try:
+                reset_engine()
+                init_db(f"sqlite:///{tmp}")
+                session = session_factory()()
+                rows.append({"db": f"{name} ({path.name})", **LE.snapshot(session, settings, gold_dir)})
+                session.close()
+            finally:
+                reset_engine()
+                _drop_db(tmp)
+        lines += ["## 현재 상태", "", LE.render_table(rows, snap_cols)]
+    if args.label_sweep:
+        grid: dict[str, list] = {}
+        for part in args.label_sweep.split():
+            k, v = part.split("=")
+            typ = type(getattr(settings, k))
+            grid[k] = [typ(float(x)) if typ is int else typ(x) for x in v.split(",")]
+        tmp = _copy_db(src, "labelsweep")
+        try:
+            reset_engine()
+            init_db(f"sqlite:///{tmp}")
+            session = session_factory()()
+            embedder = build_embedding(settings)
+            all_events = session.query(Event).filter(Event.active.is_(True)).all()
+            refresh_term_weights(session, all_events)  # 사본에서 — 운영 DB 불변
+            from app.llm.rules_adapter import RulesLLM
+
+            rows = LE.sweep(session, settings, embedder, RulesLLM(settings, embedder), gold_dir, grid, with_followup=not args.no_followup)
+            session.close()
+        finally:
+            reset_engine()
+            _drop_db(tmp)
+        cols = [*grid, "auto_links", "cluster_kept", "cluster_precision", "o_retained", "x_removed"]
+        if not args.no_followup:
+            cols += ["system_positive", "followup_precision", "followup_recall", "followup_f1"]
+        lines += ["## 스윕 (DB 사본, multi-event·약속 재추출 없음)", "", LE.render_table(rows, cols)]
+    md = "\n".join(lines)
+    stamp = datetime.now().strftime("%Y%m%d_%H%M")
+    out = Path(args.out) if args.out else settings.reports_dir / f"eval_labels_{stamp}.md"
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(md, encoding="utf-8")
     print(md)

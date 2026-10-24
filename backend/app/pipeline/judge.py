@@ -159,6 +159,7 @@ def classify_followups(
             hilight=a.hilight or a.content_200 or "",
             quotations=quotes_by_news.get(a.news_id, []),
             published_at=a.published_at.isoformat(),
+            term_weights=event.term_weights or {},
         )
         stats["llm_calls"] += 1
         if call_budget is not None:

@@ -96,7 +96,7 @@ def test_agreement_with_stub_answers(captured, capsys):
 def test_build_llm_selects_rules():
     s = get_settings().model_copy(update={"llm_mode": "rules"})
     llm = build_llm(s)
-    assert isinstance(llm, RulesLLM) and llm.mode == "rules" and llm.model == RULES_MODEL == "rules-v1"
+    assert isinstance(llm, RulesLLM) and llm.mode == "rules" and llm.model == RULES_MODEL == "rules-v2"
 
 
 def _p(quotation: str, published: str = "2025-07-18", source: str = "가온시장") -> PromiseInput:

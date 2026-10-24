@@ -236,6 +236,21 @@
 - 강원도 상세 본문 선택자는 맞지 않아 본문 요약 없이 제목·날짜·링크만 저장된다. 서울·울산·대전 상세 본문 요약에는 부서·등록일 메타가 섞인다.
 - `LLMWriter` 는 실 키로 호출해 보지 않았다(가짜 클라이언트로 검증·대체 경로만 테스트).
 
+## 2026-10-24 사건별 단어·문장 가중치 (군집 오염·후속 신호 오탐 줄이기)
+
+에이전트 라벨(2026-10-23)이 가리킨 두 문제 — 지역어+재난어만으로 게이트를 통과하는 다른 사건 기사(군집 정밀도 0.58), 무관한 문장의 '완료·추진' 을 잡는 규칙 후속 신호(precision 0.53) — 를 가중치로 다뤘다. 전후·스윕: `docs/EXPERIMENT.md` §6, `reports/eval_labels_20261024.md`.
+
+- `app/rules/weights.py`(신규): 사건별 TF-IDF 식 단어 가중치(핵심 문서 = 시드 문장 + 원천 기사 + 발생일 ±3일 게이트 통과 후보, DF = 기사 전체). 시드 고유어 하한 0.6, 지역명·일반 재난어·행정어 상한 0.05. 조사·용언 활용꼴을 떼는 토큰화. `weighted_overlap`·`sentence_weight`.
+- `events.term_weights`(JSON, nullable — 간이 마이그레이션): link 단계 시작 때 `link.refresh_term_weights` 가 재계산.
+- `pipeline/link.py`: 연결 결정을 순수 함수 `decide()` 로 분리. 게이트에 `weighted_overlap ≥ WEIGHT_MIN`(강한 규칙 제외), `WEIGHT_RULE_MIN` 미만이면 강한 규칙에서 내림, 점수 = (1-α)·코사인 + α·overlap. 새 설정 `WEIGHT_MIN=0.15 · WEIGHT_ALPHA=0.5 · WEIGHT_RULE_MIN=0.25`(셋 다 0 이면 이전 동작). 기존 `LINK_AUTO·LINK_REVIEW` 이름·값 그대로.
+- `llm/rules_adapter.py` rules-v2: 문장 관련도(약속 action 임베딩 코사인 + 사건 가중치 단어 점수) 상위 `FOLLOWUP_TOP_SENTENCES=3`·`FOLLOWUP_SENTENCE_MIN=0` 문장 안에서만 표현을 본다. 제목도 한 문장, 약속 키워드가 없어도 사건 고유어 ≥0.8 문장은 후보. confidence 에 관련도 반영. 모델명이 rules-v2 로 바뀌어 신호 캐시가 무효가 된다. 파이프라인이 자기 임베딩 백엔드를 어댑터에 붙인다.
+- `FollowupInput.term_weights`: 규칙 어댑터 전용, LLM 입력 JSON 에서는 빠진다(exclude).
+- 실험: `_clear_rules_outputs` 가 이전 규칙 버전(rules-*) 산출물도 지운다. `report` 단계가 라벨 붙은 군집 표본 행·기관 쌍을 다시 뽑지 않고 유지(빠진 연결은 `자동판단=연결해제` 로 분모 제외, 빠진 기관 쌍은 건수 0).
+- `scripts/evaluate.py --labels [--before-db]`·`--label-sweep "…"`(app/experiment/label_eval.py): 라벨 기준 전후·설정 조합 표(DB 사본).
+- 결과(녹화 재생 재실행, 같은 라벨): 군집 정밀도 0.568→**0.652**(O 유지 0.90, X 제거 0.35), 후속보도 precision 0.532→**0.567**, recall 0.786→**0.810**. 상태 '새로운 문제 발생' 5→13 은 별도 확인 필요.
+- 테스트 `tests/test_weights.py`(13건) 추가, 전체 379건 통과(가상 픽스처 상태 정확도 1.0 유지 — `WEIGHT_RULE_MIN` 0.3 은 픽스처의 기소 기사를 떨어뜨려 0.25 로 둠).
+- 못 한 것: 연결이 바뀌어 달라진 약속의 재검색 질의 26건은 녹화에 없어(실 API 호출 금지) 이전 후보로 진행. 남은 오탐은 대부분 '같은 사건이지만 약속한 조치가 아닌 진행'(수사·원인 발표 전재)과 조치가 아닌 추출 약속 — 규칙으로는 한계, LLM live 전환 대상.
+
 ## 본선 단계 (2026-10-12 ~ 10-30) — Phase 1~3 (예정)
 
 - Phase 1: `BIGKINDS_MODE=record` 전환, 첫 실호출 응답 키 검증 후 스키마·픽스처 보정, `discover` 초안 → 시드 20~30건 확정, 연결 정확도 1차 측정

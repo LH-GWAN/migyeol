@@ -58,16 +58,24 @@
 질의        (시설·핵심어·연관어 OR) AND (지역 OR 기관 OR 시설). 시드 YAML 의 query(사람 지정)가 있으면 그대로, 연관어 확장 없음
 약속 재검색  (약속 행동 명사 OR) AND (기관 OR 지역 OR 시설), 약속 발언일 ~ 오늘 — 시설명 대신 다른 표현을 쓰는 후속 기사 대비
 
+가중치      사건별 단어 가중치(rules/weights.py) — link 단계 시작 때 재계산해 events.term_weights 에 저장
+              TF = 핵심 문서(시드 문장 + 원천 기사 + 발생일 ±3일 게이트 통과 후보) 중 그 단어가 나온 비율
+              IDF = articles 전체 DF 로 log((N+1)/(df+1)) / log(N+1)
+              시설명·핵심어·질의 고유어는 하한 0.6(코퍼스에서 흔하면 제외), 지역명·일반 재난어·행정어는 상한 0.05
+            weighted_overlap = 기사에 나온 사건 단어 가중치 합 / 상위 10개 합 (0~1)
+
 게이트(필수)  발행일 ≥ 발생일-1일
           AND (지역 OR 시설 OR 책임기관·별칭 일치)                       … scope
           AND (시설명 OR 사건분류 계열 OR 핵심어·연관어 ≥2 OR 약속 행동 키워드 ≥2) … topic
+          AND (강한 규칙 OR weighted_overlap ≥ WEIGHT_MIN)                 … weight (지역어+재난어만 겹치는 다른 사건 기사 차단)
 
 판정        강한 규칙 일치 → 자동 연결 (link_method=rule)
               · 시설명이 제목에 있음 + (지역·기관 또는 사건분류)
               · 시설명 + 지역·기관
               · 책임기관 + 약속 행동 키워드 ≥2  (일반어는 rules/terms._STOP 에서 걸러진다)
               · 지역 + 약속 행동 키워드 ≥2 + (시설명 또는 시드 핵심어 1개)
-            그 외 게이트 통과 → 임베딩 코사인 점수
+            강한 규칙이라도 weighted_overlap < WEIGHT_RULE_MIN 이면 강한 규칙으로 보지 않는다 (0 = 끔)
+            그 외 게이트 통과 → 점수 = (1-WEIGHT_ALPHA)·임베딩 코사인 + WEIGHT_ALPHA·weighted_overlap
               · ≥ LINK_AUTO(0.55)  자동 연결 (embedding)
               · ≥ LINK_REVIEW(0.40) 연결하되 needs_review (검토 큐)
               · 미만              폐기 — 기존 자동 연결이면 삭제 (시드·질의 변화 반영)
@@ -76,6 +84,8 @@
 ```
 
 - 임계값은 `.env` 로 조정하며 `scripts/evaluate.py --sweep` 으로 정답셋 대비 표를 만든다(DB 사본에서 실행, 운영 DB 불변).
+  실험 라벨(gold/*.csv) 기준 표는 `evaluate.py --labels [--before-db …]`·`--label-sweep "weight_min=… weight_alpha=… link_auto=…"` (app/experiment/label_eval.py — 연결 결정은 link.decide 를 그대로 쓴다).
+- `WEIGHT_MIN=0 WEIGHT_ALPHA=0 WEIGHT_RULE_MIN=0` 이면 가중치 도입 전 동작과 같다. link_score 는 합산 점수다.
 - 관리자가 `confirm`/`reject`/`restore` 한 연결은 `manual` 로 고정되어 재평가하지 않는다. 처리 뒤에는 그 사건의 규칙 판정·우선순위·단계를 LLM 없이 다시 계산한다.
 - `needs_review` = 검토 대기 연결 OR 미처리 신고 OR 변경이력 표시(`change_flagged`) — `pipeline/review.recompute_needs_review` 한 곳에서 계산한다.
 - 임베딩 백엔드: `hash`(문자 n-gram, 의존성 없음, 예선 기본) / `st`(sentence-transformers `jhgan/ko-sroberta-multitask`, 본선). 저장 벡터에 `백엔드:모델명` 을 붙여 모델이 바뀌면 자동 재계산한다.
@@ -87,6 +97,7 @@
 | ⓐ 약속 추출 | 인용문 source·quotation + 기사 제목·발행일 + 사건 요약 | `PromiseExtraction` — actor_org·action·deadline_date·deadline_precision·strength(확약/계획/의사표명/해당없음)·confidence | `llm/prompts/promise_v1.md` |
 | ⓑ 후속 신호 | 사건 요약 + 추적 약속 목록 + 후속 기사 제목·하이라이트·인용문 | `FollowupSignal` — signal(완료/진행/새로운문제/무관/불명확)·promise_id·matches_promise·evidence_span·confidence | `llm/prompts/followup_v1.md` |
 
+- `LLM_MODE=rules`(rules-v2) 의 ⓑ: 제목·하이라이트·인용문을 문장으로 나누고(제목도 한 문장), 문장 관련도 = (약속 action 과의 임베딩 코사인) + (사건 가중치 단어 점수) 로 상위 `FOLLOWUP_TOP_SENTENCES`(3)개·`FOLLOWUP_SENTENCE_MIN` 이상 문장 안에서만 완료·진행·새로운문제 표현을 본다. 약속 키워드가 없어도 사건 고유어 점수 ≥0.6 인 문장(제목 '…철거 완료')은 후보. confidence 에 관련도를 더한다. 사건 가중치는 `FollowupInput.term_weights` 로 넘기되 LLM 입력 JSON 에서는 빠진다(exclude).
 - `evidence_span` 은 코드가 검증한다: 완료·진행·새로운문제는 발췌(≤100자)가 입력의 부분 문자열이어야 하고(없으면 `불명확`), 발췌가 '예정·목표' 표현이면 완료→진행으로 낮춘다.
 - 실패(한도 초과·서버 오류·파싱 실패·stub 미스)는 `LLMFailure` 로 올리고 **저장하지 않는다** — 다음 실행에서 재시도. 캐시는 (news_id, prompt_version) 에 더해 model 과 분류 당시 추적 약속 집합 해시가 같을 때만 재사용한다. LLM 호출은 DB 쓰기 트랜잭션 밖에서 하고, 실행당 호출 상한(`LLM_MAX_CALLS_PER_RUN`)을 둔다.
 - 공공 주체 판별(`rules/actors.py`)은 규칙이 먼저 걸러 민간인·피의자 발언은 LLM 에 보내지 않는다. 주체는 기관 단위로 정규화한다.

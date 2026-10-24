@@ -358,8 +358,9 @@ class Experiment:
         if getattr(self.llm, "mode", "") != "rules":
             return {"signals": 0, "promises": 0}
         ids = [e.id for e in evs]
-        n_sig = self.session.query(FollowupSignal).filter(FollowupSignal.event_id.in_(ids), FollowupSignal.model == self.llm.model).delete(synchronize_session=False)
-        n_pro = self.session.query(Promise).filter(Promise.event_id.in_(ids), Promise.model == self.llm.model).delete(synchronize_session=False)
+        # 이전 규칙 버전(rules-v1 …) 산출물도 지운다 — 버전이 바뀐 뒤 옛 약속·신호가 섞이지 않게
+        n_sig = self.session.query(FollowupSignal).filter(FollowupSignal.event_id.in_(ids), FollowupSignal.model.like("rules-%")).delete(synchronize_session=False)
+        n_pro = self.session.query(Promise).filter(Promise.event_id.in_(ids), Promise.model.like("rules-%")).delete(synchronize_session=False)
         self.session.commit()
         self.session.expire_all()
         return {"signals": int(n_sig), "promises": int(n_pro)}

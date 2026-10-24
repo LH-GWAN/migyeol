@@ -11,6 +11,10 @@
   - 게이트 통과 AND score ≥ LINK_AUTO                         -> 자동 연결 (embedding)
   - 게이트 통과 AND LINK_REVIEW ≤ score < LINK_AUTO           -> 연결하되 needs_review (검토 큐)
   - 그 외                                                     -> 폐기 (기존 자동 연결이면 삭제)
+사건별 단어 가중치(rules/weights.py, link_all 시작 때 재계산해 Event.term_weights 에 저장):
+  - weighted_overlap(기사에 나온 사건 고유어 가중치 합, 0~1) < WEIGHT_MIN 이면 강한 규칙이 아닌 기사는 게이트 탈락
+  - 강한 규칙이라도 weighted_overlap < WEIGHT_RULE_MIN 이면 강한 규칙으로 보지 않는다
+  - score = (1-WEIGHT_ALPHA)·임베딩 코사인 + WEIGHT_ALPHA·weighted_overlap  (세 값이 모두 0 이면 이전 동작)
 같은 지역의 다른 시드 시설명이 본문에 있고 이 사건 시설명이 없으면 score ≥ LINK_REVIEW 일 때만 검토 큐, 아니면 폐기.
 한 기사가 여러 사건의 자동 연결에 들어가면 점수가 가장 높은 사건만 유지하고 나머지는 검토 큐로 보낸다.
 관리자가 confirmed / rejected / manual 로 표시한 연결은 재평가하지 않는다.
@@ -27,6 +31,7 @@ from sqlalchemy.orm import Session
 
 from ..config import Settings
 from ..db.models import Article, Event, EventArticle, EventCandidate
+from ..rules import weights as W
 from .collect import article_text
 from .embeddings import EmbeddingBackend, cosine, from_bytes, needs_recompute, to_bytes
 from .review import recompute_needs_review
@@ -94,6 +99,58 @@ def is_strong(reasons: list[str], promise_candidate: bool = False) -> bool:
     return scoped and promise_hit and (has_facility or seed_hit)
 
 
+def decide(strong: bool, other_hit: bool, cos: float, overlap: float, settings: Settings) -> tuple[str, str, float, list[str]]:
+    """게이트 통과 기사의 연결 결정 (순수 함수 — scripts/evaluate.py 의 라벨 스윕이 같은 함수를 쓴다).
+
+    반환: (decision link|review|drop, method rule|embedding, score, 덧붙일 사유).
+    """
+    notes: list[str] = []
+    score = (1.0 - settings.weight_alpha) * cos + settings.weight_alpha * overlap
+    if strong and overlap < settings.weight_rule_min:
+        strong = False
+        notes.append("rule-weight-low")
+    if not strong and overlap < settings.weight_min:
+        return "drop", "embedding", score, [*notes, "weight-low"]
+    if other_hit:
+        if score < settings.link_review:
+            return "drop", "embedding", score, notes
+        return "review", "embedding", score, [*notes, "other-facility"]
+    if strong or score >= settings.link_auto:
+        return "link", ("rule" if strong else "embedding"), score, notes
+    if score >= settings.link_review:
+        return "review", "embedding", score, notes
+    return "drop", "embedding", score, notes
+
+
+def core_documents(session: Session, event: Event) -> list[set[str]]:
+    """가중치 TF 의 핵심 문서: 시드 문장 + 원천 기사 + 발생일 ±CORE_DAYS 일 안의 게이트 통과 후보 (이전 연결 상태와 무관하게 결정적)."""
+    docs = [W.text_tokens(" ".join([event.title or "", event.facility or "", " ".join(event.keywords or []), event.summary or ""]))]
+    src_id = event.source_news_id
+    src = session.get(Article, src_id) if src_id else None
+    if src is not None:
+        docs.append(W.article_tokens(src.title, src.hilight, src.tms_keywords))
+    for a in candidate_articles(session, event):
+        if a.news_id == src_id or not W.core_window(event.occurred_at, a.published_at):
+            continue
+        if gate(event, a)[0]:
+            docs.append(W.article_tokens(a.title, a.hilight, a.tms_keywords))
+    return docs
+
+
+def refresh_term_weights(session: Session, events: list[Event]) -> W.CorpusStats:
+    """사건별 단어 가중치를 다시 계산해 Event.term_weights 에 저장한다 (DF = articles 테이블 전체)."""
+    stats = W.corpus_stats(session.query(Article.title, Article.hilight, Article.tms_keywords).yield_per(5000))
+    for ev in events:
+        ev.term_weights = W.build_weights(
+            core_documents(session, ev),
+            stats,
+            seeds=W.seed_terms(ev.facility, ev.keywords, ev.query_override or ev.seed_query),
+            regions=W.region_terms(ev.region),
+        )
+    session.commit()
+    return stats
+
+
 def initial_phase(event: Event, article: Article) -> str:
     if article.published_at is not None and (article.published_at - event.occurred_at).days <= 3:
         return "발생"
@@ -158,24 +215,17 @@ def link_event(
         if needs_recompute(art.embedding, art.embedding_backend, embedder):
             art.embedding = to_bytes(embedder.encode([article_text(art)])[0])
             art.embedding_backend = embedder.name
-        score = cosine(from_bytes(art.embedding), np.asarray(seed_vec))
+        cos = cosine(from_bytes(art.embedding), np.asarray(seed_vec))
         text = article_text(art)
+        overlap = W.weighted_overlap(event.term_weights, text)
         strong = is_strong(reasons, promise_candidate=art.news_id in promise_ids)
         other_hit = any(f in text for f in others) and "facility" not in reasons
-
-        if other_hit:
-            if score < settings.link_review:
-                drop()
-                continue
-            decision, method, review = "review", "embedding", True
-            reasons.append("other-facility")
-        elif strong or score >= settings.link_auto:
-            decision, method, review = "link", ("rule" if strong else "embedding"), False
-        elif score >= settings.link_review:
-            decision, method, review = "review", "embedding", True
-        else:
+        decision, method, score, notes = decide(strong, other_hit, cos, overlap, settings)
+        if decision == "drop":
             drop()
             continue
+        review = decision == "review"
+        reasons += [*notes, f"w={overlap:.2f}"]
 
         if link is None:
             link = EventArticle(event_id=event.id, news_id=art.news_id, phase=initial_phase(event, art))
@@ -236,6 +286,7 @@ def link_all(
 ) -> list[dict]:
     """all_events: 사건 간 배타 처리 대상 (단일 사건 실행이어도 다른 활성 사건의 연결과 비교한다)."""
     facilities = all_facilities if all_facilities is not None else [e.facility for e in events]
+    refresh_term_weights(session, events)
     stats = [link_event(session, e, settings, embedder, other_facilities=facilities) for e in events]
     multi = resolve_multi_event_links(session, all_events if all_events is not None else events)
     if stats:

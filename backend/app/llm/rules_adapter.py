@@ -9,11 +9,15 @@ LLMClient 프로토콜(extract_promise, classify_followup)을 그대로 구현�
   - 기한: 'N월까지·연내·올해 안·상반기·하반기·내년·N일 내·YYYY년 M월' 을 정규식으로 찾고 발언일 기준으로 날짜를 정한다.
   - strength: 기한 + 단정형 → 확약 / 구체 행동만 → 계획 / 검토·노력·공감 → 의사표명 / 그 외 → 해당없음.
   - confidence 는 규칙별 고정값(확약 0.8 / 계획 0.7 / 의사표명 0.6 / 해당없음 0.5).
-ⓑ 후속 신호
-  - 제목·하이라이트·인용문을 문장으로 나누고, 추적 약속의 행동 키워드와 겹치는 문장만 본다.
+ⓑ 후속 신호 (rules-v2: 문장 가중치)
+  - 제목·하이라이트·인용문을 문장으로 나눈다(제목도 한 문장 — '…철거 완료' 같은 제목 근거를 놓치지 않게).
+  - 문장 관련도 = (추적 약속 action 과의 임베딩 코사인 최댓값) + (사건 가중치 단어 점수, rules/weights.sentence_weight).
+    관련도 상위 FOLLOWUP_TOP_SENTENCES(기본 3)개 중 FOLLOWUP_SENTENCE_MIN 이상인 문장 안에서만 표현을 본다.
+  - 그 문장이 약속 행동 키워드와 겹치거나(이전 규칙), 겹치지 않아도 사건 고유어 점수가 KW_ALONE(0.8) 이상이면 신호로 본다.
   - 새로운문제(재발·또다시·지연·차질·백지화 …) / 완료(client._PAST_DONE_RE) / 진행(착공·공사 중·예산 확보·설계·발주 …).
   - 완료 발췌가 미래 서술어·부분 완료면 completion_adjustment 로 진행으로 낮춘다 (validate_span 도 다시 검사한다).
-  - confidence: 겹침 2개 이상 0.75, 1개 0.65. 겹침이 없으면 무관(표현 없음) 또는 불명확(표현은 있으나 약속과 무관).
+  - confidence: 겹침 2개 이상 0.75, 1개 0.65, 0개(고유어 경로) 0.6. 사건 가중치가 있으면 + 0.2·(고유어 점수-0.5) + 0.1·(코사인-0.5).
+    고르지 못하면 무관(표현 없음) 또는 불명확(표현은 있으나 약속·사건과 무관한 문장).
 """
 
 from __future__ import annotations
@@ -25,10 +29,11 @@ from datetime import date, timedelta
 from ..config import Settings
 from ..rules.orgs import canonical_org
 from ..rules.terms import action_terms
-from .client import MAX_SPAN_CHARS, _PAST_DONE_RE, completion_adjustment
+from ..rules.weights import sentence_weight
+from .client import _PAST_DONE_RE, MAX_SPAN_CHARS, completion_adjustment
 from .schemas import FollowupInput, FollowupSignal, PromiseExtraction, PromiseInput, PromiseRef
 
-RULES_MODEL = "rules-v1"
+RULES_MODEL = "rules-v2"  # v2: 문장 가중치 (2026-10-24). 모델명이 바뀌면 후속 신호 캐시가 무효가 되어 다시 분류된다
 
 # ---------------------------------------------------------------- ⓐ 약속 추출
 # 구체 행동 동사 (명사형 어간). '…하겠다' 앞에 오면 계획 이상
@@ -220,15 +225,61 @@ def _window(sentence: str, m: re.Match[str]) -> str:
     return sentence[start : start + MAX_SPAN_CHARS].strip()
 
 
+KW_ALONE = 0.8  # 약속 키워드와 겹치지 않아도 이 이상 사건 고유어가 있는 문장은 신호 후보
+_BASE_CONF = {2: 0.75, 1: 0.65, 0: 0.6}
+
+
+def _expressions(s: str) -> list[tuple[str, re.Match[str]]]:
+    found: list[tuple[str, re.Match[str]]] = []
+    for sig, pat in (("새로운문제", _NEW_PROBLEM_RE), ("완료", _PAST_DONE_RE), ("진행", _PROGRESS_RE)):
+        m = pat.search(s)
+        if m:
+            found.append((sig, m))
+    return found
+
+
 class RulesLLM:
     """LLMClient 프로토콜의 규칙 구현. 외부 호출이 없어 실패(LLMFailure)를 내지 않는다."""
 
     mode = "rules"
     model = RULES_MODEL
 
-    def __init__(self, settings: Settings | None = None):
+    def __init__(self, settings: Settings | None = None, embedder=None):
         self.settings = settings
+        self.embedder = embedder  # 문장 관련도용. 파이프라인이 자기 임베딩 백엔드를 붙인다 (없으면 hash)
         self.usage = {"calls": 0, "promise_calls": 0, "followup_calls": 0}
+        self._vec_cache: dict[str, object] = {}
+
+    def _vectors(self, texts: list[str]):
+        import numpy as np
+
+        if self.embedder is None:
+            from ..pipeline.embeddings import HashEmbedding
+
+            self.embedder = HashEmbedding()
+        todo = [t for t in dict.fromkeys(texts) if t not in self._vec_cache]
+        if todo:
+            if len(self._vec_cache) > 50_000:
+                self._vec_cache.clear()
+            for t, v in zip(todo, self.embedder.encode(todo)):
+                self._vec_cache[t] = np.asarray(v, dtype=np.float32)
+        return [self._vec_cache[t] for t in texts]
+
+    def sentence_relevance(self, sentences: list[str], inp: FollowupInput) -> list[tuple[float, float, int | None]]:
+        """문장마다 (약속 action 과의 임베딩 코사인 최댓값, 사건 가중치 단어 점수, 가장 가까운 약속 id)."""
+        actions = [p.action for p in inp.promises if p.action]
+        out: list[tuple[float, float, int | None]] = []
+        svecs = self._vectors(sentences) if actions else []
+        avecs = self._vectors(actions) if actions else []
+        ids = [p.id for p in inp.promises if p.action]
+        for i, s in enumerate(sentences):
+            emb, pid = 0.0, None
+            for j, av in enumerate(avecs):
+                c = float(svecs[i] @ av)
+                if pid is None or c > emb:
+                    emb, pid = c, ids[j]
+            out.append((round(emb, 3), sentence_weight(inp.term_weights, s), pid))
+        return out
 
     # ---------------------------------------------------------- ⓐ
     def extract_promise(self, inp: PromiseInput, *, key: str = "") -> PromiseExtraction:
@@ -269,46 +320,52 @@ class RulesLLM:
     def classify_followup(self, inp: FollowupInput, *, key: str = "") -> FollowupSignal:
         self.usage["calls"] += 1
         self.usage["followup_calls"] += 1
+        top_n = self.settings.followup_top_sentences if self.settings else 3
+        min_rel = self.settings.followup_sentence_min if self.settings else 0.0
+        weighted = bool(inp.term_weights)
         terms_by_promise = {p.id: _promise_terms(p) for p in inp.promises}
-        best: tuple | None = None  # (overlap, priority, signal, span, promise_id)
+        sents = _sentences(inp)
+        rel = self.sentence_relevance(sents, inp) if sents else []
+        ranked = sorted(range(len(sents)), key=lambda i: -(rel[i][0] + rel[i][1]))
+        selected = {i for i in ranked[: max(1, top_n)] if rel[i][0] + rel[i][1] >= min_rel}
+        best: tuple | None = None  # (overlap, priority, relevance, signal, span, promise_id, conf)
         expression_without_overlap = False
         priority = {"새로운문제": 3, "완료": 2, "진행": 1}
-        for s in _sentences(inp):
-            found: list[tuple[str, re.Match[str]]] = []
-            m_new = _NEW_PROBLEM_RE.search(s)
-            if m_new:
-                found.append(("새로운문제", m_new))
-            m_done = _PAST_DONE_RE.search(s)
-            if m_done:
-                found.append(("완료", m_done))
-            m_prog = _PROGRESS_RE.search(s)
-            if m_prog:
-                found.append(("진행", m_prog))
+        for i, s in enumerate(sents):
+            found = _expressions(s)
             if not found:
                 continue
+            if i not in selected:
+                expression_without_overlap = True
+                continue
+            emb, kw, near = rel[i]
             pid, overlap = None, 0
             for p_id, terms in terms_by_promise.items():
                 k = sum(1 for t in terms if t in s)
                 if k > overlap:
                     pid, overlap = p_id, k
             if overlap == 0:
-                expression_without_overlap = True
-                continue
+                if not weighted or kw < KW_ALONE or near is None:
+                    expression_without_overlap = True
+                    continue
+                pid = near  # 약속 키워드는 없지만 사건 고유어가 무거운 문장 — 임베딩이 가장 가까운 약속
             # 한 문장에 여러 표현이 있으면: 새로운문제 > 완료 > 진행. 단 '완료' 가 미래 서술어면 진행으로 본다
             sig, m = max(found, key=lambda x: priority[x[0]])
             span = _window(s, m)
             if sig == "완료" and completion_adjustment(span):
                 sig = "진행"
-            cand = (min(overlap, 2), priority[sig], sig, span, pid)
-            if best is None or cand[:2] > best[:2]:
+            conf = _BASE_CONF[min(overlap, 2)]
+            if weighted:
+                conf = min(0.9, max(0.3, conf + 0.2 * (kw - 0.5) + 0.1 * (emb - 0.5)))
+            cand = (min(overlap, 2), priority[sig], round(emb + kw, 3), sig, span, pid, round(conf, 3))
+            if best is None or cand[:3] > best[:3]:
                 best = cand
         if best is None:
             if expression_without_overlap:
-                return FollowupSignal(signal="불명확", promise_id=None, matches_promise=False, evidence_span="", confidence=0.4, rationale="조치 표현은 있으나 약속 행동 키워드와 겹치는 문장이 없음 (규칙)")
+                return FollowupSignal(signal="불명확", promise_id=None, matches_promise=False, evidence_span="", confidence=0.4, rationale="조치 표현은 있으나 약속·사건과 관련된 문장이 아님 (규칙)")
             return FollowupSignal(signal="무관", promise_id=None, matches_promise=False, evidence_span="", confidence=0.6, rationale="조치 상태 표현 없음 (규칙)")
-        overlap, _, sig, span, pid = best
-        conf = 0.75 if overlap >= 2 else 0.65
+        overlap, _, relevance, sig, span, pid, conf = best
         return FollowupSignal(
             signal=sig, promise_id=pid, matches_promise=True, evidence_span=span, confidence=conf,
-            rationale=f"규칙: 약속 키워드 {overlap}개 겹침 + {sig} 표현",
+            rationale=f"규칙: 관련 문장(관련도 {relevance:.2f}) · 약속 키워드 {overlap}개 겹침 + {sig} 표현",
         )

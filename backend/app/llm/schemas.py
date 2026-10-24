@@ -43,6 +43,8 @@ class FollowupInput(BaseModel):
     hilight: str
     quotations: list[str] = Field(default_factory=list)
     published_at: str
+    # 사건별 단어 가중치 (rules/weights.py) — 규칙 어댑터의 문장 관련도에만 쓴다. LLM 입력(JSON)에는 넣지 않는다
+    term_weights: dict[str, float] = Field(default_factory=dict, exclude=True)
 
 
 class FollowupSignal(BaseModel):

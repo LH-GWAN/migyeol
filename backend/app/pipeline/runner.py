@@ -68,6 +68,8 @@ class Pipeline:
         self.client = client
         self.llm = llm
         self.embedder = embedder
+        if getattr(llm, "mode", "") == "rules" and getattr(llm, "embedder", False) is None:
+            llm.embedder = embedder  # 규칙 어댑터의 문장 관련도도 연결과 같은 임베딩을 쓴다
         self.today = today or settings.today()
         self.call_budget = {"remaining": settings.llm_max_calls_per_run}
 

@@ -60,6 +60,7 @@ class Event(Base):
     dead: Mapped[int | None] = mapped_column(Integer, nullable=True)  # 제목·하이라이트 정규식 사망자 수 (없으면 null, 추정 금지)
     injured: Mapped[int | None] = mapped_column(Integer, nullable=True)  # 같은 방식의 부상자 수
     org_notice_found: Mapped[bool] = mapped_column(Boolean, default=False)  # 책임기관 공식 게시판에서 관련 발표 확인 (트랙 C)
+    term_weights: Mapped[dict | None] = mapped_column(JSON, nullable=True)  # 사건별 단어 가중치 {단어: 0~1} — link 단계 시작 때 재계산 (rules/weights.py)
 
     created_at: Mapped[datetime] = mapped_column(DateTime, default=_now)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=_now, onupdate=_now)

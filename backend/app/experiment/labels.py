@@ -82,13 +82,34 @@ def write_experiment_labels(session: Session, facts: list[EventFacts], path: Pat
     return _write(path, EXPERIMENT_COLS, rows, EXPERIMENT_HUMAN, ["사건키"])
 
 
+CLUSTER_UNLINKED = "연결해제"  # 라벨된 표본 행인데 지금은 자동 연결이 아님 (게이트·임계값 변경으로 빠짐) — 정밀도 분모에서 뺀다
+
+
 def write_cluster_sample(session: Session, facts: list[EventFacts], path: Path, per_event: int = CLUSTER_PER_EVENT) -> int:
+    """사건당 자동 연결 표본. 사람 라벨이 붙은 사건은 그 표본 행을 그대로 유지한다 — 연결 규칙을 바꾼 뒤 다시 뽑으면 라벨이 사라지므로.
+    유지된 행 중 지금 자동 연결이 아닌 것은 자동판단='연결해제' 로 적는다 (label_metrics 의 군집 정밀도 = 지금도 자동 연결인 라벨 행)."""
+    old = _read(path, ["사건키", "news_id"])
+    labeled: dict[str, list[dict[str, str]]] = {}
+    for (k, _), r in old.items():
+        if any((r.get(h) or "").strip() for h in CLUSTER_HUMAN):
+            labeled.setdefault(k, []).append(r)
     rows = []
     for f in facts:
         ev = f.event
-        links = [l for l in session.query(EventArticle).filter_by(event_id=ev.id).all() if l.is_active and l.link_method in ("rule", "embedding")]
+        all_links = {l.news_id: l for l in session.query(EventArticle).filter_by(event_id=ev.id).all()}
+        if ev.key in labeled:
+            for r in sorted(labeled[ev.key], key=lambda r: r["news_id"]):
+                l = all_links.get(r["news_id"])
+                auto = l is not None and l.is_active and not l.confirmed and l.link_method in ("rule", "embedding")
+                rows.append({
+                    **{c: r.get(c, "") for c in CLUSTER_COLS if c not in CLUSTER_HUMAN},
+                    "사건명": ev.title, "자동판단": l.link_method if auto else CLUSTER_UNLINKED,
+                    "연결점수": round(l.link_score or 0.0, 3) if l is not None else "", "연결사유": l.link_reason if l is not None else "",
+                })
+            continue
+        links = [l for l in all_links.values() if l.is_active and l.link_method in ("rule", "embedding")]
         rng = random.Random(ev.key)  # 사건 키로 고정 — 다시 내보내도 같은 표본
-        sample = sorted(rng.sample(links, min(per_event, len(links))), key=lambda l: l.news_id)
+        sample = sorted(rng.sample(sorted(links, key=lambda l: l.news_id), min(per_event, len(links))), key=lambda l: l.news_id)
         for l in sample:
             a = l.article
             rows.append({
@@ -122,7 +143,14 @@ def org_pairs(session: Session, facts: list[EventFacts]) -> list[dict[str, Any]]
 
 def write_org_sample(session: Session, facts: list[EventFacts], path: Path) -> list[dict[str, Any]]:
     rows = org_pairs(session, facts)
-    _write(path, ORG_COLS, rows, ORG_HUMAN, ["원문", "출처"])
+    # 사람 라벨이 붙은 쌍은 이번 상위 300 에서 빠져도 남긴다(건수 0) — 연결·인용문이 바뀌어 다시 내보내도 라벨이 사라지지 않게
+    keys = {(r["원문"], r["출처"]) for r in rows}
+    kept = [
+        {**{c: r.get(c, "") for c in ORG_COLS}, "건수": 0}
+        for k, r in _read(path, ["원문", "출처"]).items()
+        if k not in keys and any((r.get(h) or "").strip() for h in ORG_HUMAN)
+    ]
+    _write(path, ORG_COLS, rows + kept, ORG_HUMAN, ["원문", "출처"])
     return rows
 
 
@@ -140,7 +168,7 @@ def label_metrics(gold_dir: Path) -> dict[str, Any]:
     human_pos = [(r, v) for r, v in labeled if v]
     precision = round(sum(1 for _, v in sys_pos if v) / len(sys_pos), 3) if sys_pos else None
     recall = round(sum(1 for r, _ in human_pos if r.get("시스템_후속보도") == "있음") / len(human_pos), 3) if human_pos else None
-    cl = [_ox(r.get("사람_OK(O/X)")) for r in _read(gold_dir / "cluster_sample.csv", ["사건키", "news_id"]).values()]
+    cl = [_ox(r.get("사람_OK(O/X)")) for r in _read(gold_dir / "cluster_sample.csv", ["사건키", "news_id"]).values() if r.get("자동판단") != CLUSTER_UNLINKED]
     cl = [v for v in cl if v is not None]
     og = [_ox(r.get("사람_OK(O/X)")) for r in _read(gold_dir / "org_sample.csv", ["원문", "출처"]).values()]
     og = [v for v in og if v is not None]
