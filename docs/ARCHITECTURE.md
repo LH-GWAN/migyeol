@@ -68,6 +68,18 @@
           AND (지역 OR 시설 OR 책임기관·별칭 일치)                       … scope
           AND (시설명 OR 사건분류 계열 OR 핵심어·연관어 ≥2 OR 약속 행동 키워드 ≥2) … topic
           AND (강한 규칙 OR weighted_overlap ≥ WEIGHT_MIN)                 … weight (지역어+재난어만 겹치는 다른 사건 기사 차단)
+          AND 기간 창·지역 조건 (link.scope_checks, LINK_SCOPE_RULES=false 면 끔)   … 2026-10-25, docs/EXPERIMENT.md §7
+              ① 발행일 ≤ 발생일 + LINK_EARLY_DAYS(90): 위 게이트 그대로
+              ② 그 뒤: 제목에 사건 고유어(가중치 ≥ LINK_UNIQUE_MIN 0.6 인 지역·일반어 아닌 단어 + 시설명)
+                       OR (제목에 사건 지역어 AND 하이라이트에 고유어)  OR 약속 행동 키워드 ≥2      (LINK_LATE_MATCH=title_region)
+                       — 후속보도는 몇 년 뒤에도 나오므로 하드컷이 아니다 (만덕~센텀 대심도 2026 개통·지반 침하)
+                       같은 재난어의 새 사고 속보(구조·사망·실종·특보 …, 복구·원인·재판 같은 돌아보는 말 없음)는 검토 큐 이하 (cap-recur)
+                       단 약속 키워드·조치 명사(보강·설치·준설 …)가 제목에 있으면 원래 사건의 재발로 남긴다
+              ③ 지역 필수: 기초 지역 사건은 제목·하이라이트·키워드에 사건 지역어(기초명·접미 뗀 꼴·사건 제목/핵심어의 지명·동/읍/면/리)
+                 또는 시설명(일반어로만 된 시설명 '산사태 피해지' 는 제외). 광역 사건(도·특별시·광역시)은 사건 고유어 하나 이상
+              ④ 제목에 다른 광역·기초 지명(rules/regions.PARENT 로 상위 광역 판정, 보통명사와 겹치는 지명 제외)이 있고
+                 사건 지역어·상위 광역·권역(수도권·충청권 …)·시설명이 제목에 없으면 탈락 — 고유어가 있고 새 사고 속보가 아니면 남김
+              ⑤ 제목에 사건에 없는 구체 장소명(…역·…항·…공장·…센터 …) + 재난어, 제목에 사건 고유어 없음 → 검토 큐 이하 (cap-place)
 
 판정        강한 규칙 일치 → 자동 연결 (link_method=rule)
               · 시설명이 제목에 있음 + (지역·기관 또는 사건분류)
@@ -79,13 +91,16 @@
               · ≥ LINK_AUTO(0.55)  자동 연결 (embedding)
               · ≥ LINK_REVIEW(0.40) 연결하되 needs_review (검토 큐)
               · 미만              폐기 — 기존 자동 연결이면 삭제 (시드·질의 변화 반영)
-            다른 시드의 시설명이 본문에 있고 이 사건 시설명이 없으면 ≥ LINK_REVIEW 일 때만 검토 큐, 아니면 폐기
+            다른 시드의 시설명이 본문에 있고 이 사건 시설명이 없으면(또는 ②·⑤ 의 검토 큐 상한) ≥ LINK_REVIEW 일 때만 검토 큐, 아니면 폐기
             한 기사가 여러 사건에 자동 연결되면 점수가 가장 높은 사건만 유지, 나머지는 검토 큐(multi-event)
 ```
 
 - 임계값은 `.env` 로 조정하며 `scripts/evaluate.py --sweep` 으로 정답셋 대비 표를 만든다(DB 사본에서 실행, 운영 DB 불변).
   실험 라벨(gold/*.csv) 기준 표는 `evaluate.py --labels [--before-db …]`·`--label-sweep "weight_min=… weight_alpha=… link_auto=…"` (app/experiment/label_eval.py — 연결 결정은 link.decide 를 그대로 쓴다).
 - `WEIGHT_MIN=0 WEIGHT_ALPHA=0 WEIGHT_RULE_MIN=0` 이면 가중치 도입 전 동작과 같다. link_score 는 합산 점수다.
+- 기간 창·지역 조건은 가중치 핵심 문서 선정(발생일 ±3일 게이트 통과 후보)에는 쓰지 않는다 — 조건이 가중치에 기대므로 순환을 피한다(결정성).
+- 검토 큐(needs_review) 연결은 집계·후속 신호 어디에도 들어가지 않는다: 소비 경로가 모두 `EventArticle.is_active`(해제·검토 대기 아님)를 거친다
+  (judge.followup_articles·trackable_promises, extract, experiment.metrics.collect_facts, API serializers.active_links). 검토 화면만 검토 큐를 읽는다.
 - 관리자가 `confirm`/`reject`/`restore` 한 연결은 `manual` 로 고정되어 재평가하지 않는다. 처리 뒤에는 그 사건의 규칙 판정·우선순위·단계를 LLM 없이 다시 계산한다.
 - `needs_review` = 검토 대기 연결 OR 미처리 신고 OR 변경이력 표시(`change_flagged`) — `pipeline/review.recompute_needs_review` 한 곳에서 계산한다.
 - 임베딩 백엔드: `hash`(문자 n-gram, 의존성 없음, 예선 기본) / `st`(sentence-transformers `jhgan/ko-sroberta-multitask`, 본선). 저장 벡터에 `백엔드:모델명` 을 붙여 모델이 바뀌면 자동 재계산한다.

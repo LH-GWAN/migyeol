@@ -450,7 +450,7 @@ def label_main(settings, args) -> int:
     if src is None or not src.exists():
         raise SystemExit("라벨 평가는 SQLite 파일 DB 에서만 지원한다")
     lines = [f"# 라벨 기준 평가 ({datetime.now().strftime('%Y-%m-%d %H:%M')})", "", f"- DB: `{src.name}` · 라벨: gold/cluster_sample.csv · gold/experiment_labels.csv", ""]
-    snap_cols = ["db", "cluster_kept", "cluster_precision", "o_retained", "x_removed", "system_positive", "tp", "fp", "fn", "followup_precision", "followup_recall", "followup_f1"]
+    snap_cols = ["db", "cluster_kept", "cluster_precision", "o_retained", "x_removed", "full_kept", "full_precision", "full_recall", "system_positive", "tp", "fp", "fn", "followup_precision", "followup_recall", "followup_f1"]
     if args.labels:
         rows = []
         targets = ([("before", Path(args.before_db))] if args.before_db else []) + [("current", src)]
@@ -488,6 +488,8 @@ def label_main(settings, args) -> int:
             reset_engine()
             _drop_db(tmp)
         cols = [*grid, "auto_links", "cluster_kept", "cluster_precision", "o_retained", "x_removed"]
+        if (gold_dir / "cluster_full.csv").exists():
+            cols += ["full_kept", "full_precision", "full_recall", "full_f1"]
         if not args.no_followup:
             cols += ["system_positive", "followup_precision", "followup_recall", "followup_f1"]
         lines += ["## 스윕 (DB 사본, multi-event·약속 재추출 없음)", "", LE.render_table(rows, cols)]

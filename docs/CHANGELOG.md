@@ -261,6 +261,23 @@
 - 결과(DB 사본, 연결은 10-24 상태): 후속보도 precision 0.567→**0.614**, recall 0.810→**0.833**, 추적 약속 1,190→819. 원천 발언만 추적·표현 근접 조건·`SIGNAL_MIN_CONF` 상향은 라벨상 이득이 없어 넣지 않았다.
 - 테스트: `tests/test_rules_adapter.py` 에 다짐 문장 규칙 10건.
 
+## 2026-10-25 기간 창·지역 필수 조건 (남은 군집 오염 줄이기)
+
+§6 뒤 남은 오염(같은 지역 다른 사고·전국 재난 일반 기사·다른 시기 같은 유형)을 기간 창과 지역 필수 조건으로 다뤘다. 오염 유형 분포·전후·규칙별 기여·스윕: `docs/EXPERIMENT.md` §7, `reports/eval_labels_20261025.md`.
+
+- `pipeline/link.py` `scope_checks`(게이트 끝에 붙는 조건, 탈락 `x-…` / 검토 큐 상한 `cap-…` 사유를 link_reason 에 남김):
+  창 뒤(max(발생일, 원천 기사일) + `LINK_EARLY_DAYS`=90) 기사는 제목에 사건 고유어(가중치 ≥ `LINK_UNIQUE_MIN`=0.6 + 시설명) — 또는 제목 지역어 + 하이라이트 고유어 — 또는 약속 키워드 ≥2 필요,
+  늦은 같은 유형 새 사고 속보는 검토 큐 이하, 기초 지역 사건은 지역어(또는 시설명) 필수, 광역 사건은 고유어(또는 제목에 광역 지명 + 사건 재난어) 필수,
+  제목에 다른 지역 지명만 있으면 탈락, 다른 구체 장소의 새 사고 속보는 검토 큐 이하. 조건은 가중치 핵심 문서 선정에는 쓰지 않는다.
+- 새 설정: `LINK_SCOPE_RULES=true`(false 면 이전 동작) · `LINK_EARLY_DAYS=90` · `LINK_WINDOW_FROM_SOURCE=true` · `LINK_LATE_MATCH=title_region` · `LINK_UNIQUE_MIN=0.6` · `LINK_REGION_PARENT_OK=false`. 기존 `WEIGHT_*`·`LINK_AUTO`·`LINK_REVIEW` 값 그대로.
+- `rules/regions.py`: 기초 → 상위 광역 사전(`PARENT`), 광역 표기 정규화(`WIDE_CANON`), `region_base`·`region_parents`·`is_wide_region`, 보통명사와 겹치는 지명 제외 목록.
+- `experiment/label_eval.py`·`scripts/evaluate.py`: `gold/cluster_full.csv`(활성 연결 전체 라벨)가 있으면 정밀도와 함께 재현율·F1 을 낸다. 스윕은 설정 조합마다 `scope_checks` 를 다시 적용한다.
+- 결과(녹화 재생 재실행, 같은 라벨): 군집 정밀도 표본 0.652→**0.743**, 전체 라벨 0.671→**0.756**(재현율 0.803→0.788, F1 0.731→0.772), 후속보도 precision 0.567→**0.607**, recall 0.810→0.810.
+  후속 신호 변경(8a9a6e9)과 합친 최종 재실행: 표본 **0.745**, 전체 라벨 **0.759 / 0.781**, 후속보도 precision/recall **0.630 / 0.810**(F1 0.709). 실험 DB·`experiment_latest.json`·`dashboard_20261022.json` 재생성.
+- 검토 큐(needs_review) 연결이 집계·후속 신호에 들어가는 경로는 없었다(모두 `is_active`) — 테스트로 고정.
+- 테스트 `tests/test_link_window.py`(38건: 지역 사전·창·지역 필수·다른 지역·재발·검토 큐 제외·회귀 사례 만덕 2026·영도구 2024-12·현대시장 2024-07). 가상 픽스처 평가는 조건을 켜도 끈 것과 같다(연결 P/R 1.0/0.955, 상태 정확도 1.0).
+- 못 한 것: 연결이 바뀌어 달라진 약속 재검색 질의(게이트만 30건, 합친 실행 14건)는 녹화에 없어(실 API 호출 금지) 이전 후보로 진행. 국정자원 화재의 정책 후속(제목에 사건 고유어 없음) 39건은 창 뒤 조건에 걸려 빠진다.
+
 ## 본선 단계 (2026-10-12 ~ 10-30) — Phase 1~3 (예정)
 
 - Phase 1: `BIGKINDS_MODE=record` 전환, 첫 실호출 응답 키 검증 후 스키마·픽스처 보정, `discover` 초안 → 시드 20~30건 확정, 연결 정확도 1차 측정

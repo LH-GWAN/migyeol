@@ -70,6 +70,15 @@ class Settings(BaseSettings):
     weight_min: float = 0.15  # 강한 규칙이 아닌 기사의 weighted_overlap 하한 (게이트)
     weight_alpha: float = 0.5  # 연결 점수 = (1-α)·임베딩 코사인 + α·weighted_overlap
     weight_rule_min: float = 0.25  # 강한 규칙 기사도 이 값 미만이면 강한 규칙으로 보지 않는다 (0 = 끔)
+    # 기간 창·지역 필수 조건 (link.scope_checks). LINK_SCOPE_RULES=false 면 이전 동작. 기본값 = 2026-10-25 라벨 스윕(docs/EXPERIMENT.md §7)
+    link_scope_rules: bool = True
+    link_early_days: int = 90  # 발생일 + N일 뒤의 기사는 제목·하이라이트에 사건 고유어(또는 약속 행동 키워드 ≥2)가 있어야 한다 (0 = 기간 창 끔)
+    link_window_from_source: bool = True  # 창 기준 = max(발생일, 원천 기사(대응 발언) 발행일) — 발생 1년 뒤 복구 약속 같은 시드의 후속을 창 안에 둔다
+    # 창 뒤 기사의 사건 고유어를 어디서 찾나: title_hilight | title | title_region(제목, 또는 제목에 사건 지역어가 있을 때 하이라이트)
+    # 하이라이트는 검색 질의어 주변 발췌라 무관 기사에도 고유어가 남는다
+    link_late_match: Literal["title_hilight", "title", "title_region"] = "title_region"
+    link_unique_min: float = 0.6  # 사건 고유어 = 사건 단어 가중치가 이 값 이상인 지역·일반어 아닌 단어 (+ 시설명)
+    link_region_parent_ok: bool = False  # 기초 지역 사건에서 상위 광역명 + 사건 고유어를 지역어 대신 받아 준다
     followup_top_sentences: int = 3  # 규칙 후속 신호: 관련도 상위 N 문장만 본다
     followup_sentence_min: float = 0.0  # 규칙 후속 신호: 문장 관련도(임베딩 코사인 + 가중치 단어 점수) 하한
     signal_min_conf: float = 0.6

@@ -28,7 +28,7 @@ from ..db.models import Article, Event, EventArticle, EventCandidate
 from ..llm.schemas import FollowupInput, PromiseRef
 from ..pipeline.collect import article_text
 from ..pipeline.embeddings import cosine, from_bytes, needs_recompute
-from ..pipeline.link import decide, gate, is_strong
+from ..pipeline.link import _NO_SCOPE, capped, decide, gate, is_strong, scope_checks, source_date
 from ..pipeline.seeds import seed_from_event
 from ..rules import weights as W
 from ..rules.status import POSITIVE_SIGNALS
@@ -53,6 +53,36 @@ def load_labels(gold_dir: Path) -> tuple[dict[tuple[str, str], bool], dict[str, 
             if v is not None:
                 fu[r["사건키"]] = v
     return cl, fu
+
+
+def load_full_labels(gold_dir: Path) -> dict[tuple[str, str], bool] | None:
+    """gold/cluster_full.csv — 활성 연결 전체(검토 대기 포함)의 라벨. 없으면 None. 정밀도와 함께 재현율(같은 사건 기사 중 유지 비율)을 낸다."""
+    path = gold_dir / "cluster_full.csv"
+    if not path.exists():
+        return None
+    out: dict[tuple[str, str], bool] = {}
+    with path.open(encoding="utf-8-sig", newline="") as f:
+        for r in csv.DictReader(f):
+            col = next((c for c in r if c and c.startswith("사람_OK")), None)
+            v = _ox(r.get(col) if col else None)
+            if v is not None:
+                out[(r["사건키"], r["news_id"])] = v
+    return out
+
+
+def full_scores(kept: set[tuple[str, str]], full: dict[tuple[str, str], bool] | None) -> dict[str, Any]:
+    """전체 라벨 기준: 정밀도 = 남은 자동 연결 중 O, 재현율 = 라벨 O 중 남은 자동 연결. 라벨 밖 새 연결은 따로 센다."""
+    if not full:
+        return {}
+    k = [v for key, v in full.items() if key in kept]
+    n_o = sum(full.values())
+    unl = sum(1 for key in kept if key[0] in {e for e, _ in full} and key not in full)
+    p = round(sum(k) / len(k), 3) if k else None
+    r = round(sum(k) / n_o, 3) if n_o else None
+    return {
+        "full_rows": len(full), "full_kept": len(k), "full_precision": p, "full_recall": r,
+        "full_f1": round(2 * p * r / (p + r), 3) if p and r else None, "full_unlabeled_kept": unl,
+    }
 
 
 def cluster_scores(kept: set[tuple[str, str]], cl: dict[tuple[str, str], bool]) -> dict[str, Any]:
@@ -93,7 +123,16 @@ def snapshot(session: Session, settings: Settings, gold_dir: Path) -> dict[str, 
     }
     facts = collect_facts(session, settings, keys=set(fu))
     system = {f.event.key: f.has_followup for f in facts}
-    return {**cluster_scores(kept, cl), **followup_scores(system, fu)}
+    full = load_full_labels(gold_dir)
+    if full:
+        fkeys = {k for k, _ in full}
+        fe = {e.id: e.key for e in session.query(Event).filter(Event.key.in_(fkeys)).all()}
+        kept |= {
+            (fe[l.event_id], l.news_id)
+            for l in session.query(EventArticle).filter(EventArticle.event_id.in_(list(fe))).all()
+            if l.is_active and l.link_method in ("rule", "embedding") and not l.confirmed
+        }
+    return {**cluster_scores(kept, cl), **full_scores(kept, full), **followup_scores(system, fu)}
 
 
 # ------------------------------------------------------------------ 스윕
@@ -105,7 +144,8 @@ class Cand:
     other_hit: bool
     cos: float
     overlap: float
-    gate_ok: bool
+    gate_ok: bool  # 기간 창·지역 조건을 뺀 게이트 (조건은 설정마다 scope_checks 로 다시 본다)
+    article: Article | None = None
 
 
 @dataclass
@@ -113,6 +153,7 @@ class EventCase:
     event: Event
     pinned: set[str]  # 관리자 확정·수동·원천 기사 고정 연결 (스윕과 무관하게 활성)
     cands: list[Cand] = field(default_factory=list)
+    src_date: date | None = None
 
 
 def link_features(session: Session, settings: Settings, embedder, keys: set[str]) -> list[EventCase]:
@@ -127,11 +168,11 @@ def link_features(session: Session, settings: Settings, embedder, keys: set[str]
         promise_ids = {c.news_id for c in rows if c.source == "promise"}
         ids = {c.news_id for c in rows} | {l.news_id for l in ev.links}
         pinned = {l.news_id for l in ev.links if l.confirmed or l.link_method == "manual"}
-        case = EventCase(event=ev, pinned=pinned)
+        case = EventCase(event=ev, pinned=pinned, src_date=source_date(session, ev))
         for a in session.query(Article).filter(Article.news_id.in_(ids)).all() if ids else []:
             if a.news_id in pinned:
                 continue
-            ok, reasons = gate(ev, a)
+            ok, reasons = gate(ev, a, _NO_SCOPE)
             if not ok:
                 case.cands.append(Cand(a.news_id, a.published_at, False, False, 0.0, 0.0, False))
                 continue
@@ -142,7 +183,7 @@ def link_features(session: Session, settings: Settings, embedder, keys: set[str]
             text = article_text(a)
             case.cands.append(Cand(
                 a.news_id, a.published_at, is_strong(reasons, promise_candidate=a.news_id in promise_ids),
-                any(f in text for f in others) and "facility" not in reasons, cosine(vec, seed_vec), W.weighted_overlap(ev.term_weights, text), True,
+                any(f in text for f in others) and "facility" not in reasons, cosine(vec, seed_vec), W.weighted_overlap(ev.term_weights, text), True, a,
             ))
         out.append(case)
     return out
@@ -154,7 +195,12 @@ def simulate_links(cases: list[EventCase], settings: Settings) -> dict[str, set[
     for c in cases:
         act = set(c.pinned)
         for x in c.cands:
-            if x.gate_ok and decide(x.strong, x.other_hit, x.cos, x.overlap, settings)[0] == "link":
+            if not x.gate_ok:
+                continue
+            checks = scope_checks(c.event, x.article, settings, c.src_date) if x.article is not None else []
+            if any(k.startswith("x-") for k in checks):
+                continue
+            if decide(x.strong, x.other_hit or capped(checks), x.cos, x.overlap, settings)[0] == "link":
                 act.add(x.news_id)
         out[c.event.key] = act
     return out
@@ -226,7 +272,8 @@ def sweep(
     with_followup: bool = True,
 ) -> list[dict[str, Any]]:
     cl, fu = load_labels(gold_dir)
-    keys = {k for k, _ in cl} | set(fu)
+    full = load_full_labels(gold_dir)
+    keys = {k for k, _ in cl} | set(fu) | ({k for k, _ in full} if full else set())
     cases = link_features(session, settings, embedder, keys)
     sim = FollowupSim(session, settings, llm)
     names = list(grid)
@@ -237,6 +284,7 @@ def sweep(
         row: dict[str, Any] = {n: v for n, v in zip(names, combo)}
         row["auto_links"] = len(auto_links(cases, active))
         row.update(cluster_scores(auto_links(cases, active), cl))
+        row.update(full_scores(auto_links(cases, active), full))
         if with_followup:
             system = {c.event.key: sim.has_followup(c.event, active[c.event.key], s) for c in cases if c.event.key in fu}
             row.update(followup_scores(system, fu))
