@@ -92,7 +92,20 @@
               · ≥ LINK_REVIEW(0.40) 연결하되 needs_review (검토 큐)
               · 미만              폐기 — 기존 자동 연결이면 삭제 (시드·질의 변화 반영)
             다른 시드의 시설명이 본문에 있고 이 사건 시설명이 없으면(또는 ②·⑤ 의 검토 큐 상한) ≥ LINK_REVIEW 일 때만 검토 큐, 아니면 폐기
-            한 기사가 여러 사건에 자동 연결되면 점수가 가장 높은 사건만 유지, 나머지는 검토 큐(multi-event)
+재순위(선택)  LINK_RERANKER = none(기본) | features | cross   (pipeline/rerank.py · 학습 scripts/train_reranker.py · train_cross_encoder.py · docs/EXPERIMENT.md §9)
+            대상 = 위 판정이 link·review 인 후보 — x- 탈락·decide 폐기·관리자 확정·수동 연결은 그대로 (학습 라벨 gold/cluster_full.csv 가 있는 범위와 같다)
+            판정 재료는 link.assess() 하나로 만든다 — link 단계와 학습 스크립트가 같은 함수를 쓴다(끄면 결정·link_reason·link_score 가 이전과 같다)
+            features  숫자 피처 53개(판정 재료·게이트 사유·cap-·날짜·창 뒤 여부·제목/하이라이트/키워드의 사건 단어·다른 시설(일반어/특정 장소)·
+                      제목의 보도 성격·사건 메타) + 제목·하이라이트 토큰 해싱 → 로지스틱 회귀·그래디언트 부스팅 확률 평균 (models/reranker_features.joblib, 4MB)
+            cross     ko-sroberta 교차 인코더(사건명·지역·시설·핵심어 ↔ [발생 후 기간] 제목 하이라이트, models/cross_encoder/ gitignore)를
+                      RERANK_BLEND(0.5) 비율로 피처 분류기 확률과 섞는다
+            p ≥ RERANK_AUTO(0.5) 자동 연결 · ≥ RERANK_REVIEW(0.2) 검토 큐 · 미만 폐기 — 강한 규칙(rule) 연결도 p 로 다시 정한다
+            바닥 RERANK_KEEP_LATE_FACILITY: 재순위 전 자동 연결 + 창 뒤 기사 + 제목에 사건 시설명 → 내리지 않는다 (몇 년 뒤 후속 보호, link_reason 에 keep-late-facility)
+            RERANK_CROSSFIT: 학습에 쓴 사건은 그 사건을 뺀 fold 모델(교차 인코더는 교차검증 확률)로 — 실험 DB 수치가 학습 재사용으로 부풀지 않게
+            link_score = 분류기 확률(사건 간 배타 처리도 이 값으로), link_reason 에 p=·s=(합산 점수), link_method 는 경로 표시 그대로
+            모델을 학습한 임베딩과 지금 임베딩이 다르면(가상 픽스처 hash) 쓰지 않는다. 모델·의존성이 없으면 경고 뒤 이전 동작
+            기본 none: 군집 P/R 0.77/0.78 → 0.90/0.90 이지만 규칙 후속 신호의 사건 단위 P/R 이 0.63/0.81 → 0.55/0.74 (§9.4)
+            한 기사가 여러 사건에 자동 연결되면 점수(재순위를 켜면 분류기 확률)가 가장 높은 사건만 유지, 나머지는 검토 큐(multi-event)
 ```
 
 - 임계값은 `.env` 로 조정하며 `scripts/evaluate.py --sweep` 으로 정답셋 대비 표를 만든다(DB 사본에서 실행, 운영 DB 불변).

@@ -31,6 +31,8 @@ os.environ.update(
         "FIXTURES_DIR": str(BACKEND / "fixtures"),
         "SEEDS_FILE": str(BACKEND / "fixtures" / "seeds" / "events.yaml"),
         "GOLD_FILE": str(BACKEND / "fixtures" / "gold" / "events.yaml"),
+        # 학습 기반 재순위는 실사건 라벨로 학습한 로컬 모델 파일에 기댄다 — 가상 픽스처 테스트는 끈 상태로 (tests/test_rerank.py 는 설정을 직접 준다)
+        "LINK_RERANKER": "none",
         **FIXTURE_THRESHOLDS,
     }
 )

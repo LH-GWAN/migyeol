@@ -79,6 +79,18 @@ class Settings(BaseSettings):
     link_late_match: Literal["title_hilight", "title", "title_region"] = "title_region"
     link_unique_min: float = 0.6  # 사건 고유어 = 사건 단어 가중치가 이 값 이상인 지역·일반어 아닌 단어 (+ 시설명)
     link_region_parent_ok: bool = False  # 기초 지역 사건에서 상위 광역명 + 사건 고유어를 지역어 대신 받아 준다
+    # 학습 기반 재순위 (pipeline/rerank.py, docs/EXPERIMENT.md §9). none 이면 위 임계값(link.decide) 그대로.
+    # 기본 none: 교차검증·실험 DB 모두 군집 정밀도·재현율은 0.77/0.78 → 0.90/0.90 이지만 사건 단위 후속보도 P/R 이 0.63/0.81 → 0.55/0.74 로 떨어졌다(§9.4)
+    link_reranker: Literal["none", "features", "cross"] = "none"
+    rerank_model_path: str = ""  # 비우면 backend/models/reranker_features.joblib (scripts/train_reranker.py 가 만든다)
+    rerank_cross_dir: str = ""  # 비우면 backend/models/cross_encoder/ (scripts/train_cross_encoder.py --save, gitignore)
+    rerank_blend: float = 0.5  # LINK_RERANKER=cross 에서 피처 분류기 확률을 섞는 비율 (0 = 교차 인코더만, 교차검증 최고 = 0.5)
+    rerank_auto: float = 0.5  # 분류기 확률 ≥ 이면 자동 연결 (강한 규칙 연결도 이 값으로 다시 정한다)
+    rerank_review: float = 0.2  # 분류기 확률 ≥ 이면 검토 큐, 미만 폐기
+    rerank_crossfit: bool = True  # 학습에 쓴 사건은 그 사건을 뺀 fold 모델로 점수 (실험 DB 수치가 학습 재사용으로 부풀지 않게)
+    # 창 뒤(발생 + LINK_EARLY_DAYS) 자동 연결 중 제목에 사건 시설명이 있는 기사는 분류기가 내리지 않는다 — 몇 년 뒤 후속(만덕~센텀 2026 개통·지반 침하)은
+    # 다른 사건에서 배운 '늦은 같은 장소 기사 = 다른 사고' 경향과 구별되지 않는다
+    rerank_keep_late_facility: bool = True
     followup_top_sentences: int = 3  # 규칙 후속 신호: 관련도 상위 N 문장만 본다
     followup_sentence_min: float = 0.0  # 규칙 후속 신호: 문장 관련도(임베딩 코사인 + 가중치 단어 점수) 하한
     signal_min_conf: float = 0.6

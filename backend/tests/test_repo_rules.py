@@ -18,7 +18,8 @@ FORBIDDEN = ("미" + "이행", "불" + "이행", "거짓" + "말")
 # 의존성·빌드 산출물 (어느 깊이든 이름으로 제외)
 SKIP_DIR_NAMES = {".venv", "node_modules", ".next", "__pycache__", ".pytest_cache", ".ruff_cache", ".git"}
 # 실기사가 들어가는 로컬 데이터 (gitignore 대상, 저장소 경로로 제외)
-SKIP_PATHS = {Path("backend/data"), Path("backend/fixtures/bigkinds/recordings")}
+# + 로컬에서 학습한 교차 인코더(gitignore) — tokenizer.json 은 제3자 한국어 어휘 사전이라 우리 문장이 아니다
+SKIP_PATHS = {Path("backend/data"), Path("backend/fixtures/bigkinds/recordings"), Path("backend/models/cross_encoder")}
 BINARY_SUFFIXES = {".db", ".sqlite", ".pyc", ".png", ".jpg", ".jpeg", ".gif", ".webp", ".ico", ".pdf", ".woff", ".woff2", ".ttf", ".otf", ".zip"}
 SF_DATALESS = 0x40000000  # macOS stat 플래그
 

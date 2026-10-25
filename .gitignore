@@ -12,6 +12,8 @@ __pycache__/
 backend/data/*
 !backend/data/.gitkeep
 backend/fixtures/bigkinds/recordings/
+# 미세조정한 교차 인코더 (LINK_RERANKER=cross, 440MB) — scripts/train_cross_encoder.py --save 로 다시 만든다
+backend/models/cross_encoder/
 # discover 단계가 쓰는 시드 초안 (사람이 확정해 events.yaml 로 옮긴다)
 backend/**/events.draft.yaml
 

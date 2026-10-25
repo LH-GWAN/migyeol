@@ -20,6 +20,7 @@ dependencies = [
 
 [project.optional-dependencies]
 embeddings = ["sentence-transformers>=3.0"]
+rerank = ["scikit-learn>=1.5", "joblib>=1.3"]  # 학습 기반 재순위 LINK_RERANKER=features (app/pipeline/rerank.py, scripts/train_reranker.py)
 dev = ["pytest>=8", "ruff>=0.5"]
 
 [build-system]

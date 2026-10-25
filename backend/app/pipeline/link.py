@@ -23,7 +23,9 @@
   - 제목에 사건과 다른 지역 지명이 있고 사건 지역어·상위 광역·시설명이 제목에 없으면 탈락 (사건 고유어가 있고 새 사고 속보가 아니면 남긴다)
   - 제목에 사건에 없는 구체 장소명(…역·…항·…공장 등) + 재난어가 있고 사건 고유어가 제목에 없으면 검토 큐 이하
 같은 지역의 다른 시드 시설명이 본문에 있고 이 사건 시설명이 없으면 score ≥ LINK_REVIEW 일 때만 검토 큐, 아니면 폐기.
-한 기사가 여러 사건의 자동 연결에 들어가면 점수가 가장 높은 사건만 유지하고 나머지는 검토 큐로 보낸다.
+학습 기반 재순위(LINK_RERANKER, pipeline/rerank.py — 기본 none): 위 판정이 link·review 인 후보를 분류기 확률로 자동 연결·검토 큐·폐기로 다시 정한다.
+  판정 재료는 assess() 하나로 만들어 link 단계와 학습 스크립트(scripts/train_reranker.py)가 같이 쓴다.
+한 기사가 여러 사건의 자동 연결에 들어가면 점수가 가장 높은 사건만 유지하고 나머지는 검토 큐로 보낸다 (재순위를 켜면 분류기 확률).
 관리자가 confirmed / rejected / manual 로 표시한 연결은 재평가하지 않는다.
 """
 
@@ -31,7 +33,7 @@ from __future__ import annotations
 
 import logging
 import re
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import date, timedelta
 
 import numpy as np
@@ -419,23 +421,105 @@ def candidate_articles(session: Session, event: Event) -> list[Article]:
     return session.query(Article).filter(Article.news_id.in_(ids)).all()
 
 
+@dataclass
+class EventContext:
+    """사건 하나를 판정할 때 한 번 만드는 재료 — link 단계와 재순위 학습(scripts/train_reranker.py)이 같은 판정 함수(assess)를 쓰게 한다."""
+
+    event: Event
+    seed_vec: np.ndarray
+    others: list[str]  # 다른 시드의 시설명
+    promise_ids: set[str]  # 약속 키워드 재검색으로 들어온 후보
+    src_date: date | None  # 원천 기사 발행일 (기간 창 기준)
+    n_candidates: int = 0  # 수집 후보 수 (재순위 피처)
+
+
+def event_context(session: Session, event: Event, embedder: EmbeddingBackend, other_facilities: list[str] | None = None) -> EventContext:
+    rows = session.query(EventCandidate).filter_by(event_id=event.id).all()
+    return EventContext(
+        event=event,
+        seed_vec=np.asarray(embedder.encode([seed_from_event(event).seed_text()])[0]),
+        others=[f for f in (other_facilities or []) if f and f != event.facility],
+        promise_ids={c.news_id for c in rows if c.source == "promise"},
+        src_date=source_date(session, event),
+        n_candidates=len(rows),
+    )
+
+
+@dataclass
+class Assessment:
+    """후보 기사 하나의 연결 판정. base_decision = 재순위 전 link.decide 결과 (재순위가 꺼져 있으면 decision 과 같다)."""
+
+    ok: bool  # 게이트(기간 창·지역 조건 포함) 통과
+    gate_reasons: list[str]
+    notes: list[str] = field(default_factory=list)  # decide 가 덧붙인 사유 (rule-weight-low·weight-low·other-facility)
+    decision: str = "drop"  # link | review | drop
+    method: str = "embedding"  # rule | embedding
+    score: float = 0.0  # (1-α)·임베딩 코사인 + α·weighted_overlap
+    cos: float = 0.0
+    overlap: float = 0.0
+    strong: bool = False
+    other_hit: bool = False
+    promise_candidate: bool = False
+    base_decision: str = "drop"
+    base_method: str = "embedding"
+    prob: float | None = None  # 재순위 분류기 확률 (LINK_RERANKER 가 켜졌고 base_decision 이 link·review 일 때만)
+
+    @property
+    def reasons(self) -> list[str]:
+        out = [*self.gate_reasons, *self.notes]
+        if self.prob is not None:
+            out += [f"p={self.prob:.2f}", f"s={self.score:.2f}"]
+        return out
+
+
+def assess(ctx: EventContext, art: Article, settings: Settings, embedder: EmbeddingBackend, *, store_embedding: bool = True) -> Assessment:
+    """게이트 → 임베딩 코사인·weighted_overlap → 강한 규칙·다른 시설 → link.decide. 재순위는 rerank.apply 가 따로 덧입힌다."""
+    event = ctx.event
+    ok, reasons = gate(event, art, settings, ctx.src_date)
+    if not ok:
+        return Assessment(ok=False, gate_reasons=reasons)
+    if needs_recompute(art.embedding, art.embedding_backend, embedder):
+        vec = np.asarray(embedder.encode([article_text(art)])[0], dtype=np.float32)
+        if store_embedding:
+            art.embedding = to_bytes(vec)
+            art.embedding_backend = embedder.name
+    else:
+        vec = from_bytes(art.embedding)
+    cos = cosine(vec, ctx.seed_vec)
+    text = article_text(art)
+    overlap = W.weighted_overlap(event.term_weights, text)
+    promise_candidate = art.news_id in ctx.promise_ids
+    strong = is_strong(reasons, promise_candidate=promise_candidate)
+    other_hit = (any(f in text for f in ctx.others) and "facility" not in reasons) or capped(reasons)
+    decision, method, score, notes = decide(strong, other_hit, cos, overlap, settings)
+    return Assessment(
+        ok=True, gate_reasons=reasons, notes=notes, decision=decision, method=method, score=score, cos=cos, overlap=overlap, strong=strong,
+        other_hit=other_hit, promise_candidate=promise_candidate, base_decision=decision, base_method=method,
+    )
+
+
 def link_event(
     session: Session,
     event: Event,
     settings: Settings,
     embedder: EmbeddingBackend,
     other_facilities: list[str] | None = None,
+    reranker=None,
 ) -> dict:
+    """reranker: pipeline/rerank.Reranker (LINK_RERANKER) — 게이트를 통과해 link·review 로 판정된 후보를 분류기 확률로 다시 정한다."""
     session.refresh(event)
-    seed_vec = embedder.encode([seed_from_event(event).seed_text()])[0]
+    ctx = event_context(session, event, embedder, other_facilities)
     existing = {l.news_id: l for l in event.links}
-    others = [f for f in (other_facilities or []) if f and f != event.facility]
     stats = {"event": event.key, "candidates": 0, "linked": 0, "review": 0, "dropped": 0, "removed": 0, "skipped": 0}
+    candidate_ids = {c.news_id for c in session.query(EventCandidate).filter_by(event_id=event.id).all()}
 
-    candidate_rows = session.query(EventCandidate).filter_by(event_id=event.id).all()
-    candidate_ids = {c.news_id for c in candidate_rows}
-    promise_ids = {c.news_id for c in candidate_rows if c.source == "promise"}
-    src_date = source_date(session, event)
+    def remove(link: EventArticle) -> None:
+        event.links.remove(link)
+        session.delete(link)
+        existing.pop(link.news_id, None)
+        stats["removed"] += 1
+
+    pending: list[tuple[Article, EventArticle | None, Assessment]] = []
     for art in candidate_articles(session, event):
         stats["candidates"] += 1
         link = existing.get(art.news_id)
@@ -444,53 +528,35 @@ def link_event(
             continue
         if link is not None and art.news_id not in candidate_ids and candidate_ids:
             # 수집 후보에서 빠진(시드를 좁힌) 기사의 자동 연결은 지운다 — 게이트를 통과하더라도 더는 이 사건의 후보가 아니다
-            event.links.remove(link)
-            session.delete(link)
-            existing.pop(art.news_id, None)
-            stats["removed"] += 1
+            remove(link)
             continue
+        pending.append((art, link, assess(ctx, art, settings, embedder)))
 
-        def drop() -> None:
+    if reranker is not None:
+        from .rerank import apply as rerank_apply
+
+        stats["reranked"] = rerank_apply(reranker, ctx, [(art, a) for art, _, a in pending], settings)
+
+    for art, link, a in pending:
+        if a.decision == "drop":
             # 이번 실행의 게이트·임계값을 통과하지 못한 자동 연결은 남기지 않는다 (시드 수정·질의 변화 반영)
             if link is not None:
-                event.links.remove(link)
-                session.delete(link)
-                existing.pop(art.news_id, None)
-                stats["removed"] += 1
+                remove(link)
             else:
                 stats["dropped"] += 1
-
-        ok, reasons = gate(event, art, settings, src_date)
-        if not ok:
-            drop()
             continue
-        if needs_recompute(art.embedding, art.embedding_backend, embedder):
-            art.embedding = to_bytes(embedder.encode([article_text(art)])[0])
-            art.embedding_backend = embedder.name
-        cos = cosine(from_bytes(art.embedding), np.asarray(seed_vec))
-        text = article_text(art)
-        overlap = W.weighted_overlap(event.term_weights, text)
-        strong = is_strong(reasons, promise_candidate=art.news_id in promise_ids)
-        other_hit = (any(f in text for f in others) and "facility" not in reasons) or capped(reasons)
-        decision, method, score, notes = decide(strong, other_hit, cos, overlap, settings)
-        if decision == "drop":
-            drop()
-            continue
-        review = decision == "review"
-        reasons += [*notes, f"w={overlap:.2f}"]
-
         if link is None:
             link = EventArticle(event_id=event.id, news_id=art.news_id, phase=initial_phase(event, art))
             event.links.append(link)
             existing[art.news_id] = link
-        link.link_method = method
-        link.link_score = round(score, 3)
-        link.link_reason = "+".join(reasons)
-        link.needs_review = review
-        link.auto_decision = decision  # 관리자 처리와 무관한 파이프라인 결정 (평가용)
+        link.link_method = a.method
+        link.link_score = round(a.prob if a.prob is not None else a.score, 3)  # 재순위를 켜면 분류기 확률 (사건 간 배타 처리도 이 값으로)
+        link.link_reason = "+".join([*a.reasons, f"w={a.overlap:.2f}"])
+        link.needs_review = a.decision == "review"
+        link.auto_decision = a.decision  # 관리자 처리와 무관한 파이프라인 결정 (평가용)
         if link.phase in ("발생", "원인조사", "기타"):
             link.phase = initial_phase(event, art)
-        stats["linked" if decision == "link" else "review"] += 1
+        stats["linked" if a.decision == "link" else "review"] += 1
 
     recompute_needs_review(session, event)
     session.commit()
@@ -539,9 +605,14 @@ def link_all(
     """all_events: 사건 간 배타 처리 대상 (단일 사건 실행이어도 다른 활성 사건의 연결과 비교한다)."""
     facilities = all_facilities if all_facilities is not None else [e.facility for e in events]
     refresh_term_weights(session, events)
-    stats = [link_event(session, e, settings, embedder, other_facilities=facilities) for e in events]
+    from .rerank import load_reranker
+
+    reranker = load_reranker(settings, getattr(embedder, "name", None))  # LINK_RERANKER=none·모델 없음·다른 임베딩 → None (이전 동작)
+    kw = {"reranker": reranker} if reranker is not None else {}  # 꺼져 있으면 이전 호출 형태 그대로
+    stats = [link_event(session, e, settings, embedder, other_facilities=facilities, **kw) for e in events]
     multi = resolve_multi_event_links(session, all_events if all_events is not None else events)
     if stats:
         stats[0]["multi_event_review"] = len(multi)
         stats[0]["multi_event_events"] = sorted(set(multi))
+        stats[0]["reranker"] = reranker.describe() if reranker is not None else "none"
     return stats
