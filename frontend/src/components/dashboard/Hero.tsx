@@ -84,7 +84,7 @@ export default function Hero({ s }: { s: DashboardSummary }) {
               {s.with_followup}
               <span className="ml-1 text-base font-medium text-slate-400">/ {s.events_total}건</span>
             </span>
-            후속 기사 {s.followup_articles}건 · 기관 {s.orgs}곳
+            사건 이후 연결 기사 {s.followup_articles}건 · 기관 {s.orgs}곳
           </figcaption>
         </figure>
       </div>

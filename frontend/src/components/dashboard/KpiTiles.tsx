@@ -17,7 +17,7 @@ export default function KpiTiles({ s, casualties }: { s: DashboardSummary; casua
       label: "후속보도 확인",
       value: String(s.with_followup),
       unit: "건",
-      note: `전체의 ${formatPercent(s.followup_rate, 1)} · 후속 기사 ${s.followup_articles}건`,
+      note: `전체의 ${formatPercent(s.followup_rate, 1)} · 사건 이후 연결 기사 ${s.followup_articles}건`,
       accent: "bg-[#2a78d6]",
     },
     { label: "발표 기한이 지난 사건", value: String(s.overdue), unit: "건", note: "조치 완료가 확인된 사건 제외", accent: "bg-red-500" },

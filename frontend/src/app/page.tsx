@@ -69,7 +69,7 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
 
       <Panel
         title="언제 일어났고, 언제 다시 보도됐나"
-        subtitle="사건 발생 수(막대)와 그 사건의 후속보도 기사 수(선). 그래프 위에 마우스를 올리면(휴대폰은 누르면) 자세히 보입니다."
+        subtitle="사건 발생 수(막대)와 그 사건에 연결된 이후 기사 수(선, 후속보도로 확인된 기사만이 아니라 연결된 기사 전체). 그래프 위에 마우스를 올리면(휴대폰은 누르면) 자세히 보입니다."
         disclaimer={s.disclaimer}
       >
         {month.ok && day.ok ? (
@@ -83,7 +83,7 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
         <Panel title="재난 유형별 후속보도" subtitle="유형별 추적 사건 수와 그중 후속보도가 확인된 사건" disclaimer={s.disclaimer}>
           {incidents.ok ? <IncidentBars rows={incidents.data} /> : <ErrorBox title="유형별 집계를 불러오지 못했습니다" error={incidents.error} />}
         </Panel>
-        <Panel title="사건 상태" subtitle="후속 기사에서 확인한 근거에 따라 다섯 가지로 표시합니다" disclaimer={s.disclaimer}>
+        <Panel title="사건 상태" subtitle="사건 이후 기사에서 확인한 근거에 따라 다섯 가지로 표시합니다" disclaimer={s.disclaimer}>
           <StatusBreakdown byStatus={s.by_status} />
         </Panel>
       </div>
