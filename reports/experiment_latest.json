@@ -1,13 +1,13 @@
 {
- "generated_at": "2026-10-25T23:50:09+09:00",
+ "generated_at": "2026-10-26T05:33:30+09:00",
  "as_of": "2026-10-22",
  "bigkinds_mode": "record",
- "seeds_file": "seeds/events.yaml",
+ "seeds_file": "seeds/experiment.draft.yaml",
  "embedding_backend": "st",
  "llm_mode": "rules",
  "source_articles": {
   "collected": 1559,
-  "unique": 90
+  "unique": 150
  },
  "events": {
   "total": 90,
@@ -708,7 +708,7 @@
    "bucket": "2023-03",
    "occurred": 5,
    "followup_articles": 341,
-   "dead": null,
+   "dead": 5,
    "injured": null
   },
   {
@@ -736,14 +736,14 @@
    "bucket": "2023-07",
    "occurred": 5,
    "followup_articles": 231,
-   "dead": null,
+   "dead": 79,
    "injured": null
   },
   {
    "bucket": "2023-08",
    "occurred": 5,
    "followup_articles": 267,
-   "dead": null,
+   "dead": 1,
    "injured": null
   },
   {
@@ -771,8 +771,8 @@
    "bucket": "2023-12",
    "occurred": 3,
    "followup_articles": 129,
-   "dead": null,
-   "injured": null
+   "dead": 2,
+   "injured": 83
   },
   {
    "bucket": "2024-01",
@@ -792,7 +792,7 @@
    "bucket": "2024-03",
    "occurred": 3,
    "followup_articles": 100,
-   "dead": null,
+   "dead": 18,
    "injured": null
   },
   {
@@ -813,7 +813,7 @@
    "bucket": "2024-06",
    "occurred": 4,
    "followup_articles": 51,
-   "dead": null,
+   "dead": 23,
    "injured": null
   },
   {
@@ -848,8 +848,8 @@
    "bucket": "2024-11",
    "occurred": 6,
    "followup_articles": 192,
-   "dead": null,
-   "injured": null
+   "dead": 56,
+   "injured": 67
   },
   {
    "bucket": "2024-12",
@@ -876,21 +876,21 @@
    "bucket": "2025-03",
    "occurred": 3,
    "followup_articles": 26,
-   "dead": null,
+   "dead": 30,
    "injured": null
   },
   {
    "bucket": "2025-04",
    "occurred": 2,
    "followup_articles": 224,
-   "dead": null,
-   "injured": null
+   "dead": 1,
+   "injured": 1
   },
   {
    "bucket": "2025-05",
    "occurred": 4,
    "followup_articles": 205,
-   "dead": null,
+   "dead": 4,
    "injured": null
   },
   {
@@ -904,14 +904,14 @@
    "bucket": "2025-07",
    "occurred": 10,
    "followup_articles": 427,
-   "dead": null,
+   "dead": 47,
    "injured": null
   },
   {
    "bucket": "2025-08",
    "occurred": 3,
    "followup_articles": 185,
-   "dead": null,
+   "dead": 1,
    "injured": null
   },
   {
@@ -932,14 +932,14 @@
    "bucket": "2025-11",
    "occurred": 1,
    "followup_articles": 203,
-   "dead": null,
-   "injured": null
+   "dead": 7,
+   "injured": 2
   },
   {
    "bucket": "2025-12",
    "occurred": 2,
    "followup_articles": 109,
-   "dead": null,
+   "dead": 4,
    "injured": null
   },
   {
@@ -5002,8 +5002,8 @@
  ],
  "labels": {
   "labeled": 90,
-  "followup_precision": 0.623,
-  "followup_recall": 0.786,
+  "followup_precision": 0.925,
+  "followup_recall": 0.721,
   "cluster_precision": 0.843,
   "org_accuracy": 0.815
  },
@@ -5015,7 +5015,7 @@
    "time_line": 894,
    "word_cloud": 0
   },
-  "elapsed_sec": 6857.8,
+  "elapsed_sec": 6858.1,
   "recordings": 11918
  },
  "success": {
