@@ -331,6 +331,7 @@ class Experiment:
             except Exception as exc:  # noqa: BLE001 — 사건 단위 격리
                 self.session.rollback()
                 failures.append({"stage": "extract", "event": e.key, "error": mask(f"{type(exc).__name__}: {exc}")[:200]})
+        src_stats = self.ensure_source_promises(evs)
         for e in evs:
             try:
                 pf_stats.append(promise_followups(self.session, self.client, e, self.settings, self.embedder, self.cfg.today, self.cfg.query_hit_limit or 400))
@@ -346,9 +347,47 @@ class Experiment:
                 "extract": {"events": len(ex_stats), "quotes": sum(x.get("linked_quotes", 0) for x in ex_stats), "public": sum(x.get("public", 0) for x in ex_stats), "promises": sum(x.get("promises", 0) for x in ex_stats)},
                 "promise_followups": {"events": len(pf_stats), "searched": sum(1 for x in pf_stats if not x["skipped"]), "skipped": sum(1 for x in pf_stats if x["skipped"]), "fetched": sum(x["fetched"] for x in pf_stats)},
                 "relink": {"links": sum(x.get("linked", 0) for x in relink), "review": sum(x.get("review", 0) for x in relink)},
+                "source_promises": src_stats,
                 "rules_outputs_cleared": cleared, "judge": jd.stats.get("summary"), "failures": len(failures) + len(jd.stats.get("failures", [])), "failure_samples": failures[:5], **extra,
             },
         )
+
+    def ensure_source_promises(self, evs: list[Event]) -> dict[str, int]:
+        """원천 기사(대응 발언)의 인용문은 반드시 약속 추출을 받게 한다.
+        인용문 검색 창(발생 +90일) 밖이거나 이번 검색에 다시 나오지 않으면 extract_event 가 건너뛰므로,
+        원천 기사의 인용문이 없으면 시드의 source_quotation 으로 만들고, 추출 결과가 없는 인용문은 여기서 추출한다."""
+        from ..db.models import Quotation
+        from ..pipeline.extract import _merge_duplicates, store_promise
+        from ..llm.schemas import PromiseInput
+
+        out = {"events": 0, "created_quotes": 0, "extracted": 0, "trackable": 0}
+        for e in evs:
+            src = self.session.get(Article, e.source_news_id) if e.source_news_id else None
+            if src is None:
+                continue
+            out["events"] += 1
+            qs = [q for q in e.quotations if q.news_id == src.news_id]
+            if not qs and e.source_quotation:
+                q = Quotation(event_id=e.id, news_id=src.news_id, source=e.responsible_org or "", quotation=e.source_quotation,
+                              published_at=src.published_at, provider=src.provider, is_public_actor=True)
+                e.quotations.append(q)
+                qs = [q]
+                out["created_quotes"] += 1
+            lexicon = [e.region, e.responsible_org, *(e.org_aliases or [])]
+            for q in qs:
+                if any(p.model == self.llm.model for p in q.promises):
+                    continue
+                inp = PromiseInput(event_summary=e.summary or e.title, responsible_org=e.responsible_org, source=q.source, quotation=q.quotation,
+                                   article_title=src.title or "", published_at=(q.published_at or src.published_at or e.occurred_at).isoformat())
+                res = self.llm.extract_promise(inp, key=f"{q.news_id}||{q.source}||{q.quotation}")
+                store_promise(e, q, res, self.llm, lexicon)
+                out["extracted"] += 1
+            out["trackable"] += sum(1 for q in qs for p in q.promises if p.model == self.llm.model and p.is_trackable)
+            self.session.flush()
+            self.session.refresh(e)
+            _merge_duplicates(e, self.embedder)
+        self.session.commit()
+        return out
 
     def _clear_rules_outputs(self, evs: list[Event]) -> dict[str, int]:
         """규칙 어댑터 산출물(약속·후속 신호)은 결정적이고 공짜라 followup 마다 다시 만든다 — 규칙을 고친 뒤 재실행이 옛 결과를 캐시로 쓰지 않게.

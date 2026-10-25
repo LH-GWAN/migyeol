@@ -41,6 +41,7 @@ _CONCRETE = (
     "전수조사", "재발 방지", "재발방지", "마련", "설치", "보강", "점검", "교체", "확충", "신설", "강화", "복구", "정비", "증설", "개선",
     "철거", "도입", "구축", "배치", "확대", "보수", "정밀안전진단", "안전진단", "진단", "준설", "이전", "재건축", "개통", "준공", "완공",
     "착공", "시행", "추진", "늘리", "높이", "줄이", "없애", "막겠", "갖추", "지원", "보상", "배상", "제정", "개정", "폐쇄", "통제", "감독", "단속", "수립",
+    "조성", "선포", "동원", "투입", "측정", "모니터링", "규명", "지급", "가동", "보완", "확보", "감식", "수사", "착수", "재개", "공개", "신고센터",
 )
 _MODAL_RE = re.compile(r"(하겠다|하겠습니다|겠다|겠습니다|할 계획|할 방침|할 예정|예정이다|예정입니다|계획이다|계획입니다|방침이다|할 것이다|추진한다|추진할|추진하겠)")
 _SOFT_RE = re.compile(r"(검토|노력|공감|고민|살펴보|살피|협의|논의|모색|최선을 다|만전을 기|노력하)")
@@ -140,7 +141,7 @@ def _action_clause(quotation: str) -> str | None:
         if not m:
             continue
         concrete = any(v in c for v in _CONCRETE)
-        score = (1 if concrete else 0, 1 if _MODAL_RE.search(c) else 0)
+        score = (1 if (_MODAL_RE.search(c) or _FIRM_RE.search(c) or _WILL_RE.search(c)) else 0, 1 if concrete else 0)  # 다짐이 걸린 절을 먼저
         if best is None or score > best[0]:
             best = (score, c, m)
     if best is None:
@@ -148,10 +149,16 @@ def _action_clause(quotation: str) -> str | None:
     _, clause, m = best
     if len(clause) <= _ACTION_MAX:
         return clause
-    # 행동 동사 어절 끝까지를 포함하는 40자 창
+    # 다짐 표현(없으면 행동 동사) 어절 끝까지를 포함하는 40자 창
+    commits = [x for x in (_MODAL_RE.search(clause), _FIRM_RE.search(clause), _WILL_RE.search(clause)) if x]
+    if commits:
+        m = max(commits, key=lambda x: x.end())
     end = clause.find(" ", m.end())
     end = len(clause) if end < 0 else end
     start = max(0, end - _ACTION_MAX)
+    if start > 0 and clause[start - 1] != " ":
+        nxt = clause.find(" ", start)
+        start = nxt + 1 if 0 <= nxt < end - 4 else start  # 어절 중간에서 시작하지 않게
     return clause[start:end].strip()
 
 
@@ -176,6 +183,25 @@ def _strength(quotation: str, has_deadline: bool) -> str:
 
 
 _CONF = {"확약": 0.8, "계획": 0.7, "의사표명": 0.6, "해당없음": 0.5}
+
+# 약속 = 스스로 하겠다는 **다짐이 있는 문장**. 사실 묘사('…이 설치된', '…것으로 추정된다', '복구 작업을 진행하고 있다')는
+# 구체 행동어가 있어도 약속이 아니다 (rules-v2, 2026-10-25 — 서술 조각이 '계획' 으로 추적되던 오탐)
+_SENT_RE = re.compile(r"(?<=[.!?。])\s+|\n+|(?<=다)\.?\s+")
+_FIRM_RE = re.compile(
+    "(" + "|".join(sorted(_CONCRETE, key=len, reverse=True)) + r")\S{0,6}\s?(하겠|할 계획|할 예정|할 방침|한다|할 것|키로|하기로)"
+)
+_WAS_RE = re.compile(r"(계획|예정|방침)이었|하려\s*했|하기로\s*했었")
+_WILL_RE = re.compile(r"(할|갈|낼|울|킬) 것(이다|입니다|)(?=\s|$|[.!?])")  # 문장 끝 '…지원할 것'·'…이어갈 것' ('할 것으로 보인다' 는 추정이라 제외)
+
+
+def _commitment_sentences(quotation: str) -> list[str]:
+    """다짐 표현(하겠다·할 계획·할 예정·방침·키로·하기로·「설치한다」형)이 있는 문장만. 과거형 계획('계획이었다')은 뺀다."""
+    out = []
+    for raw in _SENT_RE.split(quotation or ""):
+        t = re.sub(r"\s+", " ", raw or "").strip()
+        if len(t) >= 4 and (_MODAL_RE.search(t) or _FIRM_RE.search(t) or _WILL_RE.search(t)) and not _WAS_RE.search(t):
+            out.append(t)
+    return out
 
 # ---------------------------------------------------------------- ⓑ 후속 신호
 _PROGRESS_RE = re.compile(
@@ -293,16 +319,27 @@ class RulesLLM:
         from ..rules.actors import normalize_actor_org
 
         actor = canonical_org(normalize_actor_org(inp.source, inp.responsible_org) or inp.source) or None
-        action = _action_clause(q) if _ACTION_RE.search(q) else None
+        committed = " ".join(_commitment_sentences(inp.quotation))
+        if not committed:
+            # 다짐 문장이 없다: 지시('…하라')·검토·노력은 의사표명, 사실 묘사는 해당없음 — 추적하지 않는다
+            soft = bool(_DIRECTIVE_RE.search(q) or _SOFT_RE.search(q)) and bool(_ACTION_RE.search(q))
+            return PromiseExtraction(
+                is_promise=soft, actor_org=actor, actor_raw=inp.source, action=_action_clause(q) if soft else None,
+                strength="의사표명" if soft else "해당없음", confidence=_CONF["의사표명" if soft else "해당없음"],
+                rationale="다짐 문장 없음 — 지시·검토 표현 (규칙)" if soft else "다짐 문장 없음 — 사실 묘사 (규칙)",
+            )
+        action = _action_clause(committed) if _ACTION_RE.search(committed) else None
         if not action:
             return PromiseExtraction(
                 is_promise=False, actor_org=actor, actor_raw=inp.source, action=None, strength="해당없음",
                 confidence=_CONF["해당없음"], rationale="행동 동사 없음 (규칙)",
             )
-        raw, deadline, precision = parse_relative_deadline(q, published)
+        raw, deadline, precision = parse_relative_deadline(committed, published)
+        if deadline is None:
+            raw, deadline, precision = parse_relative_deadline(q, published)
         if deadline is not None and deadline < published:
             raw, deadline, precision = raw, None, "none"
-        strength = _strength(q, deadline is not None)
+        strength = _strength(committed, deadline is not None)
         return PromiseExtraction(
             is_promise=strength != "해당없음",
             actor_org=actor,

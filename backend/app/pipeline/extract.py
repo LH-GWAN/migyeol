@@ -181,6 +181,43 @@ def count_pending_quotations(event: Event) -> int:
     return sum(1 for q in event.quotations if q.is_public_actor and not q.promises and q.news_id in active)
 
 
+def store_promise(event: Event, q: Quotation, res, llm: LLMClient, lexicon: list[str], stats: dict | None = None) -> Promise:
+    """추출 결과 하나를 Promise 로 저장한다 (extract_event 와 실험의 원천 발언 추출이 같이 쓴다)."""
+    # 주체 기관: 규칙 결과가 있으면 그것을 쓴다 (LLM 값이 '충청북도'·'청주시청 도로과' 처럼 달라도 덮어쓰지 않는다 — 병합 키 일관성).
+    # 규칙이 못 찾으면 LLM 값을 쓰되, 사람 이름 형태('김민구')면 버린다. 둘 다 없으면 "" = 기관 미상 (병합·추적 키에서 제외).
+    actor = normalize_actor_org(q.source, event.responsible_org, lexicon)
+    if actor and looks_like_person(actor, lexicon):
+        actor = None
+    if not actor:
+        cand = (res.actor_org or "").strip()
+        actor = cand if cand and not looks_like_person(cand, lexicon) else ""
+    deadline, why = parse_deadline(res.deadline_date, q.published_at)
+    if why:
+        if stats is not None:
+            stats["deadline_rejected"] = stats.get("deadline_rejected", 0) + 1
+        log.warning("기한 무효 처리 %s: %s", event.key, why)
+    p = Promise(
+        event_id=event.id,
+        quotation_id=q.id,
+        actor_org=actor,
+        actor_raw=res.actor_raw or q.source,
+        action=res.action or "",
+        deadline_raw=res.deadline_raw,
+        deadline_date=deadline,
+        deadline_precision=res.deadline_precision if deadline else "none",
+        strength=res.strength,
+        is_trackable=bool(res.is_promise and res.strength in ("확약", "계획") and res.action),
+        evidence_news_id=q.news_id,
+        confidence=res.confidence,
+        rationale=(res.rationale or "") + (f" [기한 무효: {why}]" if why else ""),
+        model=llm.model,
+        prompt_version=PROMPT_VERSIONS["promise"],
+    )
+    event.promises.append(p)
+    q.promises.append(p)
+    return p
+
+
 def extract_event(
     session: Session,
     client: BigKindsClient,
@@ -275,38 +312,7 @@ def extract_event(
 
     # 3) 결과 저장
     for q, res in results:
-        # 주체 기관: 규칙 결과가 있으면 그것을 쓴다 (LLM 값이 '충청북도'·'청주시청 도로과' 처럼 달라도 덮어쓰지 않는다 — 병합 키 일관성).
-        # 규칙이 못 찾으면 LLM 값을 쓰되, 사람 이름 형태('김민구')면 버린다. 둘 다 없으면 "" = 기관 미상 (병합·추적 키에서 제외).
-        actor = normalize_actor_org(q.source, event.responsible_org, lexicon)
-        if actor and looks_like_person(actor, lexicon):
-            actor = None
-        if not actor:
-            cand = (res.actor_org or "").strip()
-            actor = cand if cand and not looks_like_person(cand, lexicon) else ""
-        deadline, why = parse_deadline(res.deadline_date, q.published_at)
-        if why:
-            stats["deadline_rejected"] += 1
-            log.warning("기한 무효 처리 %s: %s", event.key, why)
-        p = Promise(
-            event_id=event.id,
-            quotation_id=q.id,
-            actor_org=actor,
-            actor_raw=res.actor_raw or q.source,
-            action=res.action or "",
-            deadline_raw=res.deadline_raw,
-            deadline_date=deadline,
-            deadline_precision=res.deadline_precision if deadline else "none",
-            strength=res.strength,
-            is_trackable=bool(res.is_promise and res.strength in ("확약", "계획") and res.action),
-            evidence_news_id=q.news_id,
-            confidence=res.confidence,
-            rationale=(res.rationale or "") + (f" [기한 무효: {why}]" if why else ""),
-            model=llm.model,
-            prompt_version=PROMPT_VERSIONS["promise"],
-        )
-        event.promises.append(p)
-        q.promises.append(p)
-        if p.is_trackable:
+        if store_promise(event, q, res, llm, lexicon, stats).is_trackable:
             stats["promises"] += 1
     for q, why in gave_up:
         p = Promise(event_id=event.id, quotation_id=q.id, actor_org="", actor_raw=q.source, action="", strength="해당없음", is_trackable=False, evidence_news_id=q.news_id, confidence=0.0, rationale=why, model=llm.model, prompt_version=PROMPT_VERSIONS["promise"])

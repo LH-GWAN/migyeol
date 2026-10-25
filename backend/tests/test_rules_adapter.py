@@ -183,3 +183,30 @@ def test_rules_never_raise_llm_failure():
         llm.classify_followup(FollowupInput(event_summary="", promises=[], article_title="", hilight="", published_at="2025-01-01"))
     except LLMFailure:  # pragma: no cover
         pytest.fail("rules 어댑터는 LLMFailure 를 내지 않는다")
+
+
+@pytest.mark.parametrize(
+    "quotation,strength,action_part",
+    [
+        # 사실 묘사·추정·현재 진행 설명은 구체 행동어가 있어도 약속이 아니다 (rules-v2, 실험 오탐 사례)
+        ("해상에 설치된 그물에 걸린 것으로 보인다", "해당없음", None),
+        ("설치된 철제 방화문이 닫혀있었던 것으로 추정된다", "해당없음", None),
+        ("현재 전기 공급을 위해 복구 작업을 진행하고 있다", "해당없음", None),
+        ("이날 오전 10시 25분경 인천 강화도와 김포 일대에 무인기가 나타났다", "해당없음", None),
+        ("보강 공사를 추진할 계획이었으나 예산이 없었다", "해당없음", None),
+        # 다짐 문장: 하겠다 · 할 예정 · 「조성한다」 · 문장 끝 '…할 것'
+        ("3시간 이내로 건물 철거를 완료할 예정", "계획", "철거를 완료할 예정"),
+        ("청량나들목 일원이 민자구간이지만 사고 예방을 위해 가드레일을 조성한다\n설치가 완료되면 사고가 줄어들 것으로 기대한다", "계획", "가드레일을 조성한다"),
+        ("지하차도, 하천변 등 침수 취약구간은 선제적으로 통제하고, 상습침수지역 예찰을 강화할 것", "계획", "예찰을 강화할 것"),
+        ("어떻게 대응하고, 복구하는지가 중요한 만큼 현대시장의 빠른 정상화를 위해 행정력을 집중하겠다", "계획", "행정력을 집중하겠다"),
+        ("피해가 커질 것으로 보인다", "해당없음", None),
+    ],
+)
+def test_promise_requires_commitment_sentence(quotation, strength, action_part):
+    r = RulesLLM().extract_promise(_p(quotation))
+    assert r.strength == strength
+    if action_part:
+        assert r.action and action_part in r.action and len(r.action) <= 40
+        assert not r.action[0].isspace()
+    else:
+        assert not r.is_promise
