@@ -210,3 +210,41 @@ def test_promise_requires_commitment_sentence(quotation, strength, action_part):
         assert not r.action[0].isspace()
     else:
         assert not r.is_promise
+
+
+@pytest.mark.parametrize(
+    "text,is_new_problem",
+    [
+        # 배경 서술·조건·부정·예방 촉구·논란은 새로운 문제가 아니다 (실험 '새로운 문제 발생' 오판 사례)
+        ("천장 균열 등 안전문제로 영업이 중단됐던 NC백화점이 영업을 재개했다", False),
+        ("이번 부분파업으로 포항제철소 전체 생산이 중단되는 것은 아니다", False),
+        ("조업이 잠시라도 중단되면 협력업체 피해가 크다", False),
+        ("아리셀 참사 되풀이 막아야", False),
+        ("임도 정책이 또다시 도마 위에 올랐다", False),
+        ("국감서 늑장 수사의뢰 공방", False),
+        # 재발·차질·조치 중단
+        ("대심도 인근 도로에서 한달만에 또 지반 침하", True),
+        ("또다시 어선 사고로 인명 피해가 발생했다", True),
+        ("방음터널 공사가 지연되고 있다", True),
+        ("복구 공사가 중단됐다", True),
+        ("기상 탓에 서경호 선체 수색 중단…4월 초 재개", True),
+    ],
+)
+def test_new_problem_expressions(text, is_new_problem):
+    from app.llm.rules_adapter import _NEW_PROBLEM_RE
+
+    assert bool(_NEW_PROBLEM_RE.search(text)) == is_new_problem
+
+
+def test_resumption_is_completion():
+    # 멈췄던 영업이 다시 열렸다 = 조치의 결과 (NC백화점 야탑점 사례). '수색 재개'·'재개될 예정' 은 완료가 아니다
+    inp = FollowupInput(
+        event_summary="", promises=[PromiseRef(id=1, actor_org="성남시", action="정밀진단을 실시해 안전이 확보될 수 있도록 하겠다")],
+        article_title="NC백화점 야탑점 영업 재개... 성남시, 안전점검-시설 보수 확인", hilight="", published_at="2023-02-01",
+        term_weights={"NC백화점": 1.0, "야탑점": 0.9},
+    )
+    r = validate_span(RulesLLM().classify_followup(inp), inp)
+    assert r.signal == "완료" and r.promise_id == 1
+    from app.llm.rules_adapter import _RESUMED_RE
+
+    assert not _RESUMED_RE.search("서경호 실종자 수색 재개") and not _RESUMED_RE.search("다음 달 영업 재개될 예정")
