@@ -72,6 +72,21 @@ def test_action_match_needs_same_kind_of_action_for_identity_overlap():
     assert R.RulesLLM(S(followup_action_match=True)).classify_followup(same).signal == "완료"
 
 
+def test_vector_cache_overflow_keeps_texts_already_cached():
+    """캐시가 상한을 넘을 때 이미 들어 있던 문장도 다시 계산한다 (예전에는 비운 뒤 KeyError — 3단계 추출에서 발견)."""
+
+    class Zero:
+        name = "zero"
+
+        def encode(self, texts):
+            return [[0.0, 1.0] for _ in texts]
+
+    llm = R.RulesLLM(S(), Zero())
+    llm.VEC_CACHE_MAX = 2
+    llm._vectors(["가", "나", "다"])  # 캐시 3개 > 상한 2
+    assert len(llm._vectors(["가", "라"])) == 2  # '가' 는 캐시에 있었지만 비워진 뒤에도 돌려준다
+
+
 def test_action_groups():
     assert R.action_groups("가드레일을 조성한다") & R.action_groups("가드레일 설치를 마쳤다")
     assert not (R.action_groups("가드레일을 조성한다") & R.action_groups("정체 개선 용역 발주"))

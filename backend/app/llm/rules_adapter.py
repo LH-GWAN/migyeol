@@ -325,6 +325,8 @@ class RulesLLM:
         )
         return RULES_MODEL_V3 if v3 else RULES_MODEL
 
+    VEC_CACHE_MAX = 50_000  # 문장 임베딩 캐시 상한 — 넘으면 비운다
+
     def __init__(self, settings: Settings | None = None, embedder=None):
         self.settings = settings
         self.embedder = embedder  # 문장 관련도용. 파이프라인이 자기 임베딩 백엔드를 붙인다 (없으면 hash)
@@ -338,10 +340,10 @@ class RulesLLM:
             from ..pipeline.embeddings import HashEmbedding
 
             self.embedder = HashEmbedding()
+        if len(self._vec_cache) > self.VEC_CACHE_MAX:
+            self._vec_cache.clear()  # 비우기는 할 일(todo)을 고르기 전에 — 고른 뒤에 비우면 이미 있던 문장이 사라져 KeyError
         todo = [t for t in dict.fromkeys(texts) if t not in self._vec_cache]
         if todo:
-            if len(self._vec_cache) > 50_000:
-                self._vec_cache.clear()
             for t, v in zip(todo, self.embedder.encode(todo)):
                 self._vec_cache[t] = np.asarray(v, dtype=np.float32)
         return [self._vec_cache[t] for t in texts]
