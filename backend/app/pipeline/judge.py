@@ -1,6 +1,9 @@
 """5. 후속 신호 분류(LLM 역할 ⓑ) + 상태 판정(규칙) + 우선순위.
 
-후속 기사 = 활성 연결(해제·검토 대기 제외) 기사 중 published_at > max(발생일 + 유예, 가장 이른 약속 발언일), 삭제(cancelled) 제외.
+후속 기사 = 활성 연결(해제·검토 대기 제외) 기사 중 published_at > 기준일, 삭제(cancelled) 제외.
+  FOLLOWUP_CUTOFF=grace : 기준일 = max(발생일 + 유예, 가장 이른 약속 발언일)
+  FOLLOWUP_CUTOFF=source: 기준일 = max(발생일, 원천 발언일) — 그리고 신호는 그 신호가 가리킨 약속의 발언일 뒤 기사여야 한다 (docs/EXPERIMENT.md §10)
+  FOLLOWUP_MIN_LINK_PROB: 재순위 확률(link_reason 의 p=)이 이보다 낮은 연결은 후속 기사에서 뺀다 (관리자 확정·수동 연결은 그대로).
 추적 약속 = is_trackable 이고 근거 기사가 활성 연결인 약속 (연결이 해제·삭제되면 약속도 추적에서 빠진다).
 신호 캐시 키: (event, news_id, prompt_version) + 분류 당시 model + 추적 약속 집합 해시. 모델이나 약속 집합이 바뀌면 다시 분류한다.
 LLM 호출은 DB 쓰기 트랜잭션 밖에서 하고, 실패한 기사는 저장하지 않는다(다음 실행에서 재시도). 최신 기사부터 분류한다.
@@ -12,6 +15,7 @@ from __future__ import annotations
 
 import hashlib
 import logging
+import re
 from datetime import date, timedelta
 
 from sqlalchemy.orm import Session
@@ -75,16 +79,57 @@ def deadline_passed_days(event: Event, today: date) -> int | None:
     return (today - p.deadline_date).days if p else None
 
 
-def followup_cutoff(session: Session, event: Event, settings: Settings) -> date:
-    cutoff = event.occurred_at + timedelta(days=settings.followup_grace_days)
-    dates = []
-    for p in trackable_promises(event):
+def cutoff_date(occurred: date, source_date: date | None, promise_dates: list[date], settings: Settings) -> date:
+    """후속 기사 기준일 (이 날짜보다 뒤 기사만 후속). label_eval.FollowupSim 도 같은 함수를 쓴다."""
+    if settings.followup_cutoff == "source":
+        return max(occurred, source_date) if source_date else occurred
+    cutoff = occurred + timedelta(days=settings.followup_grace_days)
+    return max(cutoff, min(promise_dates)) if promise_dates else cutoff
+
+
+def promise_dates(session: Session, promises: list[Promise]) -> dict[int, date]:
+    out = {}
+    for p in promises:
         a = session.get(Article, p.evidence_news_id)
         if a is not None and a.published_at is not None:
-            dates.append(a.published_at)
-    if dates:
-        cutoff = max(cutoff, min(dates))
-    return cutoff
+            out[p.id] = a.published_at
+    return out
+
+
+def source_date(session: Session, event: Event) -> date | None:
+    a = session.get(Article, event.source_news_id) if event.source_news_id else None
+    return a.published_at if a is not None else None
+
+
+def followup_cutoff(session: Session, event: Event, settings: Settings) -> date:
+    return cutoff_date(event.occurred_at, source_date(session, event), list(promise_dates(session, trackable_promises(event)).values()), settings)
+
+
+_PROB_RE = re.compile(r"(?:^|\+)p=([0-9.]+)")
+
+
+def link_prob(link) -> float | None:
+    """재순위가 매긴 연결 확률 — link_reason 에 p= 가 있을 때만 (재순위를 끄면 link_score 는 합산 점수라 쓰지 않는다)."""
+    m = _PROB_RE.search(link.link_reason or "")
+    return float(link.link_score) if m else None
+
+
+def kept_late(link) -> bool:
+    """재순위 바닥 규칙(창 뒤 + 제목 시설명)으로 남은 연결 — 몇 년 뒤 후속(만덕~센텀 2026)을 지키려고 둔 것이다."""
+    return "keep-late-facility" in (link.link_reason or "")
+
+
+def low_prob_link(link, settings: Settings) -> bool:
+    """재순위 확률이 FOLLOWUP_MIN_LINK_PROB 보다 낮은 자동 연결인가 (관리자 확정·수동·재순위 밖 연결은 아니다)."""
+    if link.confirmed or link.link_method == "manual" or settings.followup_min_link_prob <= 0:
+        return False
+    p = link_prob(link)
+    return p is not None and p < settings.followup_min_link_prob
+
+
+def usable_followup_link(link, settings: Settings) -> bool:
+    """후속 근거로 쓸 연결: 활성 + 확률이 낮지 않거나, 낮아도 바닥 규칙으로 남은 늦은 기사(완료·새로운문제 근거로만 — classify_followups)."""
+    return link.is_active and (not low_prob_link(link, settings) or kept_late(link))
 
 
 def days_since_followup(session: Session, event: Event, settings: Settings, today: date) -> int:
@@ -99,7 +144,7 @@ def followup_articles(session: Session, event: Event, settings: Settings) -> lis
     cutoff = followup_cutoff(session, event, settings)
     out = []
     for l in event.links:
-        if not l.is_active:
+        if not usable_followup_link(l, settings):
             continue
         a = session.get(Article, l.news_id)
         if a is not None and a.published_at is not None and a.published_at > cutoff and a.change_status != "cancelled":
@@ -181,8 +226,19 @@ def classify_followups(
         clear_llm_failure(event, f"followup:{a.news_id}")
         results.append((a, res))
 
+    pdates = promise_dates(session, promises) if settings.followup_cutoff == "source" else {}
+    links = {l.news_id: l for l in event.links}
     for a, res in results:
         pid = res.promise_id if res.promise_id in promise_ids else None
+        if pid is not None and pid in pdates and a.published_at <= pdates[pid]:
+            # 신호가 가리킨 약속의 발언일보다 앞서거나 같은 날 기사는 그 약속의 후속이 아니다 (FOLLOWUP_CUTOFF=source)
+            res = res.model_copy(update={"signal": "불명확", "matches_promise": False, "rationale": f"{res.rationale} · 약속 발언일({pdates[pid]}) 이전·당일 기사"})
+            pid = None
+        link = links.get(a.news_id)
+        if res.signal == SIGNAL_PROGRESS and link is not None and kept_late(link) and low_prob_link(link, settings):
+            # 바닥 규칙으로 남은 늦은 같은 시설 기사의 '진행' 은 다른 공사·점검일 수 있다 — 완료·새로운문제 근거로만 쓴다
+            res = res.model_copy(update={"signal": "불명확", "matches_promise": False, "rationale": f"{res.rationale} · 재순위 확률이 낮은 늦은 기사의 진행 표현"})
+            pid = None
         sig = existing.get(a.news_id)
         if sig is None:
             sig = FollowupSignal(event_id=event.id, news_id=a.news_id, prompt_version=version)

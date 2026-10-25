@@ -19,15 +19,25 @@ def _v(x: Any) -> str:
     return "—" if x is None else str(x)
 
 
+def _rules_name(latest: dict, settings: Settings) -> str | None:
+    """규칙 어댑터로 돌린 실험이면 그 규칙 이름(rules-v2 / rules-v3 — FOLLOWUP_* 보강을 켰는가), 아니면 None."""
+    if latest.get("llm_mode") != "rules":
+        return None
+    from ..llm.rules_adapter import RulesLLM
+
+    return RulesLLM(settings).model
+
+
 def render(latest: dict, facts: list[EventFacts], state: dict, lab: dict, org_rows: list[dict], cfg, settings: Settings, session: Session) -> str:
     ev = latest["events"]
+    rules = _rules_name(latest, settings)
     st = state.get("stages", {})
     disc = (st.get("discover") or {}).get("stats", {})
     L: list[str] = []
     a = L.append
     a("# 미결 실험 리포트 — 원천 기사 → 사건 군집 → 후속보도 탐지 (v2 §4)")
     a("")
-    a(f"- 생성: {latest['generated_at']} · 기준일(as_of): {latest['as_of']} · 빅카인즈 모드: `{latest['bigkinds_mode']}` · LLM: `{latest['llm_mode']}`(규칙 어댑터 rules-v1) · 임베딩: `{latest['embedding_backend']}`")
+    a(f"- 생성: {latest['generated_at']} · 기준일(as_of): {latest['as_of']} · 빅카인즈 모드: `{latest['bigkinds_mode']}` · LLM: `{latest['llm_mode']}`{f'(규칙 어댑터 {rules})' if rules else ''} · 임베딩: `{latest['embedding_backend']}`")
     a(f"- 모집단: 전국, 발생 {cfg.start} ~ {cfg.until}, 사건 분류 {', '.join(cfg.prefixes)} · 시드 파일: `{latest['seeds_file']}`")
     if cfg.embedding_note:
         a(f"- 임베딩 메모: {cfg.embedding_note}")
@@ -155,7 +165,8 @@ def render(latest: dict, facts: list[EventFacts], state: dict, lab: dict, org_ro
     a("## 10. 한계")
     a("")
     a("- 인용문 검색은 실서버에서 기사 본문까지 매칭해 (월, 계열)당 1만 건 이상이 나온다. 전수 대신 `_score` 상위 표본만 받았다(잘린 구간 수 위 표). 표본 밖의 원천 기사는 이번 실험에 없다.")
-    a("- 약속 추출·후속 신호 분류는 LLM 없이 규칙(rules-v1)이다. 행동 키워드가 기사 문장과 겹치지 않는 후속 기사(다른 표현)는 '불명확'으로 남아 후속보도 수가 실제보다 적게 잡힐 수 있다.")
+    if rules:
+        a(f"- 약속 추출·후속 신호 분류는 LLM 없이 규칙({rules})이다. 행동 키워드가 기사 문장과 겹치지 않는 후속 기사(다른 표현)는 '불명확'으로 남아 후속보도 수가 실제보다 적게 잡힐 수 있다.")
     a(f"- 사건 군집은 기존 연결 엔진(규칙 게이트 + 임베딩)에 사건별 단어 가중치를 더했다 (WEIGHT_MIN={settings.weight_min} · WEIGHT_ALPHA={settings.weight_alpha} · WEIGHT_RULE_MIN={settings.weight_rule_min}). 같은 시설·지역의 다른 사건 기사가 남을 수 있어 `cluster_sample.csv` 로 사람이 확인한다.")
     a("- 기관 정규화는 사전 기반이다. 사전에 없는 기관은 원문 그대로 남는다(`org_sample.csv`).")
     a("- 보도가 없다는 사실은 조치가 없었다는 근거가 아니다. 후속보도가 확인되지 않은 사건은 기관 공식 게시판 확인(트랙 C)의 대상이다.")

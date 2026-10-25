@@ -282,7 +282,7 @@
 
 ## 2026-10-25 학습 기반 재순위 (LINK_RERANKER — 남은 군집 오염 줄이기)
 
-§7 뒤에도 자동 연결의 약 23%가 다른 사건 기사(대부분 '무관'·'예방·정책 일반', 절반 이상이 강한 규칙 경로)였다. 규칙 추가(A)·피처 분류기(B)·교차 인코더(C)를 사건 단위 5-fold 교차검증으로 비교하고, 가장 좋은 B+C(피처 분류기 + 교차 인코더 평균)를 link 단계에 설정으로 넣었다 — **기본값은 끔**(`LINK_RERANKER=none`). 진단·비교·채택·전후: `docs/EXPERIMENT.md` §9, `reports/rerank_cv_20261025.md`, `reports/eval_labels_20261025_rerank.md`.
+§7 뒤에도 자동 연결의 약 23%가 다른 사건 기사(대부분 '무관'·'예방·정책 일반', 절반 이상이 강한 규칙 경로)였다. 규칙 추가(A)·피처 분류기(B)·교차 인코더(C)를 사건 단위 5-fold 교차검증으로 비교하고, 가장 좋은 B+C(피처 분류기 + 교차 인코더 평균)를 link 단계에 설정으로 넣었다 — **기본값은 끔**(`LINK_RERANKER=none`, 같은 날 밤 사용자 결정으로 켬 — 아래 항목). 진단·비교·채택·전후: `docs/EXPERIMENT.md` §9, `reports/rerank_cv_20261025.md`, `reports/eval_labels_20261025_rerank.md`.
 
 - `pipeline/link.py`: 후보 판정을 `assess()`(게이트 → 코사인·overlap → 강한 규칙·다른 시설 → `decide`)와 `EventContext` 로 분리 — link 단계와 학습 스크립트가 같은 경로를 쓴다(실험 DB 의 지금 연결 16,749건을 그대로 재현). 재순위가 꺼져 있으면 결정·link_reason·link_score 가 이전과 같다.
 - `pipeline/rerank.py`(신규): 숫자 피처 53개(판정 재료·게이트 사유·날짜·제목/하이라이트/키워드의 사건 단어·제목의 보도 성격·사건 메타), 피처 분류기(로지스틱 회귀 + 그래디언트 부스팅 확률 평균, 제목·하이라이트 토큰 해싱), 교차 인코더 점수기, 모델 묶음 저장·적재, 교차 적합(학습에 쓴 사건은 그 사건을 뺀 fold 모델·교차검증 확률), 학습 데이터 수집(`collect_pairs`).
@@ -295,6 +295,28 @@
 - 재순위를 끈 link → followup 재실행이 백업과 같은 DB 를 만든다(판정 함수 분리가 동작을 바꾸지 않음을 실데이터로 확인).
 - 테스트 `tests/test_rerank.py`(34건: 피처 값·일반어/특정 시설명·확률 임계·모델 묶음 적재·피처 목록/형식/임베딩 불일치 거부·교차 적합·설정 끔/모델 없음 = 이전 동작·link 단계 연동(대상·결정·점수·경로 표시·바닥)·교차 인코더 캐시·섞기). `tests/conftest.py` 는 `LINK_RERANKER=none` 고정, `test_repo_rules` 금지어 검사는 로컬 교차 인코더 폴더(gitignore — 제3자 토크나이저 어휘)를 건너뛴다. 전체 474건 통과.
 - 못 한 것: 후속 신호 분류기 개선(재순위를 켜도 수치가 오르려면 필요 — §8·LLM live 몫), 사람 라벨로 재학습(라벨은 에이전트 것). 재순위 실행에서 바뀐 약속의 재검색 질의 35개는 녹화에 없어(실 API 호출 금지) 이전 후보로 진행.
+
+## 2026-10-25 (밤) 재순위 켬 + 2단계 후속 신호 판정 보강 (rules-v3)
+
+사용자 결정으로 학습 기반 재순위를 기본값으로 켜고(`LINK_RERANKER=cross`), 그 때문에 떨어진 사건 단위 후속보도 지표를 후속 신호 판정(2단계)에서 되찾았다. 진단·비교·채택·전후: `docs/EXPERIMENT.md` §10, `reports/followup_cv_20261025.md`. 연구 전체를 쉬운 말로 모은 `docs/연구.md`(신규).
+
+- 실 API(`BIGKINDS_REPLAY_ONLY=false`): 재순위를 켠 뒤 녹화에 없던 약속 재검색 96회, 2단계 적용 중 새로 생긴 인용문·약속 재검색 17회(녹화 11,805 → 11,918, 실패 0). 빠진 질의를 채워도 후속보도 P/R/F1 은 0.544/0.738/0.626 — 원인은 판정이었다.
+- 기본값 변경(`app/config.py`):
+  `LINK_RERANKER=cross`(교차 인코더가 없으면 피처 분류기, 둘 다 없거나 학습 임베딩이 다르면 끔) ·
+  `FOLLOWUP_CUTOFF=source`(후속 기사 = 원천 발언 다음 날부터. 신호가 가리킨 약속의 발언일 이전·당일 기사의 신호는 '불명확') ·
+  `FOLLOWUP_MIN_LINK_PROB=0.6`(재순위 확률이 낮은 자동 연결은 후속 근거에서 뺌. 관리자 확정·수동 연결은 그대로, 재순위 바닥 규칙으로 남은 늦은 기사는 완료·새로운문제 근거로만) ·
+  `FOLLOWUP_EXPRESSION_FIXES=true`('추가 피해 최소화·예방' 은 새로운 문제가 아님, 앞날을 가리키는 꼬리 없는 '재개장·재개통' 은 완료가 아님 → 규칙 이름 rules-v3, v2 캐시와 섞이지 않음).
+- 비교만 하고 끈 스위치: `FOLLOWUP_ACTION_MATCH`(시설 이름 겹침은 같은 종류 행동일 때만) · `FOLLOWUP_SKIP_COMMITMENT`(기사가 인용한 다짐·요구 문장 제외) · `FOLLOWUP_KW_ALONE`(키워드 겹침만으로 인정).
+- `pipeline/judge.py`: `cutoff_date`·`promise_dates`·`link_prob`·`usable_followup_link`·`kept_late`·`low_prob_link`. `followup_articles` 가 확률 바닥을 쓰고, `classify_followups` 가 약속 발언일 이전·당일 신호와 바닥 규칙 늦은 기사의 '진행' 을 '불명확' 으로 내린다(사유는 rationale 에 남김).
+- `llm/rules_adapter.py`: `classify_followup_detail()`(신호 + 근거 세부 — 겹침·대상어·시설 이름·행동 종류·경로·다짐/요구 문장), `action_groups()`, 표현 고침, 비교용 스위치. `llm/schemas.py` `FollowupInput.identity_terms`(직렬화 제외). `experiment/label_eval.py` 시뮬레이션이 같은 기준일을 쓰고 캐시 키에 새 설정을 넣는다.
+- `pipeline/rerank.py`: `LINK_RERANKER=cross` 인데 교차 인코더 폴더가 없으면 피처 분류기로 대신한다(경고).
+- `experiment/report.py`: 리포트 머리말·한계의 규칙 이름을 실제 값(rules-v2 / rules-v3)으로 — 'rules-v1' 로 고정돼 있었다. `llm/rules_adapter.py` 머리말도 같은 내용으로.
+- `scripts/train_followup.py`(신규): 후보 12,269건을 약속 묶음 3 × 규칙 변형 6 으로 다시 분류해 캐시(`--extract`), 기준일·확률 바닥·규칙 조합·학습 판정(로지스틱 회귀·그래디언트 부스팅, 안쪽 교차검증 문턱)을 사건 단위 5-fold 로 비교(`--cv` → `reports/followup_cv_20261025.md`).
+- 비교(사건 라벨 90건, 같은 잣대): 지금 0.626 → 규칙 조합(학습 fold 로 고름) 0.591 · 학습 판정 0.681 ± 0.017(로지스틱 회귀, 나누기 6가지) · **기준일 + 표현 고침 + 확률 바닥 0.702**(교차검증 0.702 ± 0.000, 근거까지 맞은 탐지 31).
+- 실험 DB 적용(`followup → report`, 출발점 백업 `data/_backup/migyeol_rerank_live_20261025.db`): 군집 전체 라벨 P/R 0.766/0.782 → **0.901/0.894**, 표본 0.744 → 0.843, 후속보도 P/R/F1 0.630/0.810/0.709 → **0.623/0.786/0.695**, 근거까지 맞은 탐지 26 → **31**, 자동 후속보도 54 → 53, 상태(완료/진행/새문제/부족/불가) 26/17/7/36/4 → 22/20/7/33/8. 회귀 사례(만덕 2026 19건 '새로운 문제 발생' · 영도구 3건 완료 · 현대시장 7건 완료) 유지. `experiment_latest.json`·`dashboard_20261022.json` 재생성.
+- 테스트 `tests/test_followup_v3.py`(15건: 표현 고침·규칙 이름·스위치·기준일·확률 바닥·가상 DB 에서 내림). `tests/conftest.py` 는 가상 픽스처를 이전 값(`LINK_RERANKER=none`·`FOLLOWUP_CUTOFF=grace`·`FOLLOWUP_MIN_LINK_PROB=0`·`FOLLOWUP_EXPRESSION_FIXES=false`)으로 고정 — 가상 정답셋은 이전 규칙으로 설계됐다. `test_rerank` 의 교차 인코더 없음 테스트는 피처 분류기 대체로 바꿈. 전체 489건 통과. 가상 픽스처 평가(`evaluate.py`, mock)는 새 기본값으로 돌려도 상태 정확도 1.0 · 연결 P/R 1.0/0.955 그대로다(재순위는 hash 임베딩이라 꺼지고, 누리군 청솔산의 규칙 이름만 R4_no_followup → R4_stale_followup, 상태는 같음).
+- 문서: `docs/연구.md`(신규), EXPERIMENT §10, ARCHITECTURE §3·§4·§5, README 결과 표, DEMO_SCRIPT 수치·사례(카드 예시 군위 → 통복터널, 5호선 상태, 유형별 자연재해 25), `.env.example`.
+- 못 한 것: 목표 F1 0.709 에 0.014 모자람(사건 두 건 — 적용 중 실 API 로 받은 새 인용문이 산청·가평 사건에 약속을 더해 오탐 +1, 재현 실험은 0.702). 약속이 없는 사건 14건(라벨 '있음' 3건)·미연결/검토 대기 근거 3건은 2단계로 찾을 수 없다. 공공기관 게시판 확인은 다시 돌리지 않았다(바뀐 상태로 트리거 19 → 31건). 라벨은 에이전트 것이다 — 사건 라벨의 실질 상한은 F1 0.92 언저리(1차 라벨을 따라 해도 최종 라벨 대비 0.923), 군집 라벨은 0.98 언저리.
 
 ## 본선 단계 (2026-10-12 ~ 10-30) — Phase 1~3 (예정)
 

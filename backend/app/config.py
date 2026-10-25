@@ -80,8 +80,8 @@ class Settings(BaseSettings):
     link_unique_min: float = 0.6  # 사건 고유어 = 사건 단어 가중치가 이 값 이상인 지역·일반어 아닌 단어 (+ 시설명)
     link_region_parent_ok: bool = False  # 기초 지역 사건에서 상위 광역명 + 사건 고유어를 지역어 대신 받아 준다
     # 학습 기반 재순위 (pipeline/rerank.py, docs/EXPERIMENT.md §9). none 이면 위 임계값(link.decide) 그대로.
-    # 기본 none: 교차검증·실험 DB 모두 군집 정밀도·재현율은 0.77/0.78 → 0.90/0.90 이지만 사건 단위 후속보도 P/R 이 0.63/0.81 → 0.55/0.74 로 떨어졌다(§9.4)
-    link_reranker: Literal["none", "features", "cross"] = "none"
+    # 기본 cross(2026-10-25 채택, §9·§10): 군집 정밀도·재현율 0.77/0.78 → 0.90/0.89. 교차 인코더가 없으면 features, 모델·의존성·학습 임베딩이 맞지 않으면 none
+    link_reranker: Literal["none", "features", "cross"] = "cross"
     rerank_model_path: str = ""  # 비우면 backend/models/reranker_features.joblib (scripts/train_reranker.py 가 만든다)
     rerank_cross_dir: str = ""  # 비우면 backend/models/cross_encoder/ (scripts/train_cross_encoder.py --save, gitignore)
     rerank_blend: float = 0.5  # LINK_RERANKER=cross 에서 피처 분류기 확률을 섞는 비율 (0 = 교차 인코더만, 교차검증 최고 = 0.5)
@@ -93,6 +93,15 @@ class Settings(BaseSettings):
     rerank_keep_late_facility: bool = True
     followup_top_sentences: int = 3  # 규칙 후속 신호: 관련도 상위 N 문장만 본다
     followup_sentence_min: float = 0.0  # 규칙 후속 신호: 문장 관련도(임베딩 코사인 + 가중치 단어 점수) 하한
+    # 규칙 후속 신호 보강 (docs/EXPERIMENT.md §10). 채택: 표현 고침 · 기준일 source · 연결 확률 바닥 0.6 / 비교만 하고 끈 것: action_match · skip_commitment · kw_alone 끔
+    followup_action_match: bool = False  # 약속 대상어 겹침만 센다 — 사건 이름(시설·지역) 겹침은 약속과 같은 종류의 행동어가 문장에 있을 때만
+    followup_kw_alone: bool = True  # 약속 키워드가 하나도 안 겹쳐도 사건 고유어가 무거운 문장을 신호 후보로 (rules-v2 경로)
+    followup_skip_commitment: bool = False  # '…하겠다·할 계획·필요·촉구' 처럼 다짐·요구인 문장의 진행 표현은 진행 보도로 보지 않는다
+    followup_expression_fixes: bool = True  # '추가 피해 최소화·예방' 은 새 문제가 아니고, '내년 2월 재개장' 처럼 앞날을 가리키는 재개장·재개통은 완료가 아니다
+    # 후속 기사 기준일: grace = max(발생 + FOLLOWUP_GRACE_DAYS, 가장 이른 추적 약속 발언일) (이전) /
+    # source = 원천 발언 다음 날부터, 신호가 가리킨 약속의 발언 다음 날부터 (유예 없음 — 라벨은 다음 날의 '철거 완료' 도 후속으로 본다)
+    followup_cutoff: Literal["grace", "source"] = "source"
+    followup_min_link_prob: float = 0.6  # 재순위 확률이 이보다 낮은 연결은 후속 근거로 쓰지 않는다 (재순위를 켠 연결만, 관리자 확정·수동 연결은 그대로)
     signal_min_conf: float = 0.6
     completion_min_conf: float = 0.7
     stale_followup_days: int = 60

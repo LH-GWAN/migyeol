@@ -1,7 +1,7 @@
 """LLM_MODE=rules — LLM 키 없이 규칙으로 두 역할(ⓐ 약속 추출, ⓑ 후속 신호 분류)을 대신하는 어댑터 (v2 §5).
 
 LLMClient 프로토콜(extract_promise, classify_followup)을 그대로 구현하므로 파이프라인 코드는 모드를 모른다.
-산출물의 model 은 "rules-v1" — live·stub 결과와 섞이지 않고, 캐시 키(model)가 달라 live 로 바꾸면 다시 분류된다.
+산출물의 model 은 "rules-v2"(FOLLOWUP_* 보강을 켜면 "rules-v3", 처음 버전은 rules-v1) — live·stub 결과와 섞이지 않고, 캐시 키(model)가 달라 live 로 바꾸면 다시 분류된다.
 
 ⓐ 약속 추출
   - 행동 동사(하겠다·할 계획·추진·마련·설치·보강·점검·전수조사·교체·확충·신설·강화·복구·정비·예정 …)가 있으면 is_promise.
@@ -34,6 +34,7 @@ from .client import _PAST_DONE_RE, MAX_SPAN_CHARS, completion_adjustment
 from .schemas import FollowupInput, FollowupSignal, PromiseExtraction, PromiseInput, PromiseRef
 
 RULES_MODEL = "rules-v2"  # v2: 문장 가중치 (2026-10-24). 모델명이 바뀌면 후속 신호 캐시가 무효가 되어 다시 분류된다
+RULES_MODEL_V3 = "rules-v3"  # v3: 표현 고침 등 FOLLOWUP_* 보강을 켠 규칙 (2026-10-25, docs/EXPERIMENT.md §10) — 켠 상태로 분류한 신호는 v2 캐시와 섞이지 않는다
 
 # ---------------------------------------------------------------- ⓐ 약속 추출
 # 구체 행동 동사 (명사형 어간). '…하겠다' 앞에 오면 계획 이상
@@ -259,6 +260,36 @@ def _window(sentence: str, m: re.Match[str]) -> str:
 KW_ALONE = 0.8  # 약속 키워드와 겹치지 않아도 이 이상 사건 고유어가 있는 문장은 신호 후보
 _BASE_CONF = {2: 0.75, 1: 0.65, 0: 0.6}
 
+# ---- 보강 후보 (설정으로 켠다, docs/EXPERIMENT.md §10)
+# 같은 종류의 행동: 약속의 행동어와 문장의 행동어가 한 묶음에 있으면 '같은 조치' 로 본다
+_ACTION_GROUPS: tuple[tuple[str, ...], ...] = (
+    ("설치", "조성", "구축", "도입", "신설", "설비", "배치"),
+    ("복구", "정비", "보수", "재건", "원상", "보강", "개축", "재시공", "수리"),
+    ("교체", "개선", "개량"),
+    ("철거", "해체"),
+    ("지원", "지급", "보상", "배상", "보험금", "재난지원금", "위로금"),
+    ("점검", "진단", "전수조사", "실태조사", "감사"),
+    ("확충", "증설", "확대", "늘리", "증원"),
+    ("이전", "이설", "폐쇄"),
+    ("개통", "준공", "완공", "착공", "공사", "재개"),
+    ("대책", "개정", "제정", "법안", "제도", "매뉴얼", "수립", "마련"),
+    ("준설",),
+    ("통제", "차단", "금지"),
+    ("수사", "감식", "규명", "입건", "송치", "기소"),
+    ("수색", "구조", "인양"),
+    ("진화", "진압"),
+)
+_COMMIT_SENT_RE = re.compile(r"(하겠|할\s*계획|할\s*예정|예정이다|예정입니다|방침이다|키로|하기로|제안하겠|건의하겠|요청하겠|추진할)")
+_DEMAND_SENT_RE = re.compile(r"(필요하|필요한|필요성|필요해|필요가|촉구|요구|해야|시급|바란다|당부|건의)")
+_PREVENT_RE = re.compile(r"추가\s*(사고|붕괴|피해)\s*(를|가|의|도)?\s*(최소화|예방|방지|막|줄이|없도록|우려)")
+# 꼬리 없는 '재개장·재개통' 옆에 앞날을 가리키는 말이 있으면 아직 열리지 않았다 ('청과동, 내년 2월 재개장')
+_FUTURE_WORD_RE = re.compile(r"(내년|다음\s*달|오는\s|예정|목표|계획|앞두|앞둔)")
+
+
+def action_groups(text: str) -> set[int]:
+    """문장·약속에 나온 행동 묶음 번호."""
+    return {i for i, g in enumerate(_ACTION_GROUPS) if any(w in (text or "") for w in g)}
+
 
 # 멈췄던 것이 다시 열렸다 = 조치의 결과 ('영업 재개'·'운행을 재개했다'·'재개통'·'정상화됐다'). '재개될 예정' 은 completion_adjustment 가 진행으로 낮춘다
 _RESUMED_RE = re.compile(
@@ -266,11 +297,16 @@ _RESUMED_RE = re.compile(
 )
 
 
-def _expressions(s: str) -> list[tuple[str, re.Match[str]]]:
+def _expressions(s: str, fixes: bool = False) -> list[tuple[str, re.Match[str]]]:
+    """fixes (FOLLOWUP_EXPRESSION_FIXES): '추가 피해 최소화·예방' 은 새로운 문제가 아니고, 앞날을 가리키는 말 옆의 꼬리 없는 '재개장·재개통' 은 완료가 아니다."""
     found: list[tuple[str, re.Match[str]]] = []
     for sig, pat in (("새로운문제", _NEW_PROBLEM_RE), ("완료", _PAST_DONE_RE), ("완료", _RESUMED_RE), ("진행", _PROGRESS_RE)):
         m = pat.search(s)
         if m:
+            if fixes and sig == "새로운문제" and m.group(0).startswith("추가") and _PREVENT_RE.search(s):
+                continue  # '추가 피해 최소화·예방' — 새 문제가 아니라 예방 다짐
+            if fixes and pat is _RESUMED_RE and m.group(0) in ("재개장", "재개통") and _FUTURE_WORD_RE.search(s):
+                continue  # '내년 2월 재개장' — 계획이지 다시 연 것이 아니다
             found.append((sig, m))
     return found
 
@@ -279,7 +315,15 @@ class RulesLLM:
     """LLMClient 프로토콜의 규칙 구현. 외부 호출이 없어 실패(LLMFailure)를 내지 않는다."""
 
     mode = "rules"
-    model = RULES_MODEL
+
+    @property
+    def model(self) -> str:
+        st = self.settings
+        v3 = st is not None and (
+            getattr(st, "followup_expression_fixes", False) or getattr(st, "followup_action_match", False)
+            or getattr(st, "followup_skip_commitment", False) or not getattr(st, "followup_kw_alone", True)
+        )
+        return RULES_MODEL_V3 if v3 else RULES_MODEL
 
     def __init__(self, settings: Settings | None = None, embedder=None):
         self.settings = settings
@@ -366,37 +410,58 @@ class RulesLLM:
 
     # ---------------------------------------------------------- ⓑ
     def classify_followup(self, inp: FollowupInput, *, key: str = "") -> FollowupSignal:
+        return self.classify_followup_detail(inp, key=key)[0]
+
+    def classify_followup_detail(self, inp: FollowupInput, *, key: str = "") -> tuple[FollowupSignal, dict]:
+        """classify_followup 과 같은 판정 + 고른 문장의 세부(겹침 수·경로·관련도) — 학습·진단용 (docs/EXPERIMENT.md §10)."""
         self.usage["calls"] += 1
         self.usage["followup_calls"] += 1
-        top_n = self.settings.followup_top_sentences if self.settings else 3
-        min_rel = self.settings.followup_sentence_min if self.settings else 0.0
+        st = self.settings
+        top_n = st.followup_top_sentences if st else 3
+        min_rel = st.followup_sentence_min if st else 0.0
+        action_match = bool(getattr(st, "followup_action_match", False))
+        kw_alone = bool(getattr(st, "followup_kw_alone", True))
+        skip_commit = bool(getattr(st, "followup_skip_commitment", False))
+        fixes = bool(getattr(st, "followup_expression_fixes", False))
         weighted = bool(inp.term_weights)
+        identity = [t for t in (inp.identity_terms or []) if len(t) >= 2]
         terms_by_promise = {p.id: _promise_terms(p) for p in inp.promises}
+        groups_by_promise = {p.id: action_groups(p.action) for p in inp.promises}
         sents = _sentences(inp)
         rel = self.sentence_relevance(sents, inp) if sents else []
         ranked = sorted(range(len(sents)), key=lambda i: -(rel[i][0] + rel[i][1]))
         selected = {i for i in ranked[: max(1, top_n)] if rel[i][0] + rel[i][1] >= min_rel}
         best: tuple | None = None  # (overlap, priority, relevance, signal, span, promise_id, conf)
+        detail: dict = {}
         expression_without_overlap = False
         priority = {"새로운문제": 3, "완료": 2, "진행": 1}
         for i, s in enumerate(sents):
-            found = _expressions(s)
+            found = _expressions(s, fixes)
             if not found:
                 continue
             if i not in selected:
                 expression_without_overlap = True
                 continue
+            if skip_commit and all(sig == "진행" for sig, _ in found) and (_COMMIT_SENT_RE.search(s) or _DEMAND_SENT_RE.search(s)):
+                expression_without_overlap = True  # 다짐·요구 문장의 '추진·예정' 은 진행 보도가 아니다
+                continue
             emb, kw, near = rel[i]
-            pid, overlap = None, 0
+            s_groups = action_groups(s)
+            pid, overlap, obj_hits, id_hits, verb = None, 0, 0, 0, False
             for p_id, terms in terms_by_promise.items():
-                k = sum(1 for t in terms if t in s)
+                hits = [t for t in terms if t in s]
+                ids = [t for t in hits if any(t in x or x in t for x in identity)]
+                same_kind = bool(groups_by_promise[p_id] & s_groups)
+                k = (len(hits) - len(ids)) + (len(ids) if same_kind else 0) if action_match else len(hits)
                 if k > overlap:
-                    pid, overlap = p_id, k
+                    pid, overlap, obj_hits, id_hits, verb = p_id, k, len(hits) - len(ids), len(ids), same_kind
+            path = "overlap"
             if overlap == 0:
-                if not weighted or kw < KW_ALONE or near is None:
+                near_kind = near is not None and bool(groups_by_promise.get(near, set()) & s_groups)
+                if not kw_alone or not weighted or kw < KW_ALONE or near is None or (action_match and not near_kind):
                     expression_without_overlap = True
                     continue
-                pid = near  # 약속 키워드는 없지만 사건 고유어가 무거운 문장 — 임베딩이 가장 가까운 약속
+                pid, path, verb = near, "unique-word", near_kind  # 약속 키워드는 없지만 사건 고유어가 무거운 문장 — 임베딩이 가장 가까운 약속
             # 한 문장에 여러 표현이 있으면: 새로운문제 > 완료 > 진행. 단 '완료' 가 미래 서술어면 진행으로 본다
             sig, m = max(found, key=lambda x: priority[x[0]])
             span = _window(s, m)
@@ -408,12 +473,17 @@ class RulesLLM:
             cand = (min(overlap, 2), priority[sig], round(emb + kw, 3), sig, span, pid, round(conf, 3))
             if best is None or cand[:3] > best[:3]:
                 best = cand
+                detail = {
+                    "overlap": overlap, "object_hits": obj_hits, "identity_hits": id_hits, "same_kind": verb, "path": path, "emb": emb, "kw": kw,
+                    "title_sentence": i == 0, "commit": bool(_COMMIT_SENT_RE.search(s)), "demand": bool(_DEMAND_SENT_RE.search(s)),
+                    "rank": ranked.index(i), "n_sentences": len(sents),
+                }
         if best is None:
             if expression_without_overlap:
-                return FollowupSignal(signal="불명확", promise_id=None, matches_promise=False, evidence_span="", confidence=0.4, rationale="조치 표현은 있으나 약속·사건과 관련된 문장이 아님 (규칙)")
-            return FollowupSignal(signal="무관", promise_id=None, matches_promise=False, evidence_span="", confidence=0.6, rationale="조치 상태 표현 없음 (규칙)")
+                return FollowupSignal(signal="불명확", promise_id=None, matches_promise=False, evidence_span="", confidence=0.4, rationale="조치 표현은 있으나 약속·사건과 관련된 문장이 아님 (규칙)"), detail
+            return FollowupSignal(signal="무관", promise_id=None, matches_promise=False, evidence_span="", confidence=0.6, rationale="조치 상태 표현 없음 (규칙)"), detail
         overlap, _, relevance, sig, span, pid, conf = best
         return FollowupSignal(
             signal=sig, promise_id=pid, matches_promise=True, evidence_span=span, confidence=conf,
             rationale=f"규칙: 관련 문장(관련도 {relevance:.2f}) · 약속 키워드 {overlap}개 겹침 + {sig} 표현",
-        )
+        ), detail

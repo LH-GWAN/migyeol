@@ -45,6 +45,8 @@ class FollowupInput(BaseModel):
     published_at: str
     # 사건별 단어 가중치 (rules/weights.py) — 규칙 어댑터의 문장 관련도에만 쓴다. LLM 입력(JSON)에는 넣지 않는다
     term_weights: dict[str, float] = Field(default_factory=dict, exclude=True)
+    # 사건을 가리키는 말(시설명·지역명) — 규칙 어댑터가 '약속 대상' 겹침과 '사건 이름' 겹침을 나눌 때만 쓴다. LLM 입력에는 넣지 않는다
+    identity_terms: list[str] = Field(default_factory=list, exclude=True)
 
 
 class FollowupSignal(BaseModel):

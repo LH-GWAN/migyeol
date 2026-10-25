@@ -16,7 +16,7 @@ from __future__ import annotations
 import csv
 import itertools
 from dataclasses import dataclass, field
-from datetime import date, timedelta
+from datetime import date
 from pathlib import Path
 from typing import Any
 
@@ -211,7 +211,10 @@ def auto_links(cases: list[EventCase], active: dict[str, set[str]]) -> set[tuple
 
 
 class FollowupSim:
-    """시뮬레이션된 연결로 후속 기사를 고르고 규칙 어댑터로 분류한다. 분류는 (사건, 기사, 약속 집합, 문장 설정)으로 캐시."""
+    """시뮬레이션된 연결로 후속 기사를 고르고 규칙 어댑터로 분류한다. 분류는 (사건, 기사, 약속 집합, 문장 설정)으로 캐시.
+
+    연결은 규칙 게이트(decide)만으로 정한다 — 학습 기반 재순위와 그 확률 바닥(FOLLOWUP_MIN_LINK_PROB)은 흉내 내지 않는다.
+    재순위를 켠 상태의 후속보도 비교는 scripts/train_followup.py(docs/EXPERIMENT.md §10)가 한다."""
 
     def __init__(self, session: Session, settings: Settings, llm):
         self.session, self.settings, self.llm = session, settings, llm
@@ -231,10 +234,11 @@ class FollowupSim:
         )
         if not promises:
             return False
-        cutoff = ev.occurred_at + timedelta(days=s.followup_grace_days)
-        dates = [a.published_at for p in promises if (a := self._article(p.evidence_news_id)) is not None and a.published_at]
-        if dates:
-            cutoff = max(cutoff, min(dates))
+        from ..pipeline.judge import cutoff_date
+
+        pdates = {p.id: a.published_at for p in promises if (a := self._article(p.evidence_news_id)) is not None and a.published_at}
+        src = self._article(ev.source_news_id) if ev.source_news_id else None
+        cutoff = cutoff_date(ev.occurred_at, src.published_at if src is not None else None, list(pdates.values()), s)
         refs = [PromiseRef(id=p.id, actor_org=p.actor_org, action=p.action, deadline_date=p.deadline_date.isoformat() if p.deadline_date else None) for p in promises]
         pkey = tuple(p.id for p in promises)
         if ev.id not in self._quotes:
@@ -247,7 +251,8 @@ class FollowupSim:
             a = self._article(nid)
             if a is None or a.published_at is None or a.published_at <= cutoff or a.change_status == "cancelled":
                 continue
-            ck = (ev.key, nid, pkey, s.followup_top_sentences, s.followup_sentence_min, s.signal_min_conf, bool(ev.term_weights))
+            ck = (ev.key, nid, pkey, s.followup_top_sentences, s.followup_sentence_min, s.signal_min_conf, bool(ev.term_weights), s.followup_cutoff,
+                  s.followup_expression_fixes)
             if ck not in self.cache:
                 inp = FollowupInput(
                     event_summary=ev.summary or ev.title, promises=refs, article_title=a.title or "", hilight=a.hilight or a.content_200 or "",
@@ -256,7 +261,8 @@ class FollowupSim:
                 from ..llm.client import validate_span
 
                 r = validate_span(self.llm.classify_followup(inp), inp)
-                self.cache[ck] = bool(r.matches_promise and r.promise_id is not None and r.confidence >= s.signal_min_conf and r.signal in POSITIVE_SIGNALS)
+                late = s.followup_cutoff != "source" or r.promise_id not in pdates or a.published_at > pdates[r.promise_id]
+                self.cache[ck] = bool(r.matches_promise and r.promise_id is not None and r.confidence >= s.signal_min_conf and r.signal in POSITIVE_SIGNALS and late)
             if self.cache[ck]:
                 return True
         return False

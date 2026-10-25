@@ -4,11 +4,12 @@
 라벨은 gold/cluster_full.csv(Claude 에이전트 라벨, 사람 라벨 아님), 사건 단위 5-fold 교차검증으로 고르고 쟀다.
 학습·재현: scripts/train_reranker.py · scripts/train_cross_encoder.py, 결과: docs/EXPERIMENT.md §9.
 
-  LINK_RERANKER=none      이전 동작 (link.decide 의 임계값) — 기본값
+  LINK_RERANKER=none      이전 동작 (link.decide 의 임계값)
   LINK_RERANKER=features  피처 분류기: 판정 재료·날짜·제목/하이라이트의 사건 단어·보도 성격·사건 메타 53개 + 제목·하이라이트 토큰 해싱
                           → 로지스틱 회귀와 그래디언트 부스팅의 확률 평균 (backend/models/reranker_features.joblib, scikit-learn)
   LINK_RERANKER=cross     교차 인코더(ko-sroberta 미세조정, backend/models/cross_encoder/ — gitignore, 직접 학습) 확률을
-                          RERANK_BLEND 비율로 피처 분류기 확률과 섞는다 (기본 0.5 = 교차검증 최고)
+                          RERANK_BLEND 비율로 피처 분류기 확률과 섞는다 (기본 0.5 = 교차검증 최고). 기본값.
+                          교차 인코더가 없으면 피처 분류기(features)로 대신한다
 
   대상 = 게이트 통과 AND link.decide 가 link·review 인 후보 (학습 라벨이 있는 범위와 같다. decide 가 버린 후보는 그대로 버린다)
   p ≥ RERANK_AUTO → 자동 연결 · p ≥ RERANK_REVIEW → 검토 큐 · 미만 → 폐기. 강한 규칙(rule) 연결도 p 로 다시 정한다
@@ -402,8 +403,9 @@ def _load_cross(settings: Settings, embedder_name: str | None = None) -> CrossRe
 
     d = cross_dir(settings)
     if not (d / "config.json").exists():
-        log.warning("LINK_RERANKER=cross 인데 교차 인코더가 없다(%s) — 이전 동작. scripts/train_cross_encoder.py --save 로 만든다", d)
-        return None
+        # 교차 인코더(로컬 학습, gitignore)가 없으면 저장소에 있는 피처 분류기로 — 그것도 없으면 이전 동작
+        log.warning("LINK_RERANKER=cross 인데 교차 인코더가 없다(%s) — 피처 분류기로 대신한다. scripts/train_cross_encoder.py --save 로 만든다", d)
+        return _load_features(settings, embedder_name)
     try:
         import transformers  # noqa: F401
     except ImportError as exc:

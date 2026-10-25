@@ -338,11 +338,16 @@ class StubFeatures:
         return np.full(len(arts), self.p)
 
 
-def test_cross_reranker_without_model_dir_is_previous_behaviour(tmp_path, caplog):
-    s = Settings(_env_file=None, link_reranker="cross", rerank_cross_dir=str(tmp_path / "없음"))
+def test_cross_reranker_without_model_dir_falls_back_to_features_then_off(tmp_path, caplog):
+    """교차 인코더(로컬 학습, gitignore)가 없으면 피처 분류기로, 피처 분류기도 없으면 이전 동작."""
+    pytest.importorskip("sklearn")
+    s = Settings(_env_file=None, link_reranker="cross", rerank_cross_dir=str(tmp_path / "없음"), rerank_model_path=str(tmp_path / "없음.joblib"))
     with caplog.at_level("WARNING", logger="migyeol.rerank"):
         assert RR.load_reranker(s) is None
     assert "교차 인코더가 없다" in caplog.text
+    bundle = _tiny_bundle(tmp_path / "f.joblib")
+    r = RR.load_reranker(s.model_copy(update={"rerank_model_path": str(bundle)}), "st:jhgan/ko-sroberta-multitask")
+    assert isinstance(r, RR.Reranker)
 
 
 def test_cross_reranker_reads_oof_cache_and_respects_training_embedding(tmp_path):

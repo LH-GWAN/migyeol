@@ -92,7 +92,7 @@
               · ≥ LINK_REVIEW(0.40) 연결하되 needs_review (검토 큐)
               · 미만              폐기 — 기존 자동 연결이면 삭제 (시드·질의 변화 반영)
             다른 시드의 시설명이 본문에 있고 이 사건 시설명이 없으면(또는 ②·⑤ 의 검토 큐 상한) ≥ LINK_REVIEW 일 때만 검토 큐, 아니면 폐기
-재순위(선택)  LINK_RERANKER = none(기본) | features | cross   (pipeline/rerank.py · 학습 scripts/train_reranker.py · train_cross_encoder.py · docs/EXPERIMENT.md §9)
+재순위       LINK_RERANKER = cross(기본) | features | none   (pipeline/rerank.py · 학습 scripts/train_reranker.py · train_cross_encoder.py · docs/EXPERIMENT.md §9·§10)
             대상 = 위 판정이 link·review 인 후보 — x- 탈락·decide 폐기·관리자 확정·수동 연결은 그대로 (학습 라벨 gold/cluster_full.csv 가 있는 범위와 같다)
             판정 재료는 link.assess() 하나로 만든다 — link 단계와 학습 스크립트가 같은 함수를 쓴다(끄면 결정·link_reason·link_score 가 이전과 같다)
             features  숫자 피처 53개(판정 재료·게이트 사유·cap-·날짜·창 뒤 여부·제목/하이라이트/키워드의 사건 단어·다른 시설(일반어/특정 장소)·
@@ -104,7 +104,8 @@
             RERANK_CROSSFIT: 학습에 쓴 사건은 그 사건을 뺀 fold 모델(교차 인코더는 교차검증 확률)로 — 실험 DB 수치가 학습 재사용으로 부풀지 않게
             link_score = 분류기 확률(사건 간 배타 처리도 이 값으로), link_reason 에 p=·s=(합산 점수), link_method 는 경로 표시 그대로
             모델을 학습한 임베딩과 지금 임베딩이 다르면(가상 픽스처 hash) 쓰지 않는다. 모델·의존성이 없으면 경고 뒤 이전 동작
-            기본 none: 군집 P/R 0.77/0.78 → 0.90/0.90 이지만 규칙 후속 신호의 사건 단위 P/R 이 0.63/0.81 → 0.55/0.74 (§9.4)
+            기본 cross(2026-10-25 밤 채택): 군집 P/R 0.77/0.78 → 0.90/0.89. 교차 인코더가 없으면 피처 분류기, 학습 임베딩이 다르면 none.
+            후속 신호의 사건 단위 지표는 2단계 보강(§4, EXPERIMENT §10)과 함께 0.63/0.81 → 0.62/0.79 (근거까지 맞은 탐지 26 → 31)
             한 기사가 여러 사건에 자동 연결되면 점수(재순위를 켜면 분류기 확률)가 가장 높은 사건만 유지, 나머지는 검토 큐(multi-event)
 ```
 
@@ -126,6 +127,11 @@
 | ⓑ 후속 신호 | 사건 요약 + 추적 약속 목록 + 후속 기사 제목·하이라이트·인용문 | `FollowupSignal` — signal(완료/진행/새로운문제/무관/불명확)·promise_id·matches_promise·evidence_span·confidence | `llm/prompts/followup_v1.md` |
 
 - `LLM_MODE=rules`(rules-v2) 의 ⓑ: 제목·하이라이트·인용문을 문장으로 나누고(제목도 한 문장), 문장 관련도 = (약속 action 과의 임베딩 코사인) + (사건 가중치 단어 점수) 로 상위 `FOLLOWUP_TOP_SENTENCES`(3)개·`FOLLOWUP_SENTENCE_MIN` 이상 문장 안에서만 완료·진행·새로운문제 표현을 본다. 약속 키워드가 없어도 사건 고유어 점수 ≥0.6 인 문장(제목 '…철거 완료')은 후보. confidence 에 관련도를 더한다. 사건 가중치는 `FollowupInput.term_weights` 로 넘기되 LLM 입력 JSON 에서는 빠진다(exclude).
+- **2단계 보강(rules-v3, 2026-10-25 밤, EXPERIMENT §10 — 기본값으로 켬)**:
+  - 표현 고침(`FOLLOWUP_EXPRESSION_FIXES`): '추가 피해 최소화·예방' 은 새로운문제가 아니고, 앞날을 가리키는 말 옆의 꼬리 없는 '재개장·재개통'('내년 2월 재개장')은 완료가 아니다. 켜면 model 이 `rules-v3` 이라 v2 로 분류한 신호 캐시와 섞이지 않는다.
+  - 후속 기사 기준일(`FOLLOWUP_CUTOFF=source`): 원천 발언 다음 날부터 (발생 + 7일 유예 대신 — 라벨은 다음 날의 '철거 완료' 도 후속으로 본다). 신호가 가리킨 약속의 발언일 이전·당일 기사의 신호는 판정 단계(`judge.classify_followups`)가 '불명확' 으로 내린다. `grace` 면 이전 규칙(max(발생 + `FOLLOWUP_GRACE_DAYS`, 가장 이른 추적 약속 발언일)).
+  - 근거 기사의 재순위 확률 바닥(`FOLLOWUP_MIN_LINK_PROB=0.6`): link_reason 에 p= 가 있는 자동 연결 중 확률이 낮은 기사는 후속 기사에서 뺀다. 관리자 확정·수동 연결은 그대로, 재순위 바닥 규칙(keep-late-facility)으로 남은 늦은 기사는 완료·새로운문제 근거로만 쓴다('진행' 은 내린다).
+  - 비교만 하고 끈 스위치: `FOLLOWUP_ACTION_MATCH`(약속 대상어 겹침만 — 시설·지역 이름 겹침은 같은 종류 행동어가 있을 때, `FollowupInput.identity_terms`), `FOLLOWUP_SKIP_COMMITMENT`(다짐·요구 문장의 진행 표현 제외), `FOLLOWUP_KW_ALONE=false`(고유어 경로 끔). 세부 판정은 `RulesLLM.classify_followup_detail` 이 돌려준다(`scripts/train_followup.py`).
 - `evidence_span` 은 코드가 검증한다: 완료·진행·새로운문제는 발췌(≤100자)가 입력의 부분 문자열이어야 하고(없으면 `불명확`), 발췌가 '예정·목표' 표현이면 완료→진행으로 낮춘다.
 - 실패(한도 초과·서버 오류·파싱 실패·stub 미스)는 `LLMFailure` 로 올리고 **저장하지 않는다** — 다음 실행에서 재시도. 캐시는 (news_id, prompt_version) 에 더해 model 과 분류 당시 추적 약속 집합 해시가 같을 때만 재사용한다. LLM 호출은 DB 쓰기 트랜잭션 밖에서 하고, 실행당 호출 상한(`LLM_MAX_CALLS_PER_RUN`)을 둔다.
 - 공공 주체 판별(`rules/actors.py`)은 규칙이 먼저 걸러 민간인·피의자 발언은 LLM 에 보내지 않는다. 주체는 기관 단위로 정규화한다.
@@ -143,6 +149,8 @@
 | R3 | 진행 1건 이상 | 조치 진행 정황 확인 |
 | R4 | 후속 기사 0건 / 마지막 후속 기사 60일 이전 / 기한 경과 + 완료·진행 없음 | 후속보도 부족 |
 | R5 | 그 외 (+ 사유 필수) | 판단 불가 |
+
+후속 기사 = 활성 연결 기사 중 기준일(§4 `FOLLOWUP_CUTOFF`) 뒤 기사이고, 재순위 확률 바닥(`FOLLOWUP_MIN_LINK_PROB`)을 넘는 것 (`judge.followup_articles` — 대시보드·실험 집계도 같은 함수).
 
 "완료할 예정" 은 프롬프트에서 진행으로 분류하므로 R2 가 아니라 R3 로 간다. 상태 문자열은 이 5개뿐이며, 명세 §2-2 의 단정 표현은 코드·프롬프트·UI 어디에도 없다. `tests/test_repo_rules.py` 가 backend·frontend 소스를 검사한다(로컬 데이터 `backend/data`, 실 API 녹화 `fixtures/bigkinds/recordings` 는 실기사 문장이 들어가므로 제외 — 둘 다 gitignore 대상이라 §14 grep 은 깨끗한 체크아웃에서 돌린다).
 
@@ -205,7 +213,7 @@ migyeol/
 
 - **첫 화면**: 시민용 대시보드 `/`(`api/dashboard.py` 집계 6종) → 기자용 목록 `/events`(탭 확인 필요 / 후속보도 확인됨, `org=` 기관 필터) → 타임라인 → 근거(「기관 발표 확인」 패널) → 보도자료 초안 `/press`.
 - **실험**(`app/experiment/`, `scripts/experiment.py`): 인용문 검색(월별 × 계열, `_score` 상위 표본, 공공 주체 + 확약·계획 발언) + 이슈 랭킹(재난 어휘 토픽만)으로 원천 기사를 모아 유니크화(지역·시설·±14일·기관) → 자동 시드 → 기존 collect/link/extract/judge → §4.6 지표 → `reports/experiment_latest.json`(대시보드·보도자료가 읽는다). 자세한 방법·호출 수·한계는 `docs/EXPERIMENT.md`.
-- **LLM 없이**: `LLM_MODE=rules`(`app/llm/rules_adapter.py`, model `rules-v1`)가 약속 추출·후속 신호를 규칙으로 낸다. 프로토콜·프롬프트 파일·스키마는 그대로라 키가 오면 `live` 로만 바꾼다. 보도자료는 `app/press/writer.py` 의 `TemplateWriter`(기본) / `LLMWriter`(live 일 때 문장 다듬기만, 숫자·근거 번호 검증 실패 시 템플릿 유지).
+- **LLM 없이**: `LLM_MODE=rules`(`app/llm/rules_adapter.py`, model `rules-v2`, 2단계 보강을 켜면 `rules-v3`)가 약속 추출·후속 신호를 규칙으로 낸다. 프로토콜·프롬프트 파일·스키마는 그대로라 키가 오면 `live` 로만 바꾼다. 보도자료는 `app/press/writer.py` 의 `TemplateWriter`(기본) / `LLMWriter`(live 일 때 문장 다듬기만, 숫자·근거 번호 검증 실패 시 템플릿 유지).
 - **공공기관 게시판 확인**(`app/notices/`): 트리거(후속보도 부족·판단 불가 + `NOTICE_TRIGGER_DAYS` 경과) → 등록부 `sites.yaml`(광역 11 + 정책브리핑) → guard(뉴스 도메인 거부·허용 접미) → robots.txt(RFC 9309) → 호스트별 2초 간격 → 목록 제목·날짜·URL, 매칭 항목만 본문 300자 → `org_notices`·`notice_checks`, `Event.org_notice_found`. 상태 5종은 바꾸지 않는 **보조 근거**. 스케줄러 05:30 KST. 등록부와 확인 기록은 `docs/NOTICES.md`.
 - **기관 정규화**: `rules/orgs.canonical_org()` — 광역·기초 지자체(청·장·지사 꼬리), 중앙부처 약칭, 공사·공단 — 대시보드 기관별 집계·목록 `org` 필터·보도자료·게시판 등록부가 같은 키를 쓴다.
 
