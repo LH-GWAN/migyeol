@@ -263,3 +263,19 @@ def test_review_queue_links_feed_no_followup_or_metrics(fresh):  # noqa: F811
     f = facts[ev.key]
     assert target not in {a.news_id for a in f.linked} and target not in {a.news_id for a in f.followups}
     assert all(s.news_id != target for s, _ in f.valid)
+
+
+def test_generic_facility_word_does_not_admit_other_city_fire():
+    """이천 물류센터 화재(2025) 에 인천 쿠팡 물류센터 화재(2026) 가 붙지 않는다 — '물류센터'·'물류' 는 사건 고유어가 아니다."""
+    e = ev(
+        title="이천 물류센터 대형 화재", region="이천시", facility="물류센터", keywords=["이천 물류센터", "물류센터 화재", "대응 2단계"],
+        occurred_at=date(2025, 5, 13), term_weights={"부발읍": 1.0, "물류센터": 0.813, "물류": 0.785, "물류창고": 0.6},
+    )
+    sc = event_scope(e, S)
+    assert "물류" not in sc.unique and "물류센터" not in sc.facility_terms
+    early = art("인천 쿠팡물류센터 화재 나흘째…대응 태세 유지하며 잔불 정리", date(2025, 5, 16), hilight="2021년 경기 이천 덕평물류센터 화재")
+    assert any(c.startswith("x-other-region") for c in scope_checks(e, early, S))
+    late = art("쿠팡 물류센터 또 화재…2021년에는 6일만에 완진", date(2026, 7, 18), hilight="경기 이천 쿠팡 물류센터 화재와 닮은 꼴")
+    assert "x-late" in scope_checks(e, late, S)
+    # 이 사건 자체 기사는 남는다
+    assert not any(c.startswith("x-") for c in scope_checks(e, art("이천 부발읍 물류센터 화재 대응 2단계", date(2025, 5, 13)), S))

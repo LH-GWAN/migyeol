@@ -1,5 +1,5 @@
 {
- "generated_at": "2026-10-25T14:31:41+09:00",
+ "generated_at": "2026-10-25T14:41:54+09:00",
  "as_of": "2026-10-22",
  "bigkinds_mode": "record",
  "seeds_file": "seeds/events.yaml",
@@ -15,15 +15,15 @@
   "followup_rate": 0.6,
   "by_status": {
    "조치 완료 근거 확인": 26,
-   "조치 진행 정황 확인": 15,
-   "새로운 문제 발생": 9,
-   "후속보도 부족": 35,
-   "판단 불가": 5
+   "조치 진행 정황 확인": 17,
+   "새로운 문제 발생": 7,
+   "후속보도 부족": 36,
+   "판단 불가": 4
   },
   "with_org_notice": 4,
   "articles_per_event": {
-   "median": 82.0,
-   "max": 500
+   "median": 80.5,
+   "max": 564
   }
  },
  "windows_days": {
@@ -33,9 +33,9 @@
   "365": 49
  },
  "signals": {
-  "완료": 109,
-  "진행": 408,
-  "새로운문제": 135
+  "완료": 108,
+  "진행": 410,
+  "새로운문제": 129
  },
  "by_incident_type": [
   {
@@ -103,7 +103,7 @@
    "events": 3,
    "with_followup": 3,
    "rate": 1.0,
-   "latest_followup_at": "2026-09-10",
+   "latest_followup_at": "2026-08-29",
    "event_ids": [
     212,
     278,
@@ -322,7 +322,7 @@
    "events": 1,
    "with_followup": 1,
    "rate": 1.0,
-   "latest_followup_at": "2026-07-21",
+   "latest_followup_at": "2025-06-01",
    "event_ids": [
     256
    ]
@@ -763,7 +763,7 @@
   {
    "bucket": "2023-11",
    "occurred": 0,
-   "followup_articles": 46,
+   "followup_articles": 45,
    "dead": null,
    "injured": null
   },
@@ -784,7 +784,7 @@
   {
    "bucket": "2024-02",
    "occurred": 0,
-   "followup_articles": 59,
+   "followup_articles": 58,
    "dead": null,
    "injured": null
   },
@@ -812,7 +812,7 @@
   {
    "bucket": "2024-06",
    "occurred": 4,
-   "followup_articles": 53,
+   "followup_articles": 52,
    "dead": null,
    "injured": null
   },
@@ -826,7 +826,7 @@
   {
    "bucket": "2024-08",
    "occurred": 4,
-   "followup_articles": 153,
+   "followup_articles": 152,
    "dead": null,
    "injured": null
   },
@@ -840,14 +840,14 @@
   {
    "bucket": "2024-10",
    "occurred": 1,
-   "followup_articles": 86,
+   "followup_articles": 85,
    "dead": null,
    "injured": null
   },
   {
    "bucket": "2024-11",
    "occurred": 6,
-   "followup_articles": 101,
+   "followup_articles": 98,
    "dead": null,
    "injured": null
   },
@@ -861,7 +861,7 @@
   {
    "bucket": "2025-01",
    "occurred": 1,
-   "followup_articles": 124,
+   "followup_articles": 123,
    "dead": null,
    "injured": null
   },
@@ -875,14 +875,14 @@
   {
    "bucket": "2025-03",
    "occurred": 3,
-   "followup_articles": 83,
+   "followup_articles": 80,
    "dead": null,
    "injured": null
   },
   {
    "bucket": "2025-04",
    "occurred": 2,
-   "followup_articles": 216,
+   "followup_articles": 217,
    "dead": null,
    "injured": null
   },
@@ -910,14 +910,14 @@
   {
    "bucket": "2025-08",
    "occurred": 3,
-   "followup_articles": 159,
+   "followup_articles": 158,
    "dead": null,
    "injured": null
   },
   {
    "bucket": "2025-09",
    "occurred": 2,
-   "followup_articles": 136,
+   "followup_articles": 135,
    "dead": null,
    "injured": null
   },
@@ -931,28 +931,28 @@
   {
    "bucket": "2025-11",
    "occurred": 1,
-   "followup_articles": 388,
+   "followup_articles": 387,
    "dead": null,
    "injured": null
   },
   {
    "bucket": "2025-12",
    "occurred": 2,
-   "followup_articles": 156,
+   "followup_articles": 154,
    "dead": null,
    "injured": null
   },
   {
    "bucket": "2026-01",
    "occurred": 0,
-   "followup_articles": 120,
+   "followup_articles": 118,
    "dead": null,
    "injured": null
   },
   {
    "bucket": "2026-02",
    "occurred": 0,
-   "followup_articles": 79,
+   "followup_articles": 70,
    "dead": null,
    "injured": null
   },
@@ -966,14 +966,14 @@
   {
    "bucket": "2026-04",
    "occurred": 0,
-   "followup_articles": 99,
+   "followup_articles": 96,
    "dead": null,
    "injured": null
   },
   {
    "bucket": "2026-05",
    "occurred": 0,
-   "followup_articles": 69,
+   "followup_articles": 67,
    "dead": null,
    "injured": null
   },
@@ -987,21 +987,21 @@
   {
    "bucket": "2026-07",
    "occurred": 0,
-   "followup_articles": 120,
+   "followup_articles": 77,
    "dead": null,
    "injured": null
   },
   {
    "bucket": "2026-08",
    "occurred": 0,
-   "followup_articles": 132,
+   "followup_articles": 124,
    "dead": null,
    "injured": null
   },
   {
    "bucket": "2026-09",
    "occurred": 0,
-   "followup_articles": 94,
+   "followup_articles": 89,
    "dead": null,
    "injured": null
   },
@@ -2082,7 +2082,7 @@
   {
    "date": "2023-11-01",
    "occurred": 0,
-   "followup_articles": 3
+   "followup_articles": 2
   },
   {
    "date": "2023-11-02",
@@ -2427,7 +2427,7 @@
   {
    "date": "2024-02-19",
    "occurred": 0,
-   "followup_articles": 2
+   "followup_articles": 1
   },
   {
    "date": "2024-02-20",
@@ -2727,7 +2727,7 @@
   {
    "date": "2024-06-18",
    "occurred": 0,
-   "followup_articles": 3
+   "followup_articles": 2
   },
   {
    "date": "2024-06-19",
@@ -2972,7 +2972,7 @@
   {
    "date": "2024-08-19",
    "occurred": 0,
-   "followup_articles": 13
+   "followup_articles": 12
   },
   {
    "date": "2024-08-20",
@@ -3127,7 +3127,7 @@
   {
    "date": "2024-10-01",
    "occurred": 0,
-   "followup_articles": 3
+   "followup_articles": 2
   },
   {
    "date": "2024-10-02",
@@ -3332,12 +3332,12 @@
   {
    "date": "2024-11-24",
    "occurred": 0,
-   "followup_articles": 7
+   "followup_articles": 5
   },
   {
    "date": "2024-11-25",
    "occurred": 0,
-   "followup_articles": 11
+   "followup_articles": 10
   },
   {
    "date": "2024-11-26",
@@ -3587,7 +3587,7 @@
   {
    "date": "2025-01-28",
    "occurred": 0,
-   "followup_articles": 2
+   "followup_articles": 1
   },
   {
    "date": "2025-01-29",
@@ -3702,7 +3702,7 @@
   {
    "date": "2025-03-02",
    "occurred": 0,
-   "followup_articles": 5
+   "followup_articles": 3
   },
   {
    "date": "2025-03-03",
@@ -3713,11 +3713,6 @@
    "date": "2025-03-04",
    "occurred": 0,
    "followup_articles": 6
-  },
-  {
-   "date": "2025-03-05",
-   "occurred": 0,
-   "followup_articles": 1
   },
   {
    "date": "2025-03-06",
@@ -3887,7 +3882,7 @@
   {
    "date": "2025-04-16",
    "occurred": 0,
-   "followup_articles": 22
+   "followup_articles": 23
   },
   {
    "date": "2025-04-17",
@@ -4317,12 +4312,12 @@
   {
    "date": "2025-07-30",
    "occurred": 0,
-   "followup_articles": 10
+   "followup_articles": 11
   },
   {
    "date": "2025-07-31",
    "occurred": 0,
-   "followup_articles": 14
+   "followup_articles": 13
   },
   {
    "date": "2025-08-01",
@@ -4342,7 +4337,7 @@
   {
    "date": "2025-08-04",
    "occurred": 0,
-   "followup_articles": 14
+   "followup_articles": 16
   },
   {
    "date": "2025-08-05",
@@ -4407,7 +4402,7 @@
   {
    "date": "2025-08-20",
    "occurred": 0,
-   "followup_articles": 13
+   "followup_articles": 11
   },
   {
    "date": "2025-08-21",
@@ -4437,7 +4432,7 @@
   {
    "date": "2025-08-26",
    "occurred": 0,
-   "followup_articles": 3
+   "followup_articles": 2
   },
   {
    "date": "2025-08-27",
@@ -4527,7 +4522,7 @@
   {
    "date": "2025-09-16",
    "occurred": 0,
-   "followup_articles": 4
+   "followup_articles": 3
   },
   {
    "date": "2025-09-17",
@@ -4622,7 +4617,7 @@
   {
    "date": "2025-10-15",
    "occurred": 0,
-   "followup_articles": 3
+   "followup_articles": 4
   },
   {
    "date": "2025-10-16",
@@ -4677,7 +4672,7 @@
   {
    "date": "2025-10-29",
    "occurred": 0,
-   "followup_articles": 11
+   "followup_articles": 10
   },
   {
    "date": "2025-10-30",
@@ -4747,7 +4742,7 @@
   {
    "date": "2025-11-14",
    "occurred": 0,
-   "followup_articles": 28
+   "followup_articles": 32
   },
   {
    "date": "2025-11-15",
@@ -4762,12 +4757,12 @@
   {
    "date": "2025-11-17",
    "occurred": 0,
-   "followup_articles": 53
+   "followup_articles": 52
   },
   {
    "date": "2025-11-18",
    "occurred": 0,
-   "followup_articles": 64
+   "followup_articles": 62
   },
   {
    "date": "2025-11-19",
@@ -4802,7 +4797,7 @@
   {
    "date": "2025-11-25",
    "occurred": 0,
-   "followup_articles": 23
+   "followup_articles": 21
   },
   {
    "date": "2025-11-26",
@@ -4935,11 +4930,6 @@
    "followup_articles": 4
   },
   {
-   "date": "2025-12-25",
-   "occurred": 0,
-   "followup_articles": 1
-  },
-  {
    "date": "2025-12-26",
    "occurred": 0,
    "followup_articles": 1
@@ -4947,7 +4937,7 @@
   {
    "date": "2025-12-30",
    "occurred": 1,
-   "followup_articles": 18
+   "followup_articles": 17
   },
   {
    "date": "2025-12-31",
@@ -5042,7 +5032,7 @@
   {
    "date": "2026-01-21",
    "occurred": 0,
-   "followup_articles": 21
+   "followup_articles": 20
   },
   {
    "date": "2026-01-22",
@@ -5072,7 +5062,7 @@
   {
    "date": "2026-01-28",
    "occurred": 0,
-   "followup_articles": 3
+   "followup_articles": 2
   },
   {
    "date": "2026-01-29",
@@ -5110,11 +5100,6 @@
    "followup_articles": 11
   },
   {
-   "date": "2026-02-06",
-   "occurred": 0,
-   "followup_articles": 6
-  },
-  {
    "date": "2026-02-10",
    "occurred": 0,
    "followup_articles": 5
@@ -5137,11 +5122,6 @@
   {
    "date": "2026-02-15",
    "occurred": 0,
-   "followup_articles": 2
-  },
-  {
-   "date": "2026-02-16",
-   "occurred": 0,
    "followup_articles": 1
   },
   {
@@ -5152,7 +5132,7 @@
   {
    "date": "2026-02-19",
    "occurred": 0,
-   "followup_articles": 3
+   "followup_articles": 2
   },
   {
    "date": "2026-02-20",
@@ -5332,7 +5312,7 @@
   {
    "date": "2026-04-10",
    "occurred": 0,
-   "followup_articles": 5
+   "followup_articles": 4
   },
   {
    "date": "2026-04-12",
@@ -5372,12 +5352,12 @@
   {
    "date": "2026-04-21",
    "occurred": 0,
-   "followup_articles": 6
+   "followup_articles": 5
   },
   {
    "date": "2026-04-22",
    "occurred": 0,
-   "followup_articles": 4
+   "followup_articles": 3
   },
   {
    "date": "2026-04-23",
@@ -5505,14 +5485,9 @@
    "followup_articles": 6
   },
   {
-   "date": "2026-05-27",
-   "occurred": 0,
-   "followup_articles": 1
-  },
-  {
    "date": "2026-05-28",
    "occurred": 0,
-   "followup_articles": 4
+   "followup_articles": 3
   },
   {
    "date": "2026-05-29",
@@ -5717,12 +5692,7 @@
   {
    "date": "2026-07-18",
    "occurred": 0,
-   "followup_articles": 7
-  },
-  {
-   "date": "2026-07-19",
-   "occurred": 0,
-   "followup_articles": 18
+   "followup_articles": 5
   },
   {
    "date": "2026-07-20",
@@ -5732,7 +5702,7 @@
   {
    "date": "2026-07-21",
    "occurred": 0,
-   "followup_articles": 23
+   "followup_articles": 5
   },
   {
    "date": "2026-07-22",
@@ -5752,12 +5722,12 @@
   {
    "date": "2026-07-26",
    "occurred": 0,
-   "followup_articles": 4
+   "followup_articles": 3
   },
   {
    "date": "2026-07-27",
    "occurred": 0,
-   "followup_articles": 6
+   "followup_articles": 2
   },
   {
    "date": "2026-07-28",
@@ -5771,11 +5741,6 @@
   },
   {
    "date": "2026-07-31",
-   "occurred": 0,
-   "followup_articles": 1
-  },
-  {
-   "date": "2026-08-01",
    "occurred": 0,
    "followup_articles": 1
   },
@@ -5820,11 +5785,6 @@
    "followup_articles": 5
   },
   {
-   "date": "2026-08-13",
-   "occurred": 0,
-   "followup_articles": 1
-  },
-  {
    "date": "2026-08-14",
    "occurred": 0,
    "followup_articles": 6
@@ -5837,17 +5797,17 @@
   {
    "date": "2026-08-18",
    "occurred": 0,
-   "followup_articles": 8
+   "followup_articles": 7
   },
   {
    "date": "2026-08-19",
    "occurred": 0,
-   "followup_articles": 5
+   "followup_articles": 2
   },
   {
    "date": "2026-08-20",
    "occurred": 0,
-   "followup_articles": 2
+   "followup_articles": 1
   },
   {
    "date": "2026-08-21",
@@ -5862,7 +5822,7 @@
   {
    "date": "2026-08-24",
    "occurred": 0,
-   "followup_articles": 18
+   "followup_articles": 17
   },
   {
    "date": "2026-08-25",
@@ -5927,7 +5887,7 @@
   {
    "date": "2026-09-10",
    "occurred": 0,
-   "followup_articles": 2
+   "followup_articles": 1
   },
   {
    "date": "2026-09-11",
@@ -5957,7 +5917,7 @@
   {
    "date": "2026-09-17",
    "occurred": 0,
-   "followup_articles": 10
+   "followup_articles": 9
   },
   {
    "date": "2026-09-18",
@@ -5967,12 +5927,12 @@
   {
    "date": "2026-09-20",
    "occurred": 0,
-   "followup_articles": 2
+   "followup_articles": 1
   },
   {
    "date": "2026-09-21",
    "occurred": 0,
-   "followup_articles": 6
+   "followup_articles": 5
   },
   {
    "date": "2026-09-22",
@@ -5997,7 +5957,7 @@
   {
    "date": "2026-09-26",
    "occurred": 0,
-   "followup_articles": 2
+   "followup_articles": 1
   },
   {
    "date": "2026-09-27",
@@ -6079,18 +6039,18 @@
   "labeled": 90,
   "followup_precision": 0.63,
   "followup_recall": 0.81,
-  "cluster_precision": 0.745,
+  "cluster_precision": 0.744,
   "org_accuracy": 0.815
  },
  "cost": {
   "api_calls": {
-   "search_news": 5270,
+   "search_news": 5267,
    "search_quotation": 1244,
    "issue_ranking": 1096,
-   "time_line": 882,
+   "time_line": 879,
    "word_cloud": 0
   },
-  "elapsed_sec": 6855.3,
+  "elapsed_sec": 6845.7,
   "recordings": 11805
  },
  "success": {

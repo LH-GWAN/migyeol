@@ -166,7 +166,7 @@ def event_scope(event: Event, settings: Settings, source_date: date | None = Non
     for tok in fac_toks:
         if tok in unique or not weights:
             fac_terms.add(tok)
-    unique -= _GENERIC_PLACE
+    unique = {u for u in unique if not any(u in g for g in _GENERIC_PLACE)}  # '물류'(⊂ 물류센터)·'공사'(⊂ 공사장) 도 사건을 가리키지 못한다
     unique |= fac_terms
     incident = tuple(w for w in _INCIDENT_WORDS if w in (event.title or ""))
     early_end = None

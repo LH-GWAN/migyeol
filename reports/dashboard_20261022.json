@@ -6,20 +6,20 @@
     "followup_rate": 0.6,
     "overdue": 4,
     "with_org_notice": 4,
-    "followup_articles": 5314,
+    "followup_articles": 5226,
     "orgs": 60,
     "by_status": {
       "조치 완료 근거 확인": 26,
-      "조치 진행 정황 확인": 15,
-      "새로운 문제 발생": 9,
-      "후속보도 부족": 35,
-      "판단 불가": 5
+      "조치 진행 정황 확인": 17,
+      "새로운 문제 발생": 7,
+      "후속보도 부족": 36,
+      "판단 불가": 4
     },
-    "last_run": "2026-10-25T14:31:30+09:00",
+    "last_run": "2026-10-25T14:41:44+09:00",
     "as_of": "2026-10-22",
     "bigkinds_mode": "record",
     "experiment": {
-      "generated_at": "2026-10-25T14:31:41+09:00",
+      "generated_at": "2026-10-25T14:41:54+09:00",
       "as_of": "2026-10-22",
       "bigkinds_mode": "record",
       "seeds_file": "seeds/events.yaml",
@@ -35,15 +35,15 @@
         "followup_rate": 0.6,
         "by_status": {
           "조치 완료 근거 확인": 26,
-          "조치 진행 정황 확인": 15,
-          "새로운 문제 발생": 9,
-          "후속보도 부족": 35,
-          "판단 불가": 5
+          "조치 진행 정황 확인": 17,
+          "새로운 문제 발생": 7,
+          "후속보도 부족": 36,
+          "판단 불가": 4
         },
         "with_org_notice": 4,
         "articles_per_event": {
-          "median": 82.0,
-          "max": 500
+          "median": 80.5,
+          "max": 564
         }
       },
       "windows_days": {
@@ -53,26 +53,26 @@
         "365": 49
       },
       "signals": {
-        "완료": 109,
-        "진행": 408,
-        "새로운문제": 135
+        "완료": 108,
+        "진행": 410,
+        "새로운문제": 129
       },
       "labels": {
         "labeled": 90,
         "followup_precision": 0.63,
         "followup_recall": 0.81,
-        "cluster_precision": 0.745,
+        "cluster_precision": 0.744,
         "org_accuracy": 0.815
       },
       "cost": {
         "api_calls": {
-          "search_news": 5270,
+          "search_news": 5267,
           "search_quotation": 1244,
           "issue_ranking": 1096,
-          "time_line": 882,
+          "time_line": 879,
           "word_cloud": 0
         },
-        "elapsed_sec": 6855.3,
+        "elapsed_sec": 6845.7,
         "recordings": 11805
       },
       "success": {
@@ -1649,7 +1649,7 @@
       "bucket": "2023-03-28",
       "occurred": 0,
       "followup_articles": 11,
-      "confirmed_followups": 1,
+      "confirmed_followups": 2,
       "dead": null,
       "injured": null
     },
@@ -1937,7 +1937,7 @@
       "bucket": "2023-05-03",
       "occurred": 0,
       "followup_articles": 5,
-      "confirmed_followups": 0,
+      "confirmed_followups": 1,
       "dead": null,
       "injured": null
     },
@@ -3392,7 +3392,7 @@
     {
       "bucket": "2023-11-01",
       "occurred": 0,
-      "followup_articles": 3,
+      "followup_articles": 2,
       "confirmed_followups": 1,
       "dead": null,
       "injured": null
@@ -4272,7 +4272,7 @@
     {
       "bucket": "2024-02-19",
       "occurred": 0,
-      "followup_articles": 2,
+      "followup_articles": 1,
       "confirmed_followups": 0,
       "dead": null,
       "injured": null
@@ -5232,7 +5232,7 @@
     {
       "bucket": "2024-06-18",
       "occurred": 0,
-      "followup_articles": 3,
+      "followup_articles": 2,
       "confirmed_followups": 0,
       "dead": null,
       "injured": null
@@ -5728,8 +5728,8 @@
     {
       "bucket": "2024-08-19",
       "occurred": 0,
-      "followup_articles": 13,
-      "confirmed_followups": 4,
+      "followup_articles": 12,
+      "confirmed_followups": 3,
       "dead": null,
       "injured": null
     },
@@ -6072,7 +6072,7 @@
     {
       "bucket": "2024-10-01",
       "occurred": 0,
-      "followup_articles": 3,
+      "followup_articles": 2,
       "confirmed_followups": 0,
       "dead": null,
       "injured": null
@@ -6504,7 +6504,7 @@
     {
       "bucket": "2024-11-24",
       "occurred": 0,
-      "followup_articles": 7,
+      "followup_articles": 5,
       "confirmed_followups": 3,
       "dead": null,
       "injured": null
@@ -6512,7 +6512,7 @@
     {
       "bucket": "2024-11-25",
       "occurred": 0,
-      "followup_articles": 11,
+      "followup_articles": 10,
       "confirmed_followups": 3,
       "dead": null,
       "injured": null
@@ -7024,7 +7024,7 @@
     {
       "bucket": "2025-01-28",
       "occurred": 0,
-      "followup_articles": 2,
+      "followup_articles": 1,
       "confirmed_followups": 0,
       "dead": null,
       "injured": null
@@ -7288,7 +7288,7 @@
     {
       "bucket": "2025-03-02",
       "occurred": 0,
-      "followup_articles": 5,
+      "followup_articles": 3,
       "confirmed_followups": 0,
       "dead": null,
       "injured": null
@@ -7312,7 +7312,7 @@
     {
       "bucket": "2025-03-05",
       "occurred": 0,
-      "followup_articles": 1,
+      "followup_articles": 0,
       "confirmed_followups": 0,
       "dead": null,
       "injured": null
@@ -7465,7 +7465,7 @@
       "bucket": "2025-03-24",
       "occurred": 0,
       "followup_articles": 5,
-      "confirmed_followups": 0,
+      "confirmed_followups": 1,
       "dead": null,
       "injured": null
     },
@@ -7648,8 +7648,8 @@
     {
       "bucket": "2025-04-16",
       "occurred": 0,
-      "followup_articles": 22,
-      "confirmed_followups": 0,
+      "followup_articles": 23,
+      "confirmed_followups": 1,
       "dead": null,
       "injured": null
     },
@@ -8488,7 +8488,7 @@
     {
       "bucket": "2025-07-30",
       "occurred": 0,
-      "followup_articles": 10,
+      "followup_articles": 11,
       "confirmed_followups": 0,
       "dead": null,
       "injured": null
@@ -8496,7 +8496,7 @@
     {
       "bucket": "2025-07-31",
       "occurred": 0,
-      "followup_articles": 14,
+      "followup_articles": 13,
       "confirmed_followups": 2,
       "dead": null,
       "injured": null
@@ -8528,7 +8528,7 @@
     {
       "bucket": "2025-08-04",
       "occurred": 0,
-      "followup_articles": 14,
+      "followup_articles": 16,
       "confirmed_followups": 1,
       "dead": null,
       "injured": null
@@ -8656,7 +8656,7 @@
     {
       "bucket": "2025-08-20",
       "occurred": 0,
-      "followup_articles": 13,
+      "followup_articles": 11,
       "confirmed_followups": 0,
       "dead": null,
       "injured": null
@@ -8704,8 +8704,8 @@
     {
       "bucket": "2025-08-26",
       "occurred": 0,
-      "followup_articles": 3,
-      "confirmed_followups": 1,
+      "followup_articles": 2,
+      "confirmed_followups": 0,
       "dead": null,
       "injured": null
     },
@@ -8872,7 +8872,7 @@
     {
       "bucket": "2025-09-16",
       "occurred": 0,
-      "followup_articles": 4,
+      "followup_articles": 3,
       "confirmed_followups": 0,
       "dead": null,
       "injured": null
@@ -9104,7 +9104,7 @@
     {
       "bucket": "2025-10-15",
       "occurred": 0,
-      "followup_articles": 3,
+      "followup_articles": 4,
       "confirmed_followups": 1,
       "dead": null,
       "injured": null
@@ -9216,7 +9216,7 @@
     {
       "bucket": "2025-10-29",
       "occurred": 0,
-      "followup_articles": 11,
+      "followup_articles": 10,
       "confirmed_followups": 1,
       "dead": null,
       "injured": null
@@ -9344,7 +9344,7 @@
     {
       "bucket": "2025-11-14",
       "occurred": 0,
-      "followup_articles": 28,
+      "followup_articles": 32,
       "confirmed_followups": 5,
       "dead": null,
       "injured": null
@@ -9368,7 +9368,7 @@
     {
       "bucket": "2025-11-17",
       "occurred": 0,
-      "followup_articles": 53,
+      "followup_articles": 52,
       "confirmed_followups": 6,
       "dead": null,
       "injured": null
@@ -9376,7 +9376,7 @@
     {
       "bucket": "2025-11-18",
       "occurred": 0,
-      "followup_articles": 64,
+      "followup_articles": 62,
       "confirmed_followups": 3,
       "dead": null,
       "injured": null
@@ -9393,7 +9393,7 @@
       "bucket": "2025-11-20",
       "occurred": 0,
       "followup_articles": 38,
-      "confirmed_followups": 8,
+      "confirmed_followups": 9,
       "dead": null,
       "injured": null
     },
@@ -9432,8 +9432,8 @@
     {
       "bucket": "2025-11-25",
       "occurred": 0,
-      "followup_articles": 23,
-      "confirmed_followups": 10,
+      "followup_articles": 21,
+      "confirmed_followups": 9,
       "dead": null,
       "injured": null
     },
@@ -9537,7 +9537,7 @@
       "bucket": "2025-12-08",
       "occurred": 0,
       "followup_articles": 18,
-      "confirmed_followups": 8,
+      "confirmed_followups": 9,
       "dead": null,
       "injured": null
     },
@@ -9545,7 +9545,7 @@
       "bucket": "2025-12-09",
       "occurred": 0,
       "followup_articles": 10,
-      "confirmed_followups": 3,
+      "confirmed_followups": 4,
       "dead": null,
       "injured": null
     },
@@ -9553,7 +9553,7 @@
       "bucket": "2025-12-10",
       "occurred": 0,
       "followup_articles": 10,
-      "confirmed_followups": 4,
+      "confirmed_followups": 3,
       "dead": null,
       "injured": null
     },
@@ -9672,7 +9672,7 @@
     {
       "bucket": "2025-12-25",
       "occurred": 0,
-      "followup_articles": 1,
+      "followup_articles": 0,
       "confirmed_followups": 0,
       "dead": null,
       "injured": null
@@ -9712,7 +9712,7 @@
     {
       "bucket": "2025-12-30",
       "occurred": 1,
-      "followup_articles": 18,
+      "followup_articles": 17,
       "confirmed_followups": 4,
       "dead": null,
       "injured": null
@@ -9888,7 +9888,7 @@
     {
       "bucket": "2026-01-21",
       "occurred": 0,
-      "followup_articles": 21,
+      "followup_articles": 20,
       "confirmed_followups": 8,
       "dead": null,
       "injured": null
@@ -9944,8 +9944,8 @@
     {
       "bucket": "2026-01-28",
       "occurred": 0,
-      "followup_articles": 3,
-      "confirmed_followups": 1,
+      "followup_articles": 2,
+      "confirmed_followups": 0,
       "dead": null,
       "injured": null
     },
@@ -10016,8 +10016,8 @@
     {
       "bucket": "2026-02-06",
       "occurred": 0,
-      "followup_articles": 6,
-      "confirmed_followups": 1,
+      "followup_articles": 0,
+      "confirmed_followups": 0,
       "dead": null,
       "injured": null
     },
@@ -10088,7 +10088,7 @@
     {
       "bucket": "2026-02-15",
       "occurred": 0,
-      "followup_articles": 2,
+      "followup_articles": 1,
       "confirmed_followups": 1,
       "dead": null,
       "injured": null
@@ -10096,7 +10096,7 @@
     {
       "bucket": "2026-02-16",
       "occurred": 0,
-      "followup_articles": 1,
+      "followup_articles": 0,
       "confirmed_followups": 0,
       "dead": null,
       "injured": null
@@ -10120,7 +10120,7 @@
     {
       "bucket": "2026-02-19",
       "occurred": 0,
-      "followup_articles": 3,
+      "followup_articles": 2,
       "confirmed_followups": 1,
       "dead": null,
       "injured": null
@@ -10520,7 +10520,7 @@
     {
       "bucket": "2026-04-10",
       "occurred": 0,
-      "followup_articles": 5,
+      "followup_articles": 4,
       "confirmed_followups": 3,
       "dead": null,
       "injured": null
@@ -10608,7 +10608,7 @@
     {
       "bucket": "2026-04-21",
       "occurred": 0,
-      "followup_articles": 6,
+      "followup_articles": 5,
       "confirmed_followups": 0,
       "dead": null,
       "injured": null
@@ -10616,7 +10616,7 @@
     {
       "bucket": "2026-04-22",
       "occurred": 0,
-      "followup_articles": 4,
+      "followup_articles": 3,
       "confirmed_followups": 0,
       "dead": null,
       "injured": null
@@ -10896,7 +10896,7 @@
     {
       "bucket": "2026-05-27",
       "occurred": 0,
-      "followup_articles": 1,
+      "followup_articles": 0,
       "confirmed_followups": 0,
       "dead": null,
       "injured": null
@@ -10904,7 +10904,7 @@
     {
       "bucket": "2026-05-28",
       "occurred": 0,
-      "followup_articles": 4,
+      "followup_articles": 3,
       "confirmed_followups": 0,
       "dead": null,
       "injured": null
@@ -11312,16 +11312,16 @@
     {
       "bucket": "2026-07-18",
       "occurred": 0,
-      "followup_articles": 7,
-      "confirmed_followups": 1,
+      "followup_articles": 5,
+      "confirmed_followups": 0,
       "dead": null,
       "injured": null
     },
     {
       "bucket": "2026-07-19",
       "occurred": 0,
-      "followup_articles": 18,
-      "confirmed_followups": 2,
+      "followup_articles": 0,
+      "confirmed_followups": 0,
       "dead": null,
       "injured": null
     },
@@ -11336,8 +11336,8 @@
     {
       "bucket": "2026-07-21",
       "occurred": 0,
-      "followup_articles": 23,
-      "confirmed_followups": 3,
+      "followup_articles": 5,
+      "confirmed_followups": 1,
       "dead": null,
       "injured": null
     },
@@ -11376,7 +11376,7 @@
     {
       "bucket": "2026-07-26",
       "occurred": 0,
-      "followup_articles": 4,
+      "followup_articles": 3,
       "confirmed_followups": 1,
       "dead": null,
       "injured": null
@@ -11384,7 +11384,7 @@
     {
       "bucket": "2026-07-27",
       "occurred": 0,
-      "followup_articles": 6,
+      "followup_articles": 2,
       "confirmed_followups": 0,
       "dead": null,
       "injured": null
@@ -11424,7 +11424,7 @@
     {
       "bucket": "2026-08-01",
       "occurred": 0,
-      "followup_articles": 1,
+      "followup_articles": 0,
       "confirmed_followups": 0,
       "dead": null,
       "injured": null
@@ -11520,7 +11520,7 @@
     {
       "bucket": "2026-08-13",
       "occurred": 0,
-      "followup_articles": 1,
+      "followup_articles": 0,
       "confirmed_followups": 0,
       "dead": null,
       "injured": null
@@ -11560,7 +11560,7 @@
     {
       "bucket": "2026-08-18",
       "occurred": 0,
-      "followup_articles": 8,
+      "followup_articles": 7,
       "confirmed_followups": 1,
       "dead": null,
       "injured": null
@@ -11568,7 +11568,7 @@
     {
       "bucket": "2026-08-19",
       "occurred": 0,
-      "followup_articles": 5,
+      "followup_articles": 2,
       "confirmed_followups": 0,
       "dead": null,
       "injured": null
@@ -11576,7 +11576,7 @@
     {
       "bucket": "2026-08-20",
       "occurred": 0,
-      "followup_articles": 2,
+      "followup_articles": 1,
       "confirmed_followups": 0,
       "dead": null,
       "injured": null
@@ -11608,7 +11608,7 @@
     {
       "bucket": "2026-08-24",
       "occurred": 0,
-      "followup_articles": 18,
+      "followup_articles": 17,
       "confirmed_followups": 10,
       "dead": null,
       "injured": null
@@ -11744,8 +11744,8 @@
     {
       "bucket": "2026-09-10",
       "occurred": 0,
-      "followup_articles": 2,
-      "confirmed_followups": 1,
+      "followup_articles": 1,
+      "confirmed_followups": 0,
       "dead": null,
       "injured": null
     },
@@ -11800,7 +11800,7 @@
     {
       "bucket": "2026-09-17",
       "occurred": 0,
-      "followup_articles": 10,
+      "followup_articles": 9,
       "confirmed_followups": 0,
       "dead": null,
       "injured": null
@@ -11824,7 +11824,7 @@
     {
       "bucket": "2026-09-20",
       "occurred": 0,
-      "followup_articles": 2,
+      "followup_articles": 1,
       "confirmed_followups": 1,
       "dead": null,
       "injured": null
@@ -11832,7 +11832,7 @@
     {
       "bucket": "2026-09-21",
       "occurred": 0,
-      "followup_articles": 6,
+      "followup_articles": 5,
       "confirmed_followups": 0,
       "dead": null,
       "injured": null
@@ -11872,7 +11872,7 @@
     {
       "bucket": "2026-09-26",
       "occurred": 0,
-      "followup_articles": 2,
+      "followup_articles": 1,
       "confirmed_followups": 0,
       "dead": null,
       "injured": null
@@ -12155,7 +12155,7 @@
       "bucket": "2023-03",
       "occurred": 5,
       "followup_articles": 291,
-      "confirmed_followups": 22,
+      "confirmed_followups": 23,
       "dead": null,
       "injured": null
     },
@@ -12171,7 +12171,7 @@
       "bucket": "2023-05",
       "occurred": 0,
       "followup_articles": 105,
-      "confirmed_followups": 18,
+      "confirmed_followups": 19,
       "dead": null,
       "injured": null
     },
@@ -12218,7 +12218,7 @@
     {
       "bucket": "2023-11",
       "occurred": 0,
-      "followup_articles": 46,
+      "followup_articles": 45,
       "confirmed_followups": 8,
       "dead": null,
       "injured": null
@@ -12242,7 +12242,7 @@
     {
       "bucket": "2024-02",
       "occurred": 0,
-      "followup_articles": 59,
+      "followup_articles": 58,
       "confirmed_followups": 6,
       "dead": null,
       "injured": null
@@ -12274,7 +12274,7 @@
     {
       "bucket": "2024-06",
       "occurred": 4,
-      "followup_articles": 53,
+      "followup_articles": 52,
       "confirmed_followups": 4,
       "dead": null,
       "injured": null
@@ -12290,8 +12290,8 @@
     {
       "bucket": "2024-08",
       "occurred": 4,
-      "followup_articles": 153,
-      "confirmed_followups": 14,
+      "followup_articles": 152,
+      "confirmed_followups": 13,
       "dead": null,
       "injured": null
     },
@@ -12306,7 +12306,7 @@
     {
       "bucket": "2024-10",
       "occurred": 1,
-      "followup_articles": 86,
+      "followup_articles": 85,
       "confirmed_followups": 9,
       "dead": null,
       "injured": null
@@ -12314,7 +12314,7 @@
     {
       "bucket": "2024-11",
       "occurred": 6,
-      "followup_articles": 101,
+      "followup_articles": 98,
       "confirmed_followups": 14,
       "dead": null,
       "injured": null
@@ -12330,7 +12330,7 @@
     {
       "bucket": "2025-01",
       "occurred": 1,
-      "followup_articles": 124,
+      "followup_articles": 123,
       "confirmed_followups": 7,
       "dead": null,
       "injured": null
@@ -12346,16 +12346,16 @@
     {
       "bucket": "2025-03",
       "occurred": 3,
-      "followup_articles": 83,
-      "confirmed_followups": 7,
+      "followup_articles": 80,
+      "confirmed_followups": 8,
       "dead": null,
       "injured": null
     },
     {
       "bucket": "2025-04",
       "occurred": 2,
-      "followup_articles": 216,
-      "confirmed_followups": 29,
+      "followup_articles": 217,
+      "confirmed_followups": 30,
       "dead": null,
       "injured": null
     },
@@ -12386,15 +12386,15 @@
     {
       "bucket": "2025-08",
       "occurred": 3,
-      "followup_articles": 159,
-      "confirmed_followups": 27,
+      "followup_articles": 158,
+      "confirmed_followups": 26,
       "dead": null,
       "injured": null
     },
     {
       "bucket": "2025-09",
       "occurred": 2,
-      "followup_articles": 136,
+      "followup_articles": 135,
       "confirmed_followups": 11,
       "dead": null,
       "injured": null
@@ -12410,7 +12410,7 @@
     {
       "bucket": "2025-11",
       "occurred": 1,
-      "followup_articles": 388,
+      "followup_articles": 387,
       "confirmed_followups": 62,
       "dead": null,
       "injured": null
@@ -12418,24 +12418,24 @@
     {
       "bucket": "2025-12",
       "occurred": 2,
-      "followup_articles": 156,
-      "confirmed_followups": 33,
+      "followup_articles": 154,
+      "confirmed_followups": 34,
       "dead": null,
       "injured": null
     },
     {
       "bucket": "2026-01",
       "occurred": 0,
-      "followup_articles": 120,
-      "confirmed_followups": 25,
+      "followup_articles": 118,
+      "confirmed_followups": 24,
       "dead": null,
       "injured": null
     },
     {
       "bucket": "2026-02",
       "occurred": 0,
-      "followup_articles": 79,
-      "confirmed_followups": 12,
+      "followup_articles": 70,
+      "confirmed_followups": 11,
       "dead": null,
       "injured": null
     },
@@ -12450,7 +12450,7 @@
     {
       "bucket": "2026-04",
       "occurred": 0,
-      "followup_articles": 99,
+      "followup_articles": 96,
       "confirmed_followups": 20,
       "dead": null,
       "injured": null
@@ -12458,7 +12458,7 @@
     {
       "bucket": "2026-05",
       "occurred": 0,
-      "followup_articles": 69,
+      "followup_articles": 67,
       "confirmed_followups": 11,
       "dead": null,
       "injured": null
@@ -12474,15 +12474,15 @@
     {
       "bucket": "2026-07",
       "occurred": 0,
-      "followup_articles": 120,
-      "confirmed_followups": 10,
+      "followup_articles": 77,
+      "confirmed_followups": 5,
       "dead": null,
       "injured": null
     },
     {
       "bucket": "2026-08",
       "occurred": 0,
-      "followup_articles": 132,
+      "followup_articles": 124,
       "confirmed_followups": 25,
       "dead": null,
       "injured": null
@@ -12490,8 +12490,8 @@
     {
       "bucket": "2026-09",
       "occurred": 0,
-      "followup_articles": 94,
-      "confirmed_followups": 13,
+      "followup_articles": 89,
+      "confirmed_followups": 12,
       "dead": null,
       "injured": null
     },
@@ -12583,7 +12583,7 @@
       "rate": 1.0,
       "latest_followup_at": "2026-04-23",
       "last_article_at": "2026-09-22",
-      "confirmed_signals": 105,
+      "confirmed_signals": 104,
       "event_ids": [
         164,
         193,
@@ -12599,9 +12599,9 @@
       "events": 3,
       "with_followup": 3,
       "rate": 1.0,
-      "latest_followup_at": "2026-09-10",
+      "latest_followup_at": "2026-08-29",
       "last_article_at": "2026-10-13",
-      "confirmed_signals": 14,
+      "confirmed_signals": 13,
       "event_ids": [
         152,
         212,
@@ -12618,7 +12618,7 @@
       "rate": 0.6,
       "latest_followup_at": "2026-09-04",
       "last_article_at": "2026-10-21",
-      "confirmed_signals": 38,
+      "confirmed_signals": 37,
       "event_ids": [
         10,
         158,
@@ -12637,7 +12637,7 @@
       "rate": 1.0,
       "latest_followup_at": "2026-06-04",
       "last_article_at": "2026-10-21",
-      "confirmed_signals": 75,
+      "confirmed_signals": 76,
       "event_ids": [
         153,
         208
@@ -12653,7 +12653,7 @@
       "rate": 1.0,
       "latest_followup_at": "2026-09-15",
       "last_article_at": "2026-10-07",
-      "confirmed_signals": 45,
+      "confirmed_signals": 44,
       "event_ids": [
         250,
         270
@@ -12880,7 +12880,7 @@
       "rate": 1.0,
       "latest_followup_at": "2025-04-28",
       "last_article_at": "2026-04-19",
-      "confirmed_signals": 7,
+      "confirmed_signals": 9,
       "event_ids": [
         242
       ],
@@ -12894,7 +12894,7 @@
       "with_followup": 1,
       "rate": 1.0,
       "latest_followup_at": "2024-12-24",
-      "last_article_at": "2026-01-21",
+      "last_article_at": "2025-04-29",
       "confirmed_signals": 9,
       "event_ids": [
         200
@@ -12923,9 +12923,9 @@
       "events": 1,
       "with_followup": 1,
       "rate": 1.0,
-      "latest_followup_at": "2026-07-21",
-      "last_article_at": "2026-09-21",
-      "confirmed_signals": 7,
+      "latest_followup_at": "2025-06-01",
+      "last_article_at": "2025-07-31",
+      "confirmed_signals": 1,
       "event_ids": [
         256
       ],
@@ -13079,7 +13079,7 @@
       "rate": 0.5,
       "latest_followup_at": "2024-07-07",
       "last_article_at": "2026-07-30",
-      "confirmed_signals": 18,
+      "confirmed_signals": 20,
       "event_ids": [
         18,
         210
@@ -13126,7 +13126,7 @@
       "with_followup": 1,
       "rate": 0.333,
       "latest_followup_at": "2025-08-07",
-      "last_article_at": "2026-09-26",
+      "last_article_at": "2026-03-17",
       "confirmed_signals": 7,
       "event_ids": [
         247,
@@ -13628,20 +13628,6 @@
       "link": "https://www.joongboo.com/news/articleView.html?idxno=363736838"
     },
     {
-      "event_id": 152,
-      "event_title": "청도 경부선 선로 작업자 열차 충격 사망",
-      "event_status": "새로운 문제 발생",
-      "org": "한국철도공사",
-      "signal": "새로운문제",
-      "confidence": 0.739,
-      "evidence_span": "“서행운전 영향?”…열차 지연에 따른 배상 대상 승객, 연간 147만명",
-      "news_id": "01100901.20260910102909001",
-      "title": "“서행운전 영향?”…열차 지연에 따른 배상 대상 승객, 연간 147만명",
-      "provider": "중앙일보",
-      "published_at": "2026-09-10",
-      "link": "https://www.joongang.co.kr/article/25460675"
-    },
-    {
       "event_id": 10,
       "event_title": "코레일 오봉역·영등포역 철도사고 과징금 부과",
       "event_status": "새로운 문제 발생",
@@ -14090,34 +14076,6 @@
       "link": "https://www.kyeonggi.com/article/20260724580269"
     },
     {
-      "event_id": 256,
-      "event_title": "이천 물류센터 대형 화재",
-      "event_status": "새로운 문제 발생",
-      "org": "이천시",
-      "signal": "새로운문제",
-      "confidence": 0.737,
-      "evidence_span": "쿠팡 물류센터 화재로 배송 차질 현실화…판매자 재고 소실도 인천 쿠팡물류센터 화재가 사흘째 이어지면서 수도권 일대의 배송 차질이 현실화하고, 입점 판매자들의 재산 피해 우려도 급증",
-      "news_id": "01100901.20260721102010001",
-      "title": "쿠팡 물류센터 화재로 배송 차질 현실화…판매자 재고 소실도",
-      "provider": "중앙일보",
-      "published_at": "2026-07-21",
-      "link": "https://www.joongang.co.kr/article/25446697"
-    },
-    {
-      "event_id": 256,
-      "event_title": "이천 물류센터 대형 화재",
-      "event_status": "새로운 문제 발생",
-      "org": "이천시",
-      "signal": "새로운문제",
-      "confidence": 0.69,
-      "evidence_span": "쿠팡 인천 물류센터 화재에 배송 차질 현실화…서울 서남권·경기 서부 일부 영향",
-      "news_id": "02100861.20260721132132001",
-      "title": "쿠팡 인천 물류센터 화재에 배송 차질 현실화…서울 서남권·경기 서부 일부 영향",
-      "provider": "브릿지경제",
-      "published_at": "2026-07-21",
-      "link": "https://www.viva100.com/article/20260720500375"
-    },
-    {
       "event_id": 174,
       "event_title": "경북 예천·봉화 집중호우 산사태 주택 매몰",
       "event_status": "후속보도 부족",
@@ -14132,46 +14090,88 @@
       "link": "https://www.hidomin.com/news/articleView.html?idxno=714037"
     },
     {
-      "event_id": 256,
-      "event_title": "이천 물류센터 대형 화재",
+      "event_id": 158,
+      "event_title": "인천 인천대교 잇단 추락사고 안전난간 설치",
       "event_status": "새로운 문제 발생",
-      "org": "이천시",
-      "signal": "새로운문제",
-      "confidence": 0.745,
-      "evidence_span": "..물류센터에서 약 5년 만에 또다시 대형 화재가 발생하면서 화재 원인 규명에 따라 쿠팡의..쿠팡 물류센터에서 비슷한 화재가 또다시 발생하면서 쿠팡이 제대로 안전 관리를 해왔는지에",
-      "news_id": "01100101.20260719153900001",
-      "title": "또다시 물류센터 대형 화재 쿠팡 ‘책임론’ 불가피",
-      "provider": "경향신문",
-      "published_at": "2026-07-19",
-      "link": "https://www.khan.co.kr/article/202607191537001"
+      "org": "국토교통부",
+      "signal": "완료",
+      "confidence": 0.701,
+      "evidence_span": "인천시 관리의 계양대교·청운교 등에는 안전난간을 설치했다...",
+      "news_id": "01200101.20260624030540001",
+      "title": "[사설] 10년 105명 숨진 인천 교량 추락... 물리적 차단 급하다",
+      "provider": "경기일보",
+      "published_at": "2026-06-24",
+      "link": "https://www.kyeonggi.com/article/20260623580666"
     },
     {
-      "event_id": 256,
-      "event_title": "이천 물류센터 대형 화재",
+      "event_id": 158,
+      "event_title": "인천 인천대교 잇단 추락사고 안전난간 설치",
       "event_status": "새로운 문제 발생",
-      "org": "이천시",
-      "signal": "새로운문제",
-      "confidence": 0.697,
-      "evidence_span": "검은 연기 휩싸인 쿠팡 물류창고 일대… 진입 늦어지고 5층 불길 확산될까 ‘촉각’ [르포]",
-      "news_id": "02100311.20260719161717001",
-      "title": "검은 연기 휩싸인 쿠팡 물류창고 일대… 진입 늦어지고 5층 불길 확산될까 ‘촉각’ [르포]",
-      "provider": "서울경제",
-      "published_at": "2026-07-19",
-      "link": "https://www.sedaily.com/article/20069108?ref=kpf"
+      "org": "국토교통부",
+      "signal": "진행",
+      "confidence": 0.692,
+      "evidence_span": "..인천대교에 추진 중인 안전시설 설치 사업이 제도..",
+      "news_id": "01600801.20260623080229001",
+      "title": "인천대교 안전난간 설치 난항…'인도 없는 교량' 기준 부재",
+      "provider": "전남일보",
+      "published_at": "2026-06-23",
+      "link": "https://www.jnilbo.com/news/articleView.html?idxno=90000044420"
     },
     {
-      "event_id": 256,
-      "event_title": "이천 물류센터 대형 화재",
+      "event_id": 175,
+      "event_title": "충남 공주 금강 범람 주택가 침수",
+      "event_status": "조치 진행 정황 확인",
+      "org": "대통령실",
+      "signal": "진행",
+      "confidence": 0.699,
+      "evidence_span": "..공주시 공산성 앞 제2금강교 건설공사 현장을 방문해 관계자들과 함께 우기철 집중호우와 폭염에 대비한 안전관리 대책을 점검하고 있다.....착공해 내년 상..",
+      "news_id": "01400801.20260622114053001",
+      "title": "\"물길은 열고, 안전은 잠그고\" ··· 행복청, 제2금강교 현장 우기·폭염 대응 총점검",
+      "provider": "금강일보",
+      "published_at": "2026-06-22",
+      "link": "https://www.ggilbo.com/news/articleView.html?idxno=1164874"
+    },
+    {
+      "event_id": 152,
+      "event_title": "청도 경부선 선로 작업자 열차 충격 사망",
+      "event_status": "조치 진행 정황 확인",
+      "org": "한국철도공사",
+      "signal": "진행",
+      "confidence": 0.749,
+      "evidence_span": "동시에 열차사고와 운행장애, 작업자 사상사고, 발주공사 재해 등 안전 관련 지표도 성적을 좌우했다...",
+      "news_id": "04100078.20260619170406001",
+      "title": "철도 3사 경평 나란히 C·D등급…안전·재무 부실 발목",
+      "provider": "뉴스핌",
+      "published_at": "2026-06-19",
+      "link": "https://www.newspim.com/news/view/20260619000853"
+    },
+    {
+      "event_id": 288,
+      "event_title": "대전 국가정보자원관리원 화재 전산망 마비",
+      "event_status": "조치 완료 근거 확인",
+      "org": "행정안전부",
+      "signal": "진행",
+      "confidence": 0.742,
+      "evidence_span": "축 본격화…AI 정부 서비스 중단 막는다 ..= 행정안전부가 국가정보자원관리원 화재를 계기로 공공 정보시스템의 안정성을 높이기 위한 재해복구시스템(DR) 구축에 본격 착수했다...",
+      "news_id": "04100078.20260618120843001",
+      "title": "국가정보자원관리원, 재해복구시스템 구축 본격화…AI 정부 서비스 중단 막는다",
+      "provider": "뉴스핌",
+      "published_at": "2026-06-18",
+      "link": "https://www.newspim.com/news/view/20260618000343"
+    },
+    {
+      "event_id": 186,
+      "event_title": "과천 제2경인고속도로 방음터널 화재",
       "event_status": "새로운 문제 발생",
-      "org": "이천시",
+      "org": "국무총리",
       "signal": "새로운문제",
-      "confidence": 0.691,
-      "evidence_span": "..물류센터 또 화재…2021년에는 6일만에 완진 18일 인천소방본부에 따르면 이날 오전 6시54분께 서해구 석남동 쿠팡32물류센터 6층에서 화재가 발생해 물류센터 직원 등 121",
-      "news_id": "02100501.20260718171203001",
-      "title": "쿠팡 물류센터 또 화재…2021년에는 6일만에 완진",
-      "provider": "파이낸셜뉴스",
-      "published_at": "2026-07-18",
-      "link": "http://www.fnnews.com/news/202607181647065587"
+      "confidence": 0.759,
+      "evidence_span": "\"피해 보상하라\" 집단행동 방음터널 공사가 지연되고 있는 제2경인고속도로 구간.....터널..공사 지연의 배경은 2022년 12월 경기 과천 갈현고가교 방음터널 화재다...",
+      "news_id": "01400501.20260614164421001",
+      "title": "제2경인고속도로 방음터널 공사 지연… 주민들 \"피해 보상하라\" 집단행동",
+      "provider": "중부일보",
+      "published_at": "2026-06-14",
+      "link": "https://www.joongboo.com/news/articleView.html?idxno=363728685"
     }
   ],
   "disclaimer": "보도가 없다는 사실은 조치가 없었다는 근거가 아니라, 확인이 필요하다는 신호입니다."
