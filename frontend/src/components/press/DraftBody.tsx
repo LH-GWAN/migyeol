@@ -10,7 +10,7 @@ import type { PressSection, PressSource } from "@/lib/press";
 
 const TOKEN_RE = /(\[\d+\]|https?:\/\/[^\s)]+)/g;
 
-function Inline({ text }: { text: string }) {
+export function Inline({ text }: { text: string }) {
   const parts = text.split(TOKEN_RE);
   return (
     <>

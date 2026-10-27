@@ -1,12 +1,15 @@
 """v2 §7.2 보도자료 초안 API — 트랙 C. 로그인 없이 공개 (§0 멘토 피드백).
 
-GET /api/press/draft             전체 초안 (scope="all")
-GET /api/press/draft?event_id=N  사건별 초안 (scope="event")
-응답: {scope, event_id, title, markdown, sections:[{heading, body}], generated_at, sources:[{ref, news_id, title, provider, published_at, link}],
+GET /api/press/draft                       전체 초안 (scope="all")
+GET /api/press/draft?event_id=N            사건별 초안 (scope="event")
+GET /api/press/draft?format=brief|article  brief=사건 브리프(기본, 절·목록) / article=기사체(제목·부제·리드·본문·배경·마무리 문단)
+응답: {scope, event_id, format, title, subtitle, markdown, sections:[{heading, body}], generated_at, sources:[{ref, news_id, title, provider, published_at, link}],
        disclaimer, header_note, writer, stats, ...}
 """
 
 from __future__ import annotations
+
+from typing import Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
@@ -22,10 +25,14 @@ router = APIRouter(prefix="/api/press", tags=["press"])
 
 
 @router.get("/draft")
-def get_draft(event_id: int | None = Query(default=None, ge=1, le=MAX_ID), session: Session = Depends(get_session)):
+def get_draft(
+    event_id: int | None = Query(default=None, ge=1, le=MAX_ID),
+    format: Literal["brief", "article"] = Query(default="brief"),
+    session: Session = Depends(get_session),
+):
     settings = get_settings()
     today = settings.today()
-    writer = build_writer(settings)
+    writer = build_writer(settings, format)
     if event_id is None:
         return writer.write_all(D.overview(session, settings, today)).as_dict()
     ev = session.get(Event, event_id)

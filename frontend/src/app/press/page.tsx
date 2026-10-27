@@ -3,18 +3,24 @@ import Link from "next/link";
 import Disclaimer from "@/components/Disclaimer";
 import ErrorBox from "@/components/ErrorBox";
 import StatusBadge from "@/components/StatusBadge";
+import ArticleBody from "@/components/press/ArticleBody";
 import DraftActions from "@/components/press/DraftActions";
 import DraftBody from "@/components/press/DraftBody";
 import EventPicker from "@/components/press/EventPicker";
 import { safe } from "@/lib/api";
 import { formatDateTime, parseId } from "@/lib/format";
-import { draftFileName, getPressDraft, getPressEvents, type PressDraft } from "@/lib/press";
+import { draftFileName, getPressDraft, getPressEvents, parsePressFormat, pressHref, type PressDraft, type PressFormat } from "@/lib/press";
 
 export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = { title: "보도자료 초안" };
 
-type SearchParams = Promise<{ event_id?: string | string[] }>;
+type SearchParams = Promise<{ event_id?: string | string[]; format?: string | string[] }>;
+
+const FORMAT_TABS: { key: PressFormat; label: string; hint: string }[] = [
+  { key: "brief", label: "사건 브리프", hint: "절·목록으로 정리한 자료형 초안" },
+  { key: "article", label: "기사체", hint: "제목·부제·리드·본문으로 이어 쓴 기사형 초안" },
+];
 
 const HEADER_NOTE = "이 초안은 미결이 빅카인즈 API로 수집·분석한 결과를 바탕으로 자동 작성했습니다. 배포 전 사람이 검토합니다.";
 
@@ -53,9 +59,10 @@ export default async function PressPage({ searchParams }: { searchParams: Search
   const raw = Array.isArray(sp.event_id) ? sp.event_id[0] : sp.event_id;
   const eventId = raw ? parseId(raw) : null;
   const invalidId = Boolean(raw) && eventId === null;
+  const format = parsePressFormat(sp.format);
 
   const [draftRes, eventsRes] = await Promise.all([
-    invalidId ? null : safe(getPressDraft(eventId)),
+    invalidId ? null : safe(getPressDraft(eventId, format)),
     safe(getPressEvents()),
   ]);
   const events = eventsRes.ok ? eventsRes.data : [];
@@ -75,10 +82,29 @@ export default async function PressPage({ searchParams }: { searchParams: Search
         </div>
       </header>
 
+      <nav className="flex flex-col gap-2 rounded-lg border border-gray-200 bg-white p-4" aria-label="초안 형식">
+        <p className="text-xs font-semibold text-gray-500">초안 형식</p>
+        <div className="flex flex-wrap gap-2" role="tablist" aria-label="초안 형식 선택">
+          {FORMAT_TABS.map((t) => (
+            <Link
+              key={t.key}
+              href={pressHref(eventId, t.key)}
+              role="tab"
+              aria-selected={format === t.key}
+              title={t.hint}
+              className={`rounded-md px-4 py-2 text-sm font-semibold ${format === t.key ? "bg-blue-700 text-white" : "border border-gray-300 text-gray-700 hover:bg-gray-50"}`}
+            >
+              {t.label}
+            </Link>
+          ))}
+        </div>
+        <p className="text-xs text-gray-500">{FORMAT_TABS.find((t) => t.key === format)?.hint} · 두 형식 모두 같은 집계와 근거 번호를 씁니다.</p>
+      </nav>
+
       <nav className="flex flex-col gap-3 rounded-lg border border-gray-200 bg-white p-4 sm:flex-row sm:items-end sm:justify-between" aria-label="초안 선택">
         <div className="flex flex-wrap gap-2" role="tablist">
           <Link
-            href="/press"
+            href={pressHref(null, format)}
             role="tab"
             aria-selected={eventId === null}
             className={`rounded-full px-3 py-1.5 text-sm font-semibold ${eventId === null ? "bg-gray-900 text-white" : "border border-gray-300 text-gray-700 hover:bg-gray-50"}`}
@@ -94,7 +120,7 @@ export default async function PressPage({ searchParams }: { searchParams: Search
           </span>
         </div>
         <div className="w-full sm:max-w-md">
-          <EventPicker events={events} selected={eventId} />
+          <EventPicker events={events} selected={eventId} format={format} />
         </div>
       </nav>
 
@@ -110,9 +136,16 @@ export default async function PressPage({ searchParams }: { searchParams: Search
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div className="flex min-w-0 flex-col gap-1">
               <p className="text-xs font-semibold tracking-wide text-gray-500">
-                {draftRes.data.scope === "all" ? "보도자료 (전체)" : "보도자료 (사건별)"} · 초안
+                {draftRes.data.scope === "all" ? "보도자료 (전체)" : "보도자료 (사건별)"} · {draftRes.data.format === "article" ? "기사체" : "사건 브리프"} 초안
               </p>
-              <h2 className="text-xl font-bold leading-snug text-gray-900 sm:text-2xl">{draftRes.data.title}</h2>
+              {draftRes.data.format === "article" ? (
+                <>
+                  <h2 className="text-2xl font-extrabold leading-snug tracking-tight text-gray-900 sm:text-3xl">{draftRes.data.title}</h2>
+                  {draftRes.data.subtitle && <p className="text-base font-semibold leading-relaxed text-gray-700">{draftRes.data.subtitle}</p>}
+                </>
+              ) : (
+                <h2 className="text-xl font-bold leading-snug text-gray-900 sm:text-2xl">{draftRes.data.title}</h2>
+              )}
               <p className="text-xs text-gray-500">
                 작성 {formatDateTime(draftRes.data.generated_at)} · 작성기 {draftRes.data.writer}
                 {draftRes.data.scope === "all" &&
@@ -137,7 +170,11 @@ export default async function PressPage({ searchParams }: { searchParams: Search
           )}
           <StatTiles draft={draftRes.data} />
           <hr className="border-gray-100" />
-          <DraftBody sections={draftRes.data.sections} sources={draftRes.data.sources} />
+          {draftRes.data.format === "article" ? (
+            <ArticleBody sections={draftRes.data.sections} sources={draftRes.data.sources} />
+          ) : (
+            <DraftBody sections={draftRes.data.sections} sources={draftRes.data.sources} />
+          )}
           <Disclaimer text={draftRes.data.disclaimer} className="border-t border-gray-100 pt-3" />
         </article>
       ) : null}

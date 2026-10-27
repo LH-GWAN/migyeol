@@ -20,17 +20,37 @@ export interface PressSource {
   link: string | null;
 }
 
+export type PressFormat = "brief" | "article";
+
+export function parsePressFormat(raw: string | string[] | undefined): PressFormat {
+  const v = Array.isArray(raw) ? raw[0] : raw;
+  return v === "article" ? "article" : "brief";
+}
+
+/** /press 주소: 사건·형식을 쿼리로 (brief 는 기본값이라 생략) */
+export function pressHref(eventId: number | null, format: PressFormat): string {
+  const q = new URLSearchParams();
+  if (eventId) q.set("event_id", String(eventId));
+  if (format === "article") q.set("format", "article");
+  const qs = q.toString();
+  return qs ? `/press?${qs}` : "/press";
+}
+
 export interface PressDraft {
   scope: "all" | "event";
   event_id: number | null;
+  /** brief = 사건 브리프(절·목록), article = 기사체(제목·부제·리드·본문·배경·마무리 문단) */
+  format: PressFormat;
   title: string;
+  /** 기사체만 (브리프는 null) */
+  subtitle: string | null;
   markdown: string;
   sections: PressSection[];
   generated_at: string;
   sources: PressSource[];
   disclaimer: string;
   header_note: string;
-  /** template-v1 | llm-press-v1(<model>) */
+  /** template-v1 | article-v1 | llm-press-v1(<model>) */
   writer: string;
   stats: Record<string, number | string>;
   /** 전체 초안만: 숫자 출처 (db | experiment) */
@@ -88,9 +108,13 @@ export async function getJson<T>(path: string): Promise<T> {
   return (await res.json()) as T;
 }
 
-/** GET /api/press/draft (eventId 가 있으면 사건별 초안) */
-export function getPressDraft(eventId?: number | null): Promise<PressDraft> {
-  return getJson<PressDraft>(eventId ? `/api/press/draft?event_id=${eventId}` : "/api/press/draft");
+/** GET /api/press/draft (eventId 가 있으면 사건별 초안, format=article 이면 기사체) */
+export function getPressDraft(eventId?: number | null, format: PressFormat = "brief"): Promise<PressDraft> {
+  const q = new URLSearchParams();
+  if (eventId) q.set("event_id", String(eventId));
+  if (format === "article") q.set("format", "article");
+  const qs = q.toString();
+  return getJson<PressDraft>(qs ? `/api/press/draft?${qs}` : "/api/press/draft");
 }
 
 /** GET /api/press/events — 사건별 초안 선택 목록 */
@@ -98,8 +122,13 @@ export function getPressEvents(): Promise<PressEventRow[]> {
   return getJson<PressEventRow[]>("/api/press/events");
 }
 
-/** Markdown 다운로드 파일 이름: migyeol_press_all_20260911.md / migyeol_press_event3_20260911.md */
-export function draftFileName(draft: Pick<PressDraft, "scope" | "event_id" | "generated_at">): string {
+/**
+ * Markdown 다운로드 파일 이름 — 형식을 구분한다:
+ * 브리프 migyeol_press_all_20260911.md / migyeol_press_event3_20260911.md,
+ * 기사체 migyeol_press_article_all_20260911.md / migyeol_press_article_event3_20260911.md
+ */
+export function draftFileName(draft: Pick<PressDraft, "scope" | "event_id" | "generated_at"> & { format?: PressFormat }): string {
   const day = (draft.generated_at || "").slice(0, 10).replace(/-/g, "") || "draft";
-  return draft.scope === "event" ? `migyeol_press_event${draft.event_id}_${day}.md` : `migyeol_press_all_${day}.md`;
+  const mode = draft.format === "article" ? "article_" : "";
+  return draft.scope === "event" ? `migyeol_press_${mode}event${draft.event_id}_${day}.md` : `migyeol_press_${mode}all_${day}.md`;
 }
