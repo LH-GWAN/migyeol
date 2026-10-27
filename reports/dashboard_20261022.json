@@ -1,16 +1,16 @@
 {
   "generated_for": "2026-10-22",
   "summary": {
-    "events_total": 90,
-    "with_followup": 53,
-    "followup_rate": 0.589,
-    "overdue": 3,
-    "with_org_notice": 4,
-    "followup_articles": 4937,
-    "orgs": 60,
+    "events_total": 100,
+    "with_followup": 63,
+    "followup_rate": 0.63,
+    "overdue": 4,
+    "with_org_notice": 7,
+    "followup_articles": 6278,
+    "orgs": 63,
     "by_status": {
-      "조치 완료 근거 확인": 22,
-      "조치 진행 정황 확인": 20,
+      "조치 완료 근거 확인": 29,
+      "조치 진행 정황 확인": 23,
       "새로운 문제 발생": 7,
       "후속보도 부족": 33,
       "판단 불가": 8
@@ -19,7 +19,7 @@
     "as_of": "2026-10-22",
     "bigkinds_mode": "record",
     "experiment": {
-      "generated_at": "2026-10-25T23:50:09+09:00",
+      "generated_at": "2026-10-27T15:44:41+09:00",
       "as_of": "2026-10-22",
       "bigkinds_mode": "record",
       "seeds_file": "seeds/events.yaml",
@@ -27,53 +27,53 @@
       "llm_mode": "rules",
       "source_articles": {
         "collected": 1559,
-        "unique": 90
+        "unique": 100
       },
       "events": {
-        "total": 90,
-        "with_followup": 53,
-        "followup_rate": 0.589,
+        "total": 100,
+        "with_followup": 63,
+        "followup_rate": 0.63,
         "by_status": {
-          "조치 완료 근거 확인": 22,
-          "조치 진행 정황 확인": 20,
+          "조치 완료 근거 확인": 29,
+          "조치 진행 정황 확인": 23,
           "새로운 문제 발생": 7,
           "후속보도 부족": 33,
           "판단 불가": 8
         },
-        "with_org_notice": 4,
+        "with_org_notice": 7,
         "articles_per_event": {
-          "median": 97.5,
+          "median": 107.0,
           "max": 514
         }
       },
       "windows_days": {
-        "30": 40,
-        "90": 45,
-        "180": 47,
-        "365": 50
+        "30": 49,
+        "90": 55,
+        "180": 57,
+        "365": 60
       },
       "signals": {
-        "완료": 83,
-        "진행": 242,
-        "새로운문제": 85
+        "완료": 117,
+        "진행": 363,
+        "새로운문제": 107
       },
       "labels": {
-        "labeled": 90,
-        "followup_precision": 0.623,
-        "followup_recall": 0.786,
-        "cluster_precision": 0.843,
-        "org_accuracy": 0.815
+        "labeled": 100,
+        "followup_precision": 0.905,
+        "followup_recall": 0.75,
+        "cluster_precision": 0.865,
+        "org_accuracy": 0.837
       },
       "cost": {
         "api_calls": {
-          "search_news": 5269,
-          "search_quotation": 1244,
+          "search_news": 5829,
+          "search_quotation": 1371,
           "issue_ranking": 1096,
-          "time_line": 894,
+          "time_line": 957,
           "word_cloud": 0
         },
-        "elapsed_sec": 6857.8,
-        "recordings": 11918
+        "elapsed_sec": 8917.8,
+        "recordings": 12758
       },
       "success": {
         "min_followup_events": 5,
@@ -3623,7 +3623,7 @@
     },
     {
       "bucket": "2023-11-30",
-      "occurred": 0,
+      "occurred": 1,
       "followup_articles": 0,
       "confirmed_followups": 0,
       "dead": null,
@@ -3632,15 +3632,15 @@
     {
       "bucket": "2023-12-01",
       "occurred": 0,
-      "followup_articles": 0,
-      "confirmed_followups": 0,
+      "followup_articles": 26,
+      "confirmed_followups": 3,
       "dead": null,
       "injured": null
     },
     {
       "bucket": "2023-12-02",
       "occurred": 0,
-      "followup_articles": 0,
+      "followup_articles": 1,
       "confirmed_followups": 0,
       "dead": null,
       "injured": null
@@ -3648,7 +3648,7 @@
     {
       "bucket": "2023-12-03",
       "occurred": 0,
-      "followup_articles": 0,
+      "followup_articles": 1,
       "confirmed_followups": 0,
       "dead": null,
       "injured": null
@@ -3656,7 +3656,7 @@
     {
       "bucket": "2023-12-04",
       "occurred": 0,
-      "followup_articles": 0,
+      "followup_articles": 3,
       "confirmed_followups": 0,
       "dead": null,
       "injured": null
@@ -3664,7 +3664,7 @@
     {
       "bucket": "2023-12-05",
       "occurred": 0,
-      "followup_articles": 0,
+      "followup_articles": 1,
       "confirmed_followups": 0,
       "dead": null,
       "injured": null
@@ -3783,11 +3783,11 @@
     },
     {
       "bucket": "2023-12-20",
-      "occurred": 0,
+      "occurred": 1,
       "followup_articles": 2,
       "confirmed_followups": 0,
-      "dead": null,
-      "injured": null
+      "dead": 1,
+      "injured": 2
     },
     {
       "bucket": "2023-12-21",
@@ -3800,7 +3800,7 @@
     {
       "bucket": "2023-12-22",
       "occurred": 0,
-      "followup_articles": 1,
+      "followup_articles": 14,
       "confirmed_followups": 0,
       "dead": null,
       "injured": null
@@ -3808,7 +3808,7 @@
     {
       "bucket": "2023-12-23",
       "occurred": 1,
-      "followup_articles": 0,
+      "followup_articles": 1,
       "confirmed_followups": 0,
       "dead": null,
       "injured": null
@@ -3824,7 +3824,7 @@
     {
       "bucket": "2023-12-25",
       "occurred": 1,
-      "followup_articles": 19,
+      "followup_articles": 24,
       "confirmed_followups": 10,
       "dead": null,
       "injured": null
@@ -3832,7 +3832,7 @@
     {
       "bucket": "2023-12-26",
       "occurred": 0,
-      "followup_articles": 5,
+      "followup_articles": 7,
       "confirmed_followups": 0,
       "dead": null,
       "injured": null
@@ -3840,15 +3840,15 @@
     {
       "bucket": "2023-12-27",
       "occurred": 0,
-      "followup_articles": 37,
-      "confirmed_followups": 0,
+      "followup_articles": 41,
+      "confirmed_followups": 1,
       "dead": null,
       "injured": null
     },
     {
       "bucket": "2023-12-28",
       "occurred": 0,
-      "followup_articles": 14,
+      "followup_articles": 15,
       "confirmed_followups": 0,
       "dead": null,
       "injured": null
@@ -3904,7 +3904,7 @@
     {
       "bucket": "2024-01-04",
       "occurred": 0,
-      "followup_articles": 0,
+      "followup_articles": 1,
       "confirmed_followups": 0,
       "dead": null,
       "injured": null
@@ -4047,7 +4047,7 @@
     },
     {
       "bucket": "2024-01-22",
-      "occurred": 0,
+      "occurred": 1,
       "followup_articles": 0,
       "confirmed_followups": 0,
       "dead": null,
@@ -4064,7 +4064,7 @@
     {
       "bucket": "2024-01-24",
       "occurred": 0,
-      "followup_articles": 0,
+      "followup_articles": 18,
       "confirmed_followups": 0,
       "dead": null,
       "injured": null
@@ -4072,7 +4072,7 @@
     {
       "bucket": "2024-01-25",
       "occurred": 0,
-      "followup_articles": 0,
+      "followup_articles": 8,
       "confirmed_followups": 0,
       "dead": null,
       "injured": null
@@ -4080,31 +4080,31 @@
     {
       "bucket": "2024-01-26",
       "occurred": 0,
-      "followup_articles": 1,
-      "confirmed_followups": 0,
+      "followup_articles": 19,
+      "confirmed_followups": 1,
       "dead": null,
       "injured": null
     },
     {
       "bucket": "2024-01-27",
       "occurred": 0,
-      "followup_articles": 0,
-      "confirmed_followups": 0,
+      "followup_articles": 5,
+      "confirmed_followups": 1,
       "dead": null,
       "injured": null
     },
     {
       "bucket": "2024-01-28",
       "occurred": 0,
-      "followup_articles": 0,
-      "confirmed_followups": 0,
+      "followup_articles": 20,
+      "confirmed_followups": 3,
       "dead": null,
       "injured": null
     },
     {
       "bucket": "2024-01-29",
       "occurred": 0,
-      "followup_articles": 3,
+      "followup_articles": 14,
       "confirmed_followups": 1,
       "dead": null,
       "injured": null
@@ -4112,7 +4112,7 @@
     {
       "bucket": "2024-01-30",
       "occurred": 0,
-      "followup_articles": 1,
+      "followup_articles": 11,
       "confirmed_followups": 0,
       "dead": null,
       "injured": null
@@ -4120,7 +4120,7 @@
     {
       "bucket": "2024-01-31",
       "occurred": 0,
-      "followup_articles": 1,
+      "followup_articles": 16,
       "confirmed_followups": 0,
       "dead": null,
       "injured": null
@@ -4128,16 +4128,16 @@
     {
       "bucket": "2024-02-01",
       "occurred": 0,
-      "followup_articles": 9,
-      "confirmed_followups": 3,
+      "followup_articles": 24,
+      "confirmed_followups": 4,
       "dead": null,
       "injured": null
     },
     {
       "bucket": "2024-02-02",
       "occurred": 0,
-      "followup_articles": 1,
-      "confirmed_followups": 0,
+      "followup_articles": 14,
+      "confirmed_followups": 3,
       "dead": null,
       "injured": null
     },
@@ -4152,7 +4152,7 @@
     {
       "bucket": "2024-02-04",
       "occurred": 0,
-      "followup_articles": 0,
+      "followup_articles": 8,
       "confirmed_followups": 0,
       "dead": null,
       "injured": null
@@ -4160,7 +4160,7 @@
     {
       "bucket": "2024-02-05",
       "occurred": 0,
-      "followup_articles": 1,
+      "followup_articles": 15,
       "confirmed_followups": 0,
       "dead": null,
       "injured": null
@@ -4168,7 +4168,7 @@
     {
       "bucket": "2024-02-06",
       "occurred": 0,
-      "followup_articles": 3,
+      "followup_articles": 5,
       "confirmed_followups": 0,
       "dead": null,
       "injured": null
@@ -4208,7 +4208,7 @@
     {
       "bucket": "2024-02-11",
       "occurred": 0,
-      "followup_articles": 0,
+      "followup_articles": 1,
       "confirmed_followups": 0,
       "dead": null,
       "injured": null
@@ -4216,7 +4216,7 @@
     {
       "bucket": "2024-02-12",
       "occurred": 0,
-      "followup_articles": 0,
+      "followup_articles": 3,
       "confirmed_followups": 0,
       "dead": null,
       "injured": null
@@ -4288,7 +4288,7 @@
     {
       "bucket": "2024-02-21",
       "occurred": 0,
-      "followup_articles": 1,
+      "followup_articles": 3,
       "confirmed_followups": 0,
       "dead": null,
       "injured": null
@@ -4376,7 +4376,7 @@
     {
       "bucket": "2024-03-03",
       "occurred": 0,
-      "followup_articles": 0,
+      "followup_articles": 1,
       "confirmed_followups": 0,
       "dead": null,
       "injured": null
@@ -4384,7 +4384,7 @@
     {
       "bucket": "2024-03-04",
       "occurred": 0,
-      "followup_articles": 0,
+      "followup_articles": 2,
       "confirmed_followups": 0,
       "dead": null,
       "injured": null
@@ -4440,8 +4440,8 @@
     {
       "bucket": "2024-03-11",
       "occurred": 0,
-      "followup_articles": 9,
-      "confirmed_followups": 1,
+      "followup_articles": 13,
+      "confirmed_followups": 3,
       "dead": null,
       "injured": null
     },
@@ -4608,7 +4608,7 @@
     {
       "bucket": "2024-04-01",
       "occurred": 0,
-      "followup_articles": 0,
+      "followup_articles": 1,
       "confirmed_followups": 0,
       "dead": null,
       "injured": null
@@ -4720,8 +4720,8 @@
     {
       "bucket": "2024-04-15",
       "occurred": 0,
-      "followup_articles": 0,
-      "confirmed_followups": 0,
+      "followup_articles": 1,
+      "confirmed_followups": 1,
       "dead": null,
       "injured": null
     },
@@ -4760,7 +4760,7 @@
     {
       "bucket": "2024-04-20",
       "occurred": 0,
-      "followup_articles": 0,
+      "followup_articles": 1,
       "confirmed_followups": 0,
       "dead": null,
       "injured": null
@@ -4768,8 +4768,8 @@
     {
       "bucket": "2024-04-21",
       "occurred": 0,
-      "followup_articles": 0,
-      "confirmed_followups": 0,
+      "followup_articles": 2,
+      "confirmed_followups": 1,
       "dead": null,
       "injured": null
     },
@@ -4864,7 +4864,7 @@
     {
       "bucket": "2024-05-03",
       "occurred": 0,
-      "followup_articles": 1,
+      "followup_articles": 4,
       "confirmed_followups": 0,
       "dead": null,
       "injured": null
@@ -4936,7 +4936,7 @@
     {
       "bucket": "2024-05-12",
       "occurred": 0,
-      "followup_articles": 0,
+      "followup_articles": 1,
       "confirmed_followups": 0,
       "dead": null,
       "injured": null
@@ -5080,7 +5080,7 @@
     {
       "bucket": "2024-05-30",
       "occurred": 0,
-      "followup_articles": 1,
+      "followup_articles": 3,
       "confirmed_followups": 0,
       "dead": null,
       "injured": null
@@ -5120,7 +5120,7 @@
     {
       "bucket": "2024-06-04",
       "occurred": 0,
-      "followup_articles": 1,
+      "followup_articles": 5,
       "confirmed_followups": 0,
       "dead": null,
       "injured": null
@@ -5335,11 +5335,11 @@
     },
     {
       "bucket": "2024-07-01",
-      "occurred": 0,
+      "occurred": 1,
       "followup_articles": 17,
       "confirmed_followups": 1,
-      "dead": null,
-      "injured": null
+      "dead": 9,
+      "injured": 7
     },
     {
       "bucket": "2024-07-02",
@@ -5368,7 +5368,7 @@
     {
       "bucket": "2024-07-05",
       "occurred": 0,
-      "followup_articles": 6,
+      "followup_articles": 13,
       "confirmed_followups": 1,
       "dead": null,
       "injured": null
@@ -5376,7 +5376,7 @@
     {
       "bucket": "2024-07-06",
       "occurred": 1,
-      "followup_articles": 6,
+      "followup_articles": 11,
       "confirmed_followups": 0,
       "dead": null,
       "injured": null
@@ -5384,7 +5384,7 @@
     {
       "bucket": "2024-07-07",
       "occurred": 0,
-      "followup_articles": 16,
+      "followup_articles": 20,
       "confirmed_followups": 2,
       "dead": null,
       "injured": null
@@ -5392,7 +5392,7 @@
     {
       "bucket": "2024-07-08",
       "occurred": 0,
-      "followup_articles": 13,
+      "followup_articles": 16,
       "confirmed_followups": 0,
       "dead": null,
       "injured": null
@@ -5400,15 +5400,15 @@
     {
       "bucket": "2024-07-09",
       "occurred": 0,
-      "followup_articles": 4,
-      "confirmed_followups": 0,
+      "followup_articles": 11,
+      "confirmed_followups": 2,
       "dead": null,
       "injured": null
     },
     {
       "bucket": "2024-07-10",
       "occurred": 2,
-      "followup_articles": 0,
+      "followup_articles": 3,
       "confirmed_followups": 0,
       "dead": null,
       "injured": null
@@ -5416,7 +5416,7 @@
     {
       "bucket": "2024-07-11",
       "occurred": 0,
-      "followup_articles": 10,
+      "followup_articles": 11,
       "confirmed_followups": 3,
       "dead": null,
       "injured": null
@@ -5432,7 +5432,7 @@
     {
       "bucket": "2024-07-13",
       "occurred": 0,
-      "followup_articles": 0,
+      "followup_articles": 1,
       "confirmed_followups": 0,
       "dead": null,
       "injured": null
@@ -5448,16 +5448,16 @@
     {
       "bucket": "2024-07-15",
       "occurred": 0,
-      "followup_articles": 1,
-      "confirmed_followups": 0,
+      "followup_articles": 15,
+      "confirmed_followups": 2,
       "dead": null,
       "injured": null
     },
     {
       "bucket": "2024-07-16",
       "occurred": 0,
-      "followup_articles": 0,
-      "confirmed_followups": 0,
+      "followup_articles": 7,
+      "confirmed_followups": 1,
       "dead": null,
       "injured": null
     },
@@ -5504,7 +5504,7 @@
     {
       "bucket": "2024-07-22",
       "occurred": 0,
-      "followup_articles": 4,
+      "followup_articles": 5,
       "confirmed_followups": 0,
       "dead": null,
       "injured": null
@@ -5728,7 +5728,7 @@
     {
       "bucket": "2024-08-19",
       "occurred": 0,
-      "followup_articles": 4,
+      "followup_articles": 5,
       "confirmed_followups": 1,
       "dead": null,
       "injured": null
@@ -5736,7 +5736,7 @@
     {
       "bucket": "2024-08-20",
       "occurred": 1,
-      "followup_articles": 3,
+      "followup_articles": 5,
       "confirmed_followups": 3,
       "dead": null,
       "injured": null
@@ -5751,11 +5751,11 @@
     },
     {
       "bucket": "2024-08-22",
-      "occurred": 0,
+      "occurred": 1,
       "followup_articles": 4,
       "confirmed_followups": 1,
-      "dead": null,
-      "injured": null
+      "dead": 7,
+      "injured": 12
     },
     {
       "bucket": "2024-08-23",
@@ -5784,7 +5784,7 @@
     {
       "bucket": "2024-08-26",
       "occurred": 0,
-      "followup_articles": 0,
+      "followup_articles": 1,
       "confirmed_followups": 0,
       "dead": null,
       "injured": null
@@ -5840,7 +5840,7 @@
     {
       "bucket": "2024-09-02",
       "occurred": 0,
-      "followup_articles": 7,
+      "followup_articles": 10,
       "confirmed_followups": 0,
       "dead": null,
       "injured": null
@@ -5848,8 +5848,8 @@
     {
       "bucket": "2024-09-03",
       "occurred": 0,
-      "followup_articles": 0,
-      "confirmed_followups": 0,
+      "followup_articles": 8,
+      "confirmed_followups": 1,
       "dead": null,
       "injured": null
     },
@@ -5864,7 +5864,7 @@
     {
       "bucket": "2024-09-05",
       "occurred": 0,
-      "followup_articles": 1,
+      "followup_articles": 2,
       "confirmed_followups": 0,
       "dead": null,
       "injured": null
@@ -5872,8 +5872,8 @@
     {
       "bucket": "2024-09-06",
       "occurred": 0,
-      "followup_articles": 0,
-      "confirmed_followups": 0,
+      "followup_articles": 2,
+      "confirmed_followups": 1,
       "dead": null,
       "injured": null
     },
@@ -5896,7 +5896,7 @@
     {
       "bucket": "2024-09-09",
       "occurred": 0,
-      "followup_articles": 1,
+      "followup_articles": 2,
       "confirmed_followups": 0,
       "dead": null,
       "injured": null
@@ -5904,7 +5904,7 @@
     {
       "bucket": "2024-09-10",
       "occurred": 0,
-      "followup_articles": 0,
+      "followup_articles": 1,
       "confirmed_followups": 0,
       "dead": null,
       "injured": null
@@ -5912,7 +5912,7 @@
     {
       "bucket": "2024-09-11",
       "occurred": 0,
-      "followup_articles": 3,
+      "followup_articles": 4,
       "confirmed_followups": 1,
       "dead": null,
       "injured": null
@@ -6008,7 +6008,7 @@
     {
       "bucket": "2024-09-23",
       "occurred": 0,
-      "followup_articles": 0,
+      "followup_articles": 6,
       "confirmed_followups": 0,
       "dead": null,
       "injured": null
@@ -6016,8 +6016,8 @@
     {
       "bucket": "2024-09-24",
       "occurred": 0,
-      "followup_articles": 2,
-      "confirmed_followups": 0,
+      "followup_articles": 4,
+      "confirmed_followups": 1,
       "dead": null,
       "injured": null
     },
@@ -6088,8 +6088,8 @@
     {
       "bucket": "2024-10-03",
       "occurred": 0,
-      "followup_articles": 1,
-      "confirmed_followups": 0,
+      "followup_articles": 2,
+      "confirmed_followups": 1,
       "dead": null,
       "injured": null
     },
@@ -6112,7 +6112,7 @@
     {
       "bucket": "2024-10-06",
       "occurred": 0,
-      "followup_articles": 0,
+      "followup_articles": 1,
       "confirmed_followups": 0,
       "dead": null,
       "injured": null
@@ -6128,23 +6128,23 @@
     {
       "bucket": "2024-10-08",
       "occurred": 0,
-      "followup_articles": 0,
-      "confirmed_followups": 0,
+      "followup_articles": 7,
+      "confirmed_followups": 1,
       "dead": null,
       "injured": null
     },
     {
       "bucket": "2024-10-09",
       "occurred": 0,
-      "followup_articles": 0,
-      "confirmed_followups": 0,
+      "followup_articles": 4,
+      "confirmed_followups": 1,
       "dead": null,
       "injured": null
     },
     {
       "bucket": "2024-10-10",
       "occurred": 0,
-      "followup_articles": 2,
+      "followup_articles": 3,
       "confirmed_followups": 0,
       "dead": null,
       "injured": null
@@ -6152,7 +6152,7 @@
     {
       "bucket": "2024-10-11",
       "occurred": 0,
-      "followup_articles": 3,
+      "followup_articles": 4,
       "confirmed_followups": 0,
       "dead": null,
       "injured": null
@@ -6248,7 +6248,7 @@
     {
       "bucket": "2024-10-23",
       "occurred": 0,
-      "followup_articles": 0,
+      "followup_articles": 3,
       "confirmed_followups": 0,
       "dead": null,
       "injured": null
@@ -6256,7 +6256,7 @@
     {
       "bucket": "2024-10-24",
       "occurred": 1,
-      "followup_articles": 1,
+      "followup_articles": 3,
       "confirmed_followups": 0,
       "dead": null,
       "injured": null
@@ -6352,7 +6352,7 @@
     {
       "bucket": "2024-11-05",
       "occurred": 0,
-      "followup_articles": 0,
+      "followup_articles": 1,
       "confirmed_followups": 0,
       "dead": null,
       "injured": null
@@ -6488,7 +6488,7 @@
     {
       "bucket": "2024-11-22",
       "occurred": 0,
-      "followup_articles": 3,
+      "followup_articles": 4,
       "confirmed_followups": 0,
       "dead": null,
       "injured": null
@@ -6520,7 +6520,7 @@
     {
       "bucket": "2024-11-26",
       "occurred": 0,
-      "followup_articles": 2,
+      "followup_articles": 3,
       "confirmed_followups": 0,
       "dead": null,
       "injured": null
@@ -6624,15 +6624,15 @@
     {
       "bucket": "2024-12-09",
       "occurred": 0,
-      "followup_articles": 24,
-      "confirmed_followups": 1,
+      "followup_articles": 25,
+      "confirmed_followups": 2,
       "dead": null,
       "injured": null
     },
     {
       "bucket": "2024-12-10",
       "occurred": 0,
-      "followup_articles": 8,
+      "followup_articles": 9,
       "confirmed_followups": 0,
       "dead": null,
       "injured": null
@@ -6696,7 +6696,7 @@
     {
       "bucket": "2024-12-18",
       "occurred": 0,
-      "followup_articles": 1,
+      "followup_articles": 2,
       "confirmed_followups": 0,
       "dead": null,
       "injured": null
@@ -6704,7 +6704,7 @@
     {
       "bucket": "2024-12-19",
       "occurred": 0,
-      "followup_articles": 1,
+      "followup_articles": 4,
       "confirmed_followups": 0,
       "dead": null,
       "injured": null
@@ -6728,7 +6728,7 @@
     {
       "bucket": "2024-12-22",
       "occurred": 0,
-      "followup_articles": 0,
+      "followup_articles": 1,
       "confirmed_followups": 0,
       "dead": null,
       "injured": null
@@ -6736,7 +6736,7 @@
     {
       "bucket": "2024-12-23",
       "occurred": 0,
-      "followup_articles": 5,
+      "followup_articles": 6,
       "confirmed_followups": 1,
       "dead": null,
       "injured": null
@@ -6800,7 +6800,7 @@
     {
       "bucket": "2024-12-31",
       "occurred": 0,
-      "followup_articles": 0,
+      "followup_articles": 2,
       "confirmed_followups": 0,
       "dead": null,
       "injured": null
@@ -6920,7 +6920,7 @@
     {
       "bucket": "2025-01-15",
       "occurred": 0,
-      "followup_articles": 0,
+      "followup_articles": 1,
       "confirmed_followups": 0,
       "dead": null,
       "injured": null
@@ -6968,7 +6968,7 @@
     {
       "bucket": "2025-01-21",
       "occurred": 0,
-      "followup_articles": 2,
+      "followup_articles": 5,
       "confirmed_followups": 0,
       "dead": null,
       "injured": null
@@ -7023,11 +7023,11 @@
     },
     {
       "bucket": "2025-01-28",
-      "occurred": 0,
+      "occurred": 1,
       "followup_articles": 0,
       "confirmed_followups": 0,
       "dead": null,
-      "injured": null
+      "injured": 7
     },
     {
       "bucket": "2025-01-29",
@@ -7040,53 +7040,29 @@
     {
       "bucket": "2025-01-30",
       "occurred": 0,
-      "followup_articles": 0,
-      "confirmed_followups": 0,
+      "followup_articles": 17,
+      "confirmed_followups": 1,
       "dead": null,
       "injured": null
     },
     {
       "bucket": "2025-01-31",
       "occurred": 0,
-      "followup_articles": 0,
-      "confirmed_followups": 0,
+      "followup_articles": 13,
+      "confirmed_followups": 2,
       "dead": null,
       "injured": null
     },
     {
       "bucket": "2025-02-01",
       "occurred": 0,
-      "followup_articles": 0,
-      "confirmed_followups": 0,
+      "followup_articles": 12,
+      "confirmed_followups": 1,
       "dead": null,
       "injured": null
     },
     {
       "bucket": "2025-02-02",
-      "occurred": 0,
-      "followup_articles": 1,
-      "confirmed_followups": 0,
-      "dead": null,
-      "injured": null
-    },
-    {
-      "bucket": "2025-02-03",
-      "occurred": 0,
-      "followup_articles": 0,
-      "confirmed_followups": 0,
-      "dead": null,
-      "injured": null
-    },
-    {
-      "bucket": "2025-02-04",
-      "occurred": 0,
-      "followup_articles": 0,
-      "confirmed_followups": 0,
-      "dead": null,
-      "injured": null
-    },
-    {
-      "bucket": "2025-02-05",
       "occurred": 0,
       "followup_articles": 14,
       "confirmed_followups": 0,
@@ -7094,17 +7070,41 @@
       "injured": null
     },
     {
+      "bucket": "2025-02-03",
+      "occurred": 0,
+      "followup_articles": 12,
+      "confirmed_followups": 0,
+      "dead": null,
+      "injured": null
+    },
+    {
+      "bucket": "2025-02-04",
+      "occurred": 0,
+      "followup_articles": 7,
+      "confirmed_followups": 1,
+      "dead": null,
+      "injured": null
+    },
+    {
+      "bucket": "2025-02-05",
+      "occurred": 0,
+      "followup_articles": 17,
+      "confirmed_followups": 0,
+      "dead": null,
+      "injured": null
+    },
+    {
       "bucket": "2025-02-06",
       "occurred": 0,
-      "followup_articles": 3,
-      "confirmed_followups": 0,
+      "followup_articles": 8,
+      "confirmed_followups": 2,
       "dead": null,
       "injured": null
     },
     {
       "bucket": "2025-02-07",
       "occurred": 0,
-      "followup_articles": 0,
+      "followup_articles": 9,
       "confirmed_followups": 0,
       "dead": null,
       "injured": null
@@ -7112,7 +7112,7 @@
     {
       "bucket": "2025-02-08",
       "occurred": 0,
-      "followup_articles": 0,
+      "followup_articles": 1,
       "confirmed_followups": 0,
       "dead": null,
       "injured": null
@@ -7120,7 +7120,7 @@
     {
       "bucket": "2025-02-09",
       "occurred": 1,
-      "followup_articles": 1,
+      "followup_articles": 2,
       "confirmed_followups": 0,
       "dead": null,
       "injured": null
@@ -7128,7 +7128,7 @@
     {
       "bucket": "2025-02-10",
       "occurred": 0,
-      "followup_articles": 0,
+      "followup_articles": 1,
       "confirmed_followups": 0,
       "dead": null,
       "injured": null
@@ -7136,7 +7136,7 @@
     {
       "bucket": "2025-02-11",
       "occurred": 0,
-      "followup_articles": 2,
+      "followup_articles": 4,
       "confirmed_followups": 0,
       "dead": null,
       "injured": null
@@ -7144,7 +7144,7 @@
     {
       "bucket": "2025-02-12",
       "occurred": 0,
-      "followup_articles": 2,
+      "followup_articles": 7,
       "confirmed_followups": 0,
       "dead": null,
       "injured": null
@@ -7159,11 +7159,11 @@
     },
     {
       "bucket": "2025-02-14",
-      "occurred": 0,
+      "occurred": 1,
       "followup_articles": 0,
       "confirmed_followups": 0,
-      "dead": null,
-      "injured": null
+      "dead": 6,
+      "injured": 27
     },
     {
       "bucket": "2025-02-15",
@@ -7176,7 +7176,7 @@
     {
       "bucket": "2025-02-16",
       "occurred": 0,
-      "followup_articles": 0,
+      "followup_articles": 20,
       "confirmed_followups": 0,
       "dead": null,
       "injured": null
@@ -7184,7 +7184,7 @@
     {
       "bucket": "2025-02-17",
       "occurred": 0,
-      "followup_articles": 0,
+      "followup_articles": 18,
       "confirmed_followups": 0,
       "dead": null,
       "injured": null
@@ -7192,15 +7192,15 @@
     {
       "bucket": "2025-02-18",
       "occurred": 0,
-      "followup_articles": 0,
-      "confirmed_followups": 0,
+      "followup_articles": 10,
+      "confirmed_followups": 1,
       "dead": null,
       "injured": null
     },
     {
       "bucket": "2025-02-19",
       "occurred": 0,
-      "followup_articles": 7,
+      "followup_articles": 22,
       "confirmed_followups": 1,
       "dead": null,
       "injured": null
@@ -7208,7 +7208,7 @@
     {
       "bucket": "2025-02-20",
       "occurred": 0,
-      "followup_articles": 13,
+      "followup_articles": 21,
       "confirmed_followups": 2,
       "dead": null,
       "injured": null
@@ -7216,55 +7216,55 @@
     {
       "bucket": "2025-02-21",
       "occurred": 0,
-      "followup_articles": 5,
-      "confirmed_followups": 0,
+      "followup_articles": 14,
+      "confirmed_followups": 4,
       "dead": null,
       "injured": null
     },
     {
       "bucket": "2025-02-22",
       "occurred": 0,
-      "followup_articles": 0,
-      "confirmed_followups": 0,
+      "followup_articles": 15,
+      "confirmed_followups": 2,
       "dead": null,
       "injured": null
     },
     {
       "bucket": "2025-02-23",
       "occurred": 0,
-      "followup_articles": 0,
-      "confirmed_followups": 0,
+      "followup_articles": 3,
+      "confirmed_followups": 1,
       "dead": null,
       "injured": null
     },
     {
       "bucket": "2025-02-24",
       "occurred": 0,
-      "followup_articles": 8,
+      "followup_articles": 19,
       "confirmed_followups": 0,
       "dead": null,
       "injured": null
     },
     {
       "bucket": "2025-02-25",
-      "occurred": 0,
-      "followup_articles": 0,
+      "occurred": 1,
+      "followup_articles": 2,
       "confirmed_followups": 0,
-      "dead": null,
-      "injured": null
+      "dead": 4,
+      "injured": 6
     },
     {
       "bucket": "2025-02-26",
       "occurred": 0,
-      "followup_articles": 0,
-      "confirmed_followups": 0,
+      "followup_articles": 5,
+      "confirmed_followups": 1,
       "dead": null,
       "injured": null
     },
     {
       "bucket": "2025-02-27",
       "occurred": 0,
-      "followup_articles": 1,
+      "followup_articles": 7,
       "confirmed_followups": 0,
       "dead": null,
       "injured": null
@@ -7272,37 +7272,29 @@
     {
       "bucket": "2025-02-28",
       "occurred": 1,
-      "followup_articles": 0,
-      "confirmed_followups": 0,
+      "followup_articles": 12,
+      "confirmed_followups": 1,
       "dead": null,
       "injured": null
     },
     {
       "bucket": "2025-03-01",
       "occurred": 0,
-      "followup_articles": 1,
-      "confirmed_followups": 0,
+      "followup_articles": 4,
+      "confirmed_followups": 1,
       "dead": null,
       "injured": null
     },
     {
       "bucket": "2025-03-02",
       "occurred": 0,
-      "followup_articles": 0,
-      "confirmed_followups": 0,
+      "followup_articles": 1,
+      "confirmed_followups": 1,
       "dead": null,
       "injured": null
     },
     {
       "bucket": "2025-03-03",
-      "occurred": 0,
-      "followup_articles": 1,
-      "confirmed_followups": 0,
-      "dead": null,
-      "injured": null
-    },
-    {
-      "bucket": "2025-03-04",
       "occurred": 0,
       "followup_articles": 4,
       "confirmed_followups": 0,
@@ -7310,9 +7302,17 @@
       "injured": null
     },
     {
+      "bucket": "2025-03-04",
+      "occurred": 0,
+      "followup_articles": 20,
+      "confirmed_followups": 5,
+      "dead": null,
+      "injured": null
+    },
+    {
       "bucket": "2025-03-05",
       "occurred": 0,
-      "followup_articles": 1,
+      "followup_articles": 6,
       "confirmed_followups": 0,
       "dead": null,
       "injured": null
@@ -7320,7 +7320,7 @@
     {
       "bucket": "2025-03-06",
       "occurred": 0,
-      "followup_articles": 0,
+      "followup_articles": 4,
       "confirmed_followups": 0,
       "dead": null,
       "injured": null
@@ -7328,8 +7328,8 @@
     {
       "bucket": "2025-03-07",
       "occurred": 0,
-      "followup_articles": 0,
-      "confirmed_followups": 0,
+      "followup_articles": 1,
+      "confirmed_followups": 1,
       "dead": null,
       "injured": null
     },
@@ -7352,16 +7352,16 @@
     {
       "bucket": "2025-03-10",
       "occurred": 0,
-      "followup_articles": 0,
-      "confirmed_followups": 0,
+      "followup_articles": 7,
+      "confirmed_followups": 1,
       "dead": null,
       "injured": null
     },
     {
       "bucket": "2025-03-11",
       "occurred": 0,
-      "followup_articles": 2,
-      "confirmed_followups": 0,
+      "followup_articles": 4,
+      "confirmed_followups": 1,
       "dead": null,
       "injured": null
     },
@@ -7376,15 +7376,15 @@
     {
       "bucket": "2025-03-13",
       "occurred": 0,
-      "followup_articles": 2,
-      "confirmed_followups": 0,
+      "followup_articles": 12,
+      "confirmed_followups": 1,
       "dead": null,
       "injured": null
     },
     {
       "bucket": "2025-03-14",
       "occurred": 0,
-      "followup_articles": 2,
+      "followup_articles": 3,
       "confirmed_followups": 0,
       "dead": null,
       "injured": null
@@ -7392,15 +7392,15 @@
     {
       "bucket": "2025-03-15",
       "occurred": 0,
-      "followup_articles": 0,
-      "confirmed_followups": 0,
+      "followup_articles": 1,
+      "confirmed_followups": 1,
       "dead": null,
       "injured": null
     },
     {
       "bucket": "2025-03-16",
       "occurred": 0,
-      "followup_articles": 0,
+      "followup_articles": 1,
       "confirmed_followups": 0,
       "dead": null,
       "injured": null
@@ -7408,8 +7408,8 @@
     {
       "bucket": "2025-03-17",
       "occurred": 0,
-      "followup_articles": 0,
-      "confirmed_followups": 0,
+      "followup_articles": 5,
+      "confirmed_followups": 3,
       "dead": null,
       "injured": null
     },
@@ -7440,8 +7440,8 @@
     {
       "bucket": "2025-03-21",
       "occurred": 0,
-      "followup_articles": 0,
-      "confirmed_followups": 0,
+      "followup_articles": 1,
+      "confirmed_followups": 1,
       "dead": null,
       "injured": null
     },
@@ -7463,24 +7463,24 @@
     },
     {
       "bucket": "2025-03-24",
-      "occurred": 0,
-      "followup_articles": 2,
-      "confirmed_followups": 0,
-      "dead": null,
-      "injured": null
+      "occurred": 1,
+      "followup_articles": 14,
+      "confirmed_followups": 2,
+      "dead": 1,
+      "injured": 1
     },
     {
       "bucket": "2025-03-25",
       "occurred": 1,
-      "followup_articles": 2,
-      "confirmed_followups": 0,
+      "followup_articles": 4,
+      "confirmed_followups": 1,
       "dead": null,
       "injured": null
     },
     {
       "bucket": "2025-03-26",
       "occurred": 0,
-      "followup_articles": 1,
+      "followup_articles": 7,
       "confirmed_followups": 0,
       "dead": null,
       "injured": null
@@ -7528,7 +7528,7 @@
     {
       "bucket": "2025-04-01",
       "occurred": 0,
-      "followup_articles": 12,
+      "followup_articles": 14,
       "confirmed_followups": 2,
       "dead": null,
       "injured": null
@@ -7536,8 +7536,8 @@
     {
       "bucket": "2025-04-02",
       "occurred": 0,
-      "followup_articles": 8,
-      "confirmed_followups": 0,
+      "followup_articles": 12,
+      "confirmed_followups": 3,
       "dead": null,
       "injured": null
     },
@@ -7552,8 +7552,8 @@
     {
       "bucket": "2025-04-04",
       "occurred": 0,
-      "followup_articles": 3,
-      "confirmed_followups": 0,
+      "followup_articles": 14,
+      "confirmed_followups": 1,
       "dead": null,
       "injured": null
     },
@@ -7576,15 +7576,15 @@
     {
       "bucket": "2025-04-07",
       "occurred": 0,
-      "followup_articles": 4,
-      "confirmed_followups": 0,
+      "followup_articles": 10,
+      "confirmed_followups": 1,
       "dead": null,
       "injured": null
     },
     {
       "bucket": "2025-04-08",
       "occurred": 0,
-      "followup_articles": 2,
+      "followup_articles": 4,
       "confirmed_followups": 0,
       "dead": null,
       "injured": null
@@ -7608,7 +7608,7 @@
     {
       "bucket": "2025-04-11",
       "occurred": 1,
-      "followup_articles": 1,
+      "followup_articles": 4,
       "confirmed_followups": 0,
       "dead": null,
       "injured": null
@@ -7648,7 +7648,7 @@
     {
       "bucket": "2025-04-16",
       "occurred": 0,
-      "followup_articles": 22,
+      "followup_articles": 26,
       "confirmed_followups": 1,
       "dead": null,
       "injured": null
@@ -7656,8 +7656,8 @@
     {
       "bucket": "2025-04-17",
       "occurred": 0,
-      "followup_articles": 17,
-      "confirmed_followups": 1,
+      "followup_articles": 19,
+      "confirmed_followups": 2,
       "dead": null,
       "injured": null
     },
@@ -7672,8 +7672,8 @@
     {
       "bucket": "2025-04-19",
       "occurred": 0,
-      "followup_articles": 17,
-      "confirmed_followups": 6,
+      "followup_articles": 18,
+      "confirmed_followups": 7,
       "dead": null,
       "injured": null
     },
@@ -7704,15 +7704,15 @@
     {
       "bucket": "2025-04-23",
       "occurred": 0,
-      "followup_articles": 10,
-      "confirmed_followups": 1,
+      "followup_articles": 17,
+      "confirmed_followups": 2,
       "dead": null,
       "injured": null
     },
     {
       "bucket": "2025-04-24",
       "occurred": 0,
-      "followup_articles": 5,
+      "followup_articles": 9,
       "confirmed_followups": 1,
       "dead": null,
       "injured": null
@@ -7720,7 +7720,7 @@
     {
       "bucket": "2025-04-25",
       "occurred": 0,
-      "followup_articles": 14,
+      "followup_articles": 19,
       "confirmed_followups": 3,
       "dead": null,
       "injured": null
@@ -7760,7 +7760,7 @@
     {
       "bucket": "2025-04-30",
       "occurred": 0,
-      "followup_articles": 0,
+      "followup_articles": 3,
       "confirmed_followups": 0,
       "dead": null,
       "injured": null
@@ -7768,7 +7768,7 @@
     {
       "bucket": "2025-05-01",
       "occurred": 0,
-      "followup_articles": 4,
+      "followup_articles": 10,
       "confirmed_followups": 0,
       "dead": null,
       "injured": null
@@ -7776,7 +7776,7 @@
     {
       "bucket": "2025-05-02",
       "occurred": 0,
-      "followup_articles": 1,
+      "followup_articles": 2,
       "confirmed_followups": 1,
       "dead": null,
       "injured": null
@@ -7824,8 +7824,8 @@
     {
       "bucket": "2025-05-08",
       "occurred": 0,
-      "followup_articles": 2,
-      "confirmed_followups": 0,
+      "followup_articles": 8,
+      "confirmed_followups": 1,
       "dead": null,
       "injured": null
     },
@@ -7872,7 +7872,7 @@
     {
       "bucket": "2025-05-14",
       "occurred": 0,
-      "followup_articles": 15,
+      "followup_articles": 16,
       "confirmed_followups": 0,
       "dead": null,
       "injured": null
@@ -8080,7 +8080,7 @@
     {
       "bucket": "2025-06-09",
       "occurred": 0,
-      "followup_articles": 5,
+      "followup_articles": 9,
       "confirmed_followups": 0,
       "dead": null,
       "injured": null
@@ -8096,7 +8096,7 @@
     {
       "bucket": "2025-06-11",
       "occurred": 0,
-      "followup_articles": 9,
+      "followup_articles": 11,
       "confirmed_followups": 2,
       "dead": null,
       "injured": null
@@ -8128,15 +8128,15 @@
     {
       "bucket": "2025-06-15",
       "occurred": 0,
-      "followup_articles": 0,
-      "confirmed_followups": 0,
+      "followup_articles": 2,
+      "confirmed_followups": 1,
       "dead": null,
       "injured": null
     },
     {
       "bucket": "2025-06-16",
       "occurred": 0,
-      "followup_articles": 0,
+      "followup_articles": 1,
       "confirmed_followups": 0,
       "dead": null,
       "injured": null
@@ -8168,8 +8168,8 @@
     {
       "bucket": "2025-06-20",
       "occurred": 0,
-      "followup_articles": 0,
-      "confirmed_followups": 0,
+      "followup_articles": 1,
+      "confirmed_followups": 1,
       "dead": null,
       "injured": null
     },
@@ -8208,15 +8208,15 @@
     {
       "bucket": "2025-06-25",
       "occurred": 0,
-      "followup_articles": 3,
-      "confirmed_followups": 0,
+      "followup_articles": 10,
+      "confirmed_followups": 1,
       "dead": null,
       "injured": null
     },
     {
       "bucket": "2025-06-26",
       "occurred": 0,
-      "followup_articles": 1,
+      "followup_articles": 2,
       "confirmed_followups": 0,
       "dead": null,
       "injured": null
@@ -8248,16 +8248,16 @@
     {
       "bucket": "2025-06-30",
       "occurred": 0,
-      "followup_articles": 0,
-      "confirmed_followups": 0,
+      "followup_articles": 7,
+      "confirmed_followups": 7,
       "dead": null,
       "injured": null
     },
     {
       "bucket": "2025-07-01",
       "occurred": 0,
-      "followup_articles": 1,
-      "confirmed_followups": 0,
+      "followup_articles": 7,
+      "confirmed_followups": 2,
       "dead": null,
       "injured": null
     },
@@ -8296,7 +8296,7 @@
     {
       "bucket": "2025-07-06",
       "occurred": 0,
-      "followup_articles": 0,
+      "followup_articles": 2,
       "confirmed_followups": 0,
       "dead": null,
       "injured": null
@@ -8360,8 +8360,8 @@
     {
       "bucket": "2025-07-14",
       "occurred": 1,
-      "followup_articles": 3,
-      "confirmed_followups": 0,
+      "followup_articles": 4,
+      "confirmed_followups": 1,
       "dead": null,
       "injured": null
     },
@@ -8448,8 +8448,8 @@
     {
       "bucket": "2025-07-25",
       "occurred": 1,
-      "followup_articles": 18,
-      "confirmed_followups": 0,
+      "followup_articles": 20,
+      "confirmed_followups": 1,
       "dead": null,
       "injured": null
     },
@@ -8512,8 +8512,8 @@
     {
       "bucket": "2025-08-02",
       "occurred": 0,
-      "followup_articles": 6,
-      "confirmed_followups": 0,
+      "followup_articles": 7,
+      "confirmed_followups": 1,
       "dead": null,
       "injured": null
     },
@@ -8528,7 +8528,7 @@
     {
       "bucket": "2025-08-04",
       "occurred": 0,
-      "followup_articles": 19,
+      "followup_articles": 20,
       "confirmed_followups": 3,
       "dead": null,
       "injured": null
@@ -8560,7 +8560,7 @@
     {
       "bucket": "2025-08-08",
       "occurred": 0,
-      "followup_articles": 14,
+      "followup_articles": 17,
       "confirmed_followups": 0,
       "dead": null,
       "injured": null
@@ -8608,7 +8608,7 @@
     {
       "bucket": "2025-08-14",
       "occurred": 0,
-      "followup_articles": 10,
+      "followup_articles": 11,
       "confirmed_followups": 0,
       "dead": null,
       "injured": null
@@ -8632,8 +8632,8 @@
     {
       "bucket": "2025-08-17",
       "occurred": 0,
-      "followup_articles": 1,
-      "confirmed_followups": 0,
+      "followup_articles": 2,
+      "confirmed_followups": 1,
       "dead": null,
       "injured": null
     },
@@ -8647,24 +8647,24 @@
     },
     {
       "bucket": "2025-08-19",
-      "occurred": 0,
-      "followup_articles": 2,
-      "confirmed_followups": 1,
+      "occurred": 1,
+      "followup_articles": 16,
+      "confirmed_followups": 6,
       "dead": null,
       "injured": null
     },
     {
       "bucket": "2025-08-20",
       "occurred": 0,
-      "followup_articles": 5,
-      "confirmed_followups": 0,
+      "followup_articles": 26,
+      "confirmed_followups": 2,
       "dead": null,
       "injured": null
     },
     {
       "bucket": "2025-08-21",
       "occurred": 0,
-      "followup_articles": 10,
+      "followup_articles": 31,
       "confirmed_followups": 0,
       "dead": null,
       "injured": null
@@ -8672,15 +8672,15 @@
     {
       "bucket": "2025-08-22",
       "occurred": 0,
-      "followup_articles": 4,
-      "confirmed_followups": 0,
+      "followup_articles": 22,
+      "confirmed_followups": 1,
       "dead": null,
       "injured": null
     },
     {
       "bucket": "2025-08-23",
       "occurred": 0,
-      "followup_articles": 1,
+      "followup_articles": 13,
       "confirmed_followups": 0,
       "dead": null,
       "injured": null
@@ -8688,88 +8688,88 @@
     {
       "bucket": "2025-08-24",
       "occurred": 0,
-      "followup_articles": 8,
-      "confirmed_followups": 0,
+      "followup_articles": 26,
+      "confirmed_followups": 4,
       "dead": null,
       "injured": null
     },
     {
       "bucket": "2025-08-25",
       "occurred": 0,
-      "followup_articles": 4,
-      "confirmed_followups": 0,
+      "followup_articles": 21,
+      "confirmed_followups": 2,
       "dead": null,
       "injured": null
     },
     {
       "bucket": "2025-08-26",
       "occurred": 0,
-      "followup_articles": 2,
-      "confirmed_followups": 0,
+      "followup_articles": 20,
+      "confirmed_followups": 2,
       "dead": null,
       "injured": null
     },
     {
       "bucket": "2025-08-27",
       "occurred": 0,
-      "followup_articles": 1,
-      "confirmed_followups": 0,
+      "followup_articles": 18,
+      "confirmed_followups": 1,
       "dead": null,
       "injured": null
     },
     {
       "bucket": "2025-08-28",
       "occurred": 0,
-      "followup_articles": 0,
-      "confirmed_followups": 0,
+      "followup_articles": 15,
+      "confirmed_followups": 2,
       "dead": null,
       "injured": null
     },
     {
       "bucket": "2025-08-29",
       "occurred": 0,
-      "followup_articles": 0,
-      "confirmed_followups": 0,
+      "followup_articles": 17,
+      "confirmed_followups": 3,
       "dead": null,
       "injured": null
     },
     {
       "bucket": "2025-08-30",
       "occurred": 0,
-      "followup_articles": 0,
-      "confirmed_followups": 0,
+      "followup_articles": 18,
+      "confirmed_followups": 1,
       "dead": null,
       "injured": null
     },
     {
       "bucket": "2025-08-31",
       "occurred": 0,
-      "followup_articles": 0,
-      "confirmed_followups": 0,
+      "followup_articles": 19,
+      "confirmed_followups": 1,
       "dead": null,
       "injured": null
     },
     {
       "bucket": "2025-09-01",
       "occurred": 0,
-      "followup_articles": 9,
-      "confirmed_followups": 1,
+      "followup_articles": 24,
+      "confirmed_followups": 4,
       "dead": null,
       "injured": null
     },
     {
       "bucket": "2025-09-02",
       "occurred": 0,
-      "followup_articles": 3,
-      "confirmed_followups": 0,
+      "followup_articles": 22,
+      "confirmed_followups": 2,
       "dead": null,
       "injured": null
     },
     {
       "bucket": "2025-09-03",
       "occurred": 0,
-      "followup_articles": 9,
-      "confirmed_followups": 0,
+      "followup_articles": 35,
+      "confirmed_followups": 5,
       "dead": null,
       "injured": null
     },
@@ -8808,8 +8808,8 @@
     {
       "bucket": "2025-09-08",
       "occurred": 0,
-      "followup_articles": 5,
-      "confirmed_followups": 0,
+      "followup_articles": 22,
+      "confirmed_followups": 8,
       "dead": null,
       "injured": null
     },
@@ -8824,7 +8824,7 @@
     {
       "bucket": "2025-09-10",
       "occurred": 0,
-      "followup_articles": 2,
+      "followup_articles": 3,
       "confirmed_followups": 0,
       "dead": null,
       "injured": null
@@ -8832,39 +8832,39 @@
     {
       "bucket": "2025-09-11",
       "occurred": 0,
-      "followup_articles": 8,
-      "confirmed_followups": 0,
+      "followup_articles": 31,
+      "confirmed_followups": 1,
       "dead": null,
       "injured": null
     },
     {
       "bucket": "2025-09-12",
       "occurred": 0,
-      "followup_articles": 4,
-      "confirmed_followups": 0,
+      "followup_articles": 8,
+      "confirmed_followups": 1,
       "dead": null,
       "injured": null
     },
     {
       "bucket": "2025-09-13",
       "occurred": 0,
-      "followup_articles": 0,
-      "confirmed_followups": 0,
+      "followup_articles": 7,
+      "confirmed_followups": 2,
       "dead": null,
       "injured": null
     },
     {
       "bucket": "2025-09-14",
       "occurred": 0,
-      "followup_articles": 0,
-      "confirmed_followups": 0,
+      "followup_articles": 2,
+      "confirmed_followups": 1,
       "dead": null,
       "injured": null
     },
     {
       "bucket": "2025-09-15",
       "occurred": 0,
-      "followup_articles": 0,
+      "followup_articles": 1,
       "confirmed_followups": 0,
       "dead": null,
       "injured": null
@@ -8872,7 +8872,7 @@
     {
       "bucket": "2025-09-16",
       "occurred": 0,
-      "followup_articles": 1,
+      "followup_articles": 3,
       "confirmed_followups": 0,
       "dead": null,
       "injured": null
@@ -8912,16 +8912,16 @@
     {
       "bucket": "2025-09-21",
       "occurred": 0,
-      "followup_articles": 2,
-      "confirmed_followups": 1,
+      "followup_articles": 18,
+      "confirmed_followups": 3,
       "dead": null,
       "injured": null
     },
     {
       "bucket": "2025-09-22",
       "occurred": 0,
-      "followup_articles": 10,
-      "confirmed_followups": 0,
+      "followup_articles": 17,
+      "confirmed_followups": 2,
       "dead": null,
       "injured": null
     },
@@ -8984,7 +8984,7 @@
     {
       "bucket": "2025-09-30",
       "occurred": 1,
-      "followup_articles": 12,
+      "followup_articles": 13,
       "confirmed_followups": 0,
       "dead": null,
       "injured": null
@@ -8992,7 +8992,7 @@
     {
       "bucket": "2025-10-01",
       "occurred": 0,
-      "followup_articles": 20,
+      "followup_articles": 24,
       "confirmed_followups": 3,
       "dead": null,
       "injured": null
@@ -9000,23 +9000,23 @@
     {
       "bucket": "2025-10-02",
       "occurred": 0,
-      "followup_articles": 20,
-      "confirmed_followups": 0,
+      "followup_articles": 34,
+      "confirmed_followups": 5,
       "dead": null,
       "injured": null
     },
     {
       "bucket": "2025-10-03",
       "occurred": 0,
-      "followup_articles": 15,
-      "confirmed_followups": 0,
+      "followup_articles": 16,
+      "confirmed_followups": 1,
       "dead": null,
       "injured": null
     },
     {
       "bucket": "2025-10-04",
       "occurred": 0,
-      "followup_articles": 13,
+      "followup_articles": 14,
       "confirmed_followups": 0,
       "dead": null,
       "injured": null
@@ -9032,7 +9032,7 @@
     {
       "bucket": "2025-10-06",
       "occurred": 0,
-      "followup_articles": 14,
+      "followup_articles": 15,
       "confirmed_followups": 0,
       "dead": null,
       "injured": null
@@ -9040,7 +9040,7 @@
     {
       "bucket": "2025-10-07",
       "occurred": 0,
-      "followup_articles": 14,
+      "followup_articles": 16,
       "confirmed_followups": 0,
       "dead": null,
       "injured": null
@@ -9048,7 +9048,7 @@
     {
       "bucket": "2025-10-08",
       "occurred": 0,
-      "followup_articles": 13,
+      "followup_articles": 15,
       "confirmed_followups": 0,
       "dead": null,
       "injured": null
@@ -9056,7 +9056,7 @@
     {
       "bucket": "2025-10-09",
       "occurred": 0,
-      "followup_articles": 12,
+      "followup_articles": 14,
       "confirmed_followups": 0,
       "dead": null,
       "injured": null
@@ -9064,7 +9064,7 @@
     {
       "bucket": "2025-10-10",
       "occurred": 0,
-      "followup_articles": 13,
+      "followup_articles": 16,
       "confirmed_followups": 1,
       "dead": null,
       "injured": null
@@ -9080,21 +9080,13 @@
     {
       "bucket": "2025-10-12",
       "occurred": 0,
-      "followup_articles": 0,
-      "confirmed_followups": 0,
+      "followup_articles": 2,
+      "confirmed_followups": 1,
       "dead": null,
       "injured": null
     },
     {
       "bucket": "2025-10-13",
-      "occurred": 0,
-      "followup_articles": 1,
-      "confirmed_followups": 0,
-      "dead": null,
-      "injured": null
-    },
-    {
-      "bucket": "2025-10-14",
       "occurred": 0,
       "followup_articles": 5,
       "confirmed_followups": 0,
@@ -9102,9 +9094,17 @@
       "injured": null
     },
     {
+      "bucket": "2025-10-14",
+      "occurred": 0,
+      "followup_articles": 6,
+      "confirmed_followups": 0,
+      "dead": null,
+      "injured": null
+    },
+    {
       "bucket": "2025-10-15",
       "occurred": 0,
-      "followup_articles": 3,
+      "followup_articles": 4,
       "confirmed_followups": 1,
       "dead": null,
       "injured": null
@@ -9120,7 +9120,7 @@
     {
       "bucket": "2025-10-17",
       "occurred": 0,
-      "followup_articles": 5,
+      "followup_articles": 8,
       "confirmed_followups": 0,
       "dead": null,
       "injured": null
@@ -9128,7 +9128,7 @@
     {
       "bucket": "2025-10-18",
       "occurred": 0,
-      "followup_articles": 1,
+      "followup_articles": 2,
       "confirmed_followups": 0,
       "dead": null,
       "injured": null
@@ -9168,7 +9168,7 @@
     {
       "bucket": "2025-10-23",
       "occurred": 0,
-      "followup_articles": 0,
+      "followup_articles": 1,
       "confirmed_followups": 0,
       "dead": null,
       "injured": null
@@ -9200,7 +9200,7 @@
     {
       "bucket": "2025-10-27",
       "occurred": 0,
-      "followup_articles": 0,
+      "followup_articles": 2,
       "confirmed_followups": 0,
       "dead": null,
       "injured": null
@@ -9224,15 +9224,15 @@
     {
       "bucket": "2025-10-30",
       "occurred": 0,
-      "followup_articles": 2,
-      "confirmed_followups": 2,
+      "followup_articles": 6,
+      "confirmed_followups": 3,
       "dead": null,
       "injured": null
     },
     {
       "bucket": "2025-10-31",
       "occurred": 1,
-      "followup_articles": 2,
+      "followup_articles": 5,
       "confirmed_followups": 2,
       "dead": null,
       "injured": null
@@ -9280,7 +9280,7 @@
     {
       "bucket": "2025-11-06",
       "occurred": 1,
-      "followup_articles": 2,
+      "followup_articles": 3,
       "confirmed_followups": 0,
       "dead": null,
       "injured": null
@@ -9328,15 +9328,15 @@
     {
       "bucket": "2025-11-12",
       "occurred": 0,
-      "followup_articles": 3,
-      "confirmed_followups": 0,
+      "followup_articles": 8,
+      "confirmed_followups": 1,
       "dead": null,
       "injured": null
     },
     {
       "bucket": "2025-11-13",
       "occurred": 0,
-      "followup_articles": 22,
+      "followup_articles": 23,
       "confirmed_followups": 1,
       "dead": null,
       "injured": null
@@ -9416,7 +9416,7 @@
     {
       "bucket": "2025-11-23",
       "occurred": 0,
-      "followup_articles": 1,
+      "followup_articles": 2,
       "confirmed_followups": 0,
       "dead": null,
       "injured": null
@@ -9432,7 +9432,7 @@
     {
       "bucket": "2025-11-25",
       "occurred": 0,
-      "followup_articles": 17,
+      "followup_articles": 18,
       "confirmed_followups": 10,
       "dead": null,
       "injured": null
@@ -9464,7 +9464,7 @@
     {
       "bucket": "2025-11-29",
       "occurred": 0,
-      "followup_articles": 0,
+      "followup_articles": 1,
       "confirmed_followups": 0,
       "dead": null,
       "injured": null
@@ -9496,15 +9496,15 @@
     {
       "bucket": "2025-12-03",
       "occurred": 0,
-      "followup_articles": 0,
-      "confirmed_followups": 0,
+      "followup_articles": 9,
+      "confirmed_followups": 3,
       "dead": null,
       "injured": null
     },
     {
       "bucket": "2025-12-04",
       "occurred": 0,
-      "followup_articles": 0,
+      "followup_articles": 3,
       "confirmed_followups": 0,
       "dead": null,
       "injured": null
@@ -9712,7 +9712,7 @@
     {
       "bucket": "2025-12-30",
       "occurred": 1,
-      "followup_articles": 20,
+      "followup_articles": 21,
       "confirmed_followups": 2,
       "dead": null,
       "injured": null
@@ -9720,7 +9720,7 @@
     {
       "bucket": "2025-12-31",
       "occurred": 1,
-      "followup_articles": 3,
+      "followup_articles": 4,
       "confirmed_followups": 1,
       "dead": null,
       "injured": null
@@ -9728,7 +9728,7 @@
     {
       "bucket": "2026-01-01",
       "occurred": 0,
-      "followup_articles": 2,
+      "followup_articles": 3,
       "confirmed_followups": 1,
       "dead": null,
       "injured": null
@@ -9744,7 +9744,7 @@
     {
       "bucket": "2026-01-03",
       "occurred": 0,
-      "followup_articles": 2,
+      "followup_articles": 3,
       "confirmed_followups": 1,
       "dead": null,
       "injured": null
@@ -9768,7 +9768,7 @@
     {
       "bucket": "2026-01-06",
       "occurred": 0,
-      "followup_articles": 3,
+      "followup_articles": 13,
       "confirmed_followups": 0,
       "dead": null,
       "injured": null
@@ -9776,7 +9776,7 @@
     {
       "bucket": "2026-01-07",
       "occurred": 0,
-      "followup_articles": 6,
+      "followup_articles": 7,
       "confirmed_followups": 0,
       "dead": null,
       "injured": null
@@ -9792,7 +9792,7 @@
     {
       "bucket": "2026-01-09",
       "occurred": 0,
-      "followup_articles": 0,
+      "followup_articles": 1,
       "confirmed_followups": 0,
       "dead": null,
       "injured": null
@@ -9936,24 +9936,24 @@
     {
       "bucket": "2026-01-27",
       "occurred": 0,
-      "followup_articles": 11,
-      "confirmed_followups": 7,
+      "followup_articles": 13,
+      "confirmed_followups": 8,
       "dead": null,
       "injured": null
     },
     {
       "bucket": "2026-01-28",
       "occurred": 0,
-      "followup_articles": 0,
-      "confirmed_followups": 0,
+      "followup_articles": 4,
+      "confirmed_followups": 3,
       "dead": null,
       "injured": null
     },
     {
       "bucket": "2026-01-29",
       "occurred": 0,
-      "followup_articles": 0,
-      "confirmed_followups": 0,
+      "followup_articles": 1,
+      "confirmed_followups": 1,
       "dead": null,
       "injured": null
     },
@@ -10032,7 +10032,7 @@
     {
       "bucket": "2026-02-08",
       "occurred": 0,
-      "followup_articles": 0,
+      "followup_articles": 1,
       "confirmed_followups": 0,
       "dead": null,
       "injured": null
@@ -10048,7 +10048,7 @@
     {
       "bucket": "2026-02-10",
       "occurred": 0,
-      "followup_articles": 1,
+      "followup_articles": 2,
       "confirmed_followups": 0,
       "dead": null,
       "injured": null
@@ -10056,7 +10056,7 @@
     {
       "bucket": "2026-02-11",
       "occurred": 0,
-      "followup_articles": 1,
+      "followup_articles": 2,
       "confirmed_followups": 1,
       "dead": null,
       "injured": null
@@ -10160,8 +10160,8 @@
     {
       "bucket": "2026-02-24",
       "occurred": 0,
-      "followup_articles": 3,
-      "confirmed_followups": 0,
+      "followup_articles": 7,
+      "confirmed_followups": 3,
       "dead": null,
       "injured": null
     },
@@ -10224,15 +10224,15 @@
     {
       "bucket": "2026-03-04",
       "occurred": 0,
-      "followup_articles": 7,
-      "confirmed_followups": 0,
+      "followup_articles": 11,
+      "confirmed_followups": 1,
       "dead": null,
       "injured": null
     },
     {
       "bucket": "2026-03-05",
       "occurred": 0,
-      "followup_articles": 2,
+      "followup_articles": 3,
       "confirmed_followups": 0,
       "dead": null,
       "injured": null
@@ -10264,7 +10264,7 @@
     {
       "bucket": "2026-03-09",
       "occurred": 0,
-      "followup_articles": 1,
+      "followup_articles": 3,
       "confirmed_followups": 0,
       "dead": null,
       "injured": null
@@ -10376,15 +10376,15 @@
     {
       "bucket": "2026-03-23",
       "occurred": 0,
-      "followup_articles": 1,
-      "confirmed_followups": 0,
+      "followup_articles": 6,
+      "confirmed_followups": 4,
       "dead": null,
       "injured": null
     },
     {
       "bucket": "2026-03-24",
       "occurred": 0,
-      "followup_articles": 0,
+      "followup_articles": 1,
       "confirmed_followups": 0,
       "dead": null,
       "injured": null
@@ -10392,7 +10392,7 @@
     {
       "bucket": "2026-03-25",
       "occurred": 0,
-      "followup_articles": 0,
+      "followup_articles": 2,
       "confirmed_followups": 0,
       "dead": null,
       "injured": null
@@ -10400,8 +10400,8 @@
     {
       "bucket": "2026-03-26",
       "occurred": 0,
-      "followup_articles": 0,
-      "confirmed_followups": 0,
+      "followup_articles": 7,
+      "confirmed_followups": 5,
       "dead": null,
       "injured": null
     },
@@ -10448,7 +10448,7 @@
     {
       "bucket": "2026-04-01",
       "occurred": 0,
-      "followup_articles": 6,
+      "followup_articles": 7,
       "confirmed_followups": 1,
       "dead": null,
       "injured": null
@@ -10456,7 +10456,7 @@
     {
       "bucket": "2026-04-02",
       "occurred": 0,
-      "followup_articles": 3,
+      "followup_articles": 5,
       "confirmed_followups": 0,
       "dead": null,
       "injured": null
@@ -10608,23 +10608,23 @@
     {
       "bucket": "2026-04-21",
       "occurred": 0,
-      "followup_articles": 1,
-      "confirmed_followups": 0,
+      "followup_articles": 3,
+      "confirmed_followups": 1,
       "dead": null,
       "injured": null
     },
     {
       "bucket": "2026-04-22",
       "occurred": 0,
-      "followup_articles": 3,
-      "confirmed_followups": 0,
+      "followup_articles": 8,
+      "confirmed_followups": 1,
       "dead": null,
       "injured": null
     },
     {
       "bucket": "2026-04-23",
       "occurred": 0,
-      "followup_articles": 1,
+      "followup_articles": 5,
       "confirmed_followups": 1,
       "dead": null,
       "injured": null
@@ -10760,7 +10760,7 @@
     {
       "bucket": "2026-05-10",
       "occurred": 0,
-      "followup_articles": 2,
+      "followup_articles": 3,
       "confirmed_followups": 0,
       "dead": null,
       "injured": null
@@ -10776,7 +10776,7 @@
     {
       "bucket": "2026-05-12",
       "occurred": 0,
-      "followup_articles": 0,
+      "followup_articles": 1,
       "confirmed_followups": 0,
       "dead": null,
       "injured": null
@@ -10880,7 +10880,7 @@
     {
       "bucket": "2026-05-25",
       "occurred": 0,
-      "followup_articles": 0,
+      "followup_articles": 1,
       "confirmed_followups": 0,
       "dead": null,
       "injured": null
@@ -11096,7 +11096,7 @@
     {
       "bucket": "2026-06-21",
       "occurred": 0,
-      "followup_articles": 1,
+      "followup_articles": 2,
       "confirmed_followups": 0,
       "dead": null,
       "injured": null
@@ -11136,8 +11136,8 @@
     {
       "bucket": "2026-06-26",
       "occurred": 0,
-      "followup_articles": 0,
-      "confirmed_followups": 0,
+      "followup_articles": 1,
+      "confirmed_followups": 1,
       "dead": null,
       "injured": null
     },
@@ -11184,7 +11184,7 @@
     {
       "bucket": "2026-07-02",
       "occurred": 0,
-      "followup_articles": 2,
+      "followup_articles": 10,
       "confirmed_followups": 0,
       "dead": null,
       "injured": null
@@ -11344,7 +11344,7 @@
     {
       "bucket": "2026-07-22",
       "occurred": 0,
-      "followup_articles": 0,
+      "followup_articles": 16,
       "confirmed_followups": 0,
       "dead": null,
       "injured": null
@@ -11352,7 +11352,7 @@
     {
       "bucket": "2026-07-23",
       "occurred": 0,
-      "followup_articles": 0,
+      "followup_articles": 2,
       "confirmed_followups": 0,
       "dead": null,
       "injured": null
@@ -11392,7 +11392,7 @@
     {
       "bucket": "2026-07-28",
       "occurred": 0,
-      "followup_articles": 1,
+      "followup_articles": 2,
       "confirmed_followups": 0,
       "dead": null,
       "injured": null
@@ -11440,7 +11440,7 @@
     {
       "bucket": "2026-08-03",
       "occurred": 0,
-      "followup_articles": 1,
+      "followup_articles": 2,
       "confirmed_followups": 1,
       "dead": null,
       "injured": null
@@ -11568,7 +11568,7 @@
     {
       "bucket": "2026-08-19",
       "occurred": 0,
-      "followup_articles": 2,
+      "followup_articles": 3,
       "confirmed_followups": 0,
       "dead": null,
       "injured": null
@@ -11592,7 +11592,7 @@
     {
       "bucket": "2026-08-22",
       "occurred": 0,
-      "followup_articles": 0,
+      "followup_articles": 1,
       "confirmed_followups": 0,
       "dead": null,
       "injured": null
@@ -11616,7 +11616,7 @@
     {
       "bucket": "2026-08-25",
       "occurred": 0,
-      "followup_articles": 3,
+      "followup_articles": 4,
       "confirmed_followups": 1,
       "dead": null,
       "injured": null
@@ -11664,7 +11664,7 @@
     {
       "bucket": "2026-08-31",
       "occurred": 0,
-      "followup_articles": 0,
+      "followup_articles": 2,
       "confirmed_followups": 0,
       "dead": null,
       "injured": null
@@ -11672,15 +11672,15 @@
     {
       "bucket": "2026-09-01",
       "occurred": 0,
-      "followup_articles": 0,
-      "confirmed_followups": 0,
+      "followup_articles": 2,
+      "confirmed_followups": 1,
       "dead": null,
       "injured": null
     },
     {
       "bucket": "2026-09-02",
       "occurred": 0,
-      "followup_articles": 1,
+      "followup_articles": 2,
       "confirmed_followups": 1,
       "dead": null,
       "injured": null
@@ -11904,7 +11904,7 @@
     {
       "bucket": "2026-09-30",
       "occurred": 0,
-      "followup_articles": 2,
+      "followup_articles": 3,
       "confirmed_followups": 0,
       "dead": null,
       "injured": null
@@ -11968,8 +11968,8 @@
     {
       "bucket": "2026-10-08",
       "occurred": 0,
-      "followup_articles": 0,
-      "confirmed_followups": 0,
+      "followup_articles": 2,
+      "confirmed_followups": 1,
       "dead": null,
       "injured": null
     },
@@ -12008,8 +12008,8 @@
     {
       "bucket": "2026-10-13",
       "occurred": 0,
-      "followup_articles": 0,
-      "confirmed_followups": 0,
+      "followup_articles": 1,
+      "confirmed_followups": 1,
       "dead": null,
       "injured": null
     },
@@ -12217,7 +12217,7 @@
     },
     {
       "bucket": "2023-11",
-      "occurred": 0,
+      "occurred": 1,
       "followup_articles": 6,
       "confirmed_followups": 2,
       "dead": null,
@@ -12225,48 +12225,48 @@
     },
     {
       "bucket": "2023-12",
-      "occurred": 3,
-      "followup_articles": 129,
-      "confirmed_followups": 23,
-      "dead": null,
-      "injured": null
+      "occurred": 4,
+      "followup_articles": 187,
+      "confirmed_followups": 27,
+      "dead": 1,
+      "injured": 2
     },
     {
       "bucket": "2024-01",
-      "occurred": 0,
-      "followup_articles": 29,
-      "confirmed_followups": 4,
+      "occurred": 1,
+      "followup_articles": 135,
+      "confirmed_followups": 9,
       "dead": null,
       "injured": null
     },
     {
       "bucket": "2024-02",
       "occurred": 0,
-      "followup_articles": 38,
-      "confirmed_followups": 6,
+      "followup_articles": 96,
+      "confirmed_followups": 10,
       "dead": null,
       "injured": null
     },
     {
       "bucket": "2024-03",
       "occurred": 3,
-      "followup_articles": 100,
-      "confirmed_followups": 3,
+      "followup_articles": 107,
+      "confirmed_followups": 5,
       "dead": null,
       "injured": null
     },
     {
       "bucket": "2024-04",
       "occurred": 1,
-      "followup_articles": 26,
-      "confirmed_followups": 2,
+      "followup_articles": 31,
+      "confirmed_followups": 4,
       "dead": null,
       "injured": null
     },
     {
       "bucket": "2024-05",
       "occurred": 1,
-      "followup_articles": 19,
+      "followup_articles": 25,
       "confirmed_followups": 0,
       "dead": null,
       "injured": null
@@ -12274,47 +12274,47 @@
     {
       "bucket": "2024-06",
       "occurred": 4,
-      "followup_articles": 51,
+      "followup_articles": 55,
       "confirmed_followups": 5,
       "dead": null,
       "injured": null
     },
     {
       "bucket": "2024-07",
-      "occurred": 5,
-      "followup_articles": 165,
-      "confirmed_followups": 16,
-      "dead": null,
-      "injured": null
+      "occurred": 6,
+      "followup_articles": 218,
+      "confirmed_followups": 21,
+      "dead": 9,
+      "injured": 7
     },
     {
       "bucket": "2024-08",
-      "occurred": 4,
-      "followup_articles": 22,
+      "occurred": 5,
+      "followup_articles": 26,
       "confirmed_followups": 5,
-      "dead": null,
-      "injured": null
+      "dead": 7,
+      "injured": 12
     },
     {
       "bucket": "2024-09",
       "occurred": 1,
-      "followup_articles": 37,
-      "confirmed_followups": 6,
+      "followup_articles": 62,
+      "confirmed_followups": 9,
       "dead": null,
       "injured": null
     },
     {
       "bucket": "2024-10",
       "occurred": 1,
-      "followup_articles": 39,
-      "confirmed_followups": 7,
+      "followup_articles": 59,
+      "confirmed_followups": 10,
       "dead": null,
       "injured": null
     },
     {
       "bucket": "2024-11",
       "occurred": 6,
-      "followup_articles": 192,
+      "followup_articles": 195,
       "confirmed_followups": 13,
       "dead": null,
       "injured": null
@@ -12322,143 +12322,143 @@
     {
       "bucket": "2024-12",
       "occurred": 1,
-      "followup_articles": 214,
-      "confirmed_followups": 6,
+      "followup_articles": 224,
+      "confirmed_followups": 7,
       "dead": null,
       "injured": null
     },
     {
       "bucket": "2025-01",
-      "occurred": 1,
-      "followup_articles": 132,
-      "confirmed_followups": 6,
+      "occurred": 2,
+      "followup_articles": 166,
+      "confirmed_followups": 9,
       "dead": null,
-      "injured": null
+      "injured": 7
     },
     {
       "bucket": "2025-02",
-      "occurred": 2,
-      "followup_articles": 59,
-      "confirmed_followups": 3,
-      "dead": null,
-      "injured": null
+      "occurred": 4,
+      "followup_articles": 264,
+      "confirmed_followups": 17,
+      "dead": 10,
+      "injured": 33
     },
     {
       "bucket": "2025-03",
-      "occurred": 3,
-      "followup_articles": 26,
-      "confirmed_followups": 3,
-      "dead": null,
-      "injured": null
+      "occurred": 4,
+      "followup_articles": 107,
+      "confirmed_followups": 22,
+      "dead": 1,
+      "injured": 1
     },
     {
       "bucket": "2025-04",
       "occurred": 2,
-      "followup_articles": 224,
-      "confirmed_followups": 20,
+      "followup_articles": 278,
+      "confirmed_followups": 28,
       "dead": null,
       "injured": null
     },
     {
       "bucket": "2025-05",
       "occurred": 4,
-      "followup_articles": 205,
-      "confirmed_followups": 12,
+      "followup_articles": 219,
+      "confirmed_followups": 13,
       "dead": null,
       "injured": null
     },
     {
       "bucket": "2025-06",
       "occurred": 0,
-      "followup_articles": 141,
-      "confirmed_followups": 18,
+      "followup_articles": 166,
+      "confirmed_followups": 28,
       "dead": null,
       "injured": null
     },
     {
       "bucket": "2025-07",
       "occurred": 10,
-      "followup_articles": 427,
-      "confirmed_followups": 13,
+      "followup_articles": 438,
+      "confirmed_followups": 17,
       "dead": null,
       "injured": null
     },
     {
       "bucket": "2025-08",
-      "occurred": 3,
-      "followup_articles": 185,
-      "confirmed_followups": 14,
+      "occurred": 4,
+      "followup_articles": 417,
+      "confirmed_followups": 40,
       "dead": null,
       "injured": null
     },
     {
       "bucket": "2025-09",
       "occurred": 2,
-      "followup_articles": 108,
-      "confirmed_followups": 5,
+      "followup_articles": 249,
+      "confirmed_followups": 32,
       "dead": null,
       "injured": null
     },
     {
       "bucket": "2025-10",
       "occurred": 2,
-      "followup_articles": 198,
-      "confirmed_followups": 13,
+      "followup_articles": 250,
+      "confirmed_followups": 21,
       "dead": null,
       "injured": null
     },
     {
       "bucket": "2025-11",
       "occurred": 1,
-      "followup_articles": 203,
-      "confirmed_followups": 17,
+      "followup_articles": 213,
+      "confirmed_followups": 18,
       "dead": null,
       "injured": null
     },
     {
       "bucket": "2025-12",
       "occurred": 2,
-      "followup_articles": 109,
-      "confirmed_followups": 26,
+      "followup_articles": 123,
+      "confirmed_followups": 29,
       "dead": null,
       "injured": null
     },
     {
       "bucket": "2026-01",
       "occurred": 0,
-      "followup_articles": 74,
-      "confirmed_followups": 19,
+      "followup_articles": 95,
+      "confirmed_followups": 24,
       "dead": null,
       "injured": null
     },
     {
       "bucket": "2026-02",
       "occurred": 0,
-      "followup_articles": 49,
-      "confirmed_followups": 7,
+      "followup_articles": 56,
+      "confirmed_followups": 10,
       "dead": null,
       "injured": null
     },
     {
       "bucket": "2026-03",
       "occurred": 0,
-      "followup_articles": 60,
-      "confirmed_followups": 0,
+      "followup_articles": 82,
+      "confirmed_followups": 10,
       "dead": null,
       "injured": null
     },
     {
       "bucket": "2026-04",
       "occurred": 0,
-      "followup_articles": 59,
-      "confirmed_followups": 8,
+      "followup_articles": 73,
+      "confirmed_followups": 10,
       "dead": null,
       "injured": null
     },
     {
       "bucket": "2026-05",
       "occurred": 0,
-      "followup_articles": 44,
+      "followup_articles": 47,
       "confirmed_followups": 7,
       "dead": null,
       "injured": null
@@ -12466,15 +12466,15 @@
     {
       "bucket": "2026-06",
       "occurred": 0,
-      "followup_articles": 47,
-      "confirmed_followups": 8,
+      "followup_articles": 49,
+      "confirmed_followups": 9,
       "dead": null,
       "injured": null
     },
     {
       "bucket": "2026-07",
       "occurred": 0,
-      "followup_articles": 46,
+      "followup_articles": 73,
       "confirmed_followups": 0,
       "dead": null,
       "injured": null
@@ -12482,7 +12482,7 @@
     {
       "bucket": "2026-08",
       "occurred": 0,
-      "followup_articles": 86,
+      "followup_articles": 92,
       "confirmed_followups": 15,
       "dead": null,
       "injured": null
@@ -12490,16 +12490,16 @@
     {
       "bucket": "2026-09",
       "occurred": 0,
-      "followup_articles": 55,
-      "confirmed_followups": 5,
+      "followup_articles": 59,
+      "confirmed_followups": 6,
       "dead": null,
       "injured": null
     },
     {
       "bucket": "2026-10",
       "occurred": 0,
-      "followup_articles": 30,
-      "confirmed_followups": 0,
+      "followup_articles": 33,
+      "confirmed_followups": 2,
       "dead": null,
       "injured": null
     }
@@ -12508,9 +12508,9 @@
     {
       "incident_type": "사고>산업사고",
       "label": "산업사고",
-      "events": 38,
-      "with_followup": 27,
-      "rate": 0.711,
+      "events": 44,
+      "with_followup": 33,
+      "rate": 0.75,
       "subtypes": [
         "사고>산업사고"
       ]
@@ -12518,9 +12518,9 @@
     {
       "incident_type": "사고>교통사고",
       "label": "교통사고",
-      "events": 27,
-      "with_followup": 10,
-      "rate": 0.37,
+      "events": 29,
+      "with_followup": 12,
+      "rate": 0.414,
       "subtypes": [
         "사고>교통사고"
       ]
@@ -12528,9 +12528,9 @@
     {
       "incident_type": "재해>자연재해",
       "label": "자연재해",
-      "events": 25,
-      "with_followup": 16,
-      "rate": 0.64,
+      "events": 27,
+      "with_followup": 18,
+      "rate": 0.667,
       "subtypes": [
         "재해>자연재해"
       ]
@@ -12559,34 +12559,58 @@
     },
     {
       "org": "국토교통부",
-      "events": 5,
-      "with_followup": 3,
-      "rate": 0.6,
+      "events": 7,
+      "with_followup": 5,
+      "rate": 0.714,
       "latest_followup_at": "2026-09-04",
       "last_article_at": "2026-09-11",
-      "confirmed_signals": 25,
+      "confirmed_signals": 76,
       "event_ids": [
         10,
         158,
         160,
         198,
-        237
+        237,
+        293,
+        295
       ],
       "raw_names": [
         "국토교통부"
       ]
     },
     {
+      "org": "서울시",
+      "events": 6,
+      "with_followup": 4,
+      "rate": 0.667,
+      "latest_followup_at": "2026-10-08",
+      "last_article_at": "2026-10-19",
+      "confirmed_signals": 45,
+      "event_ids": [
+        168,
+        262,
+        289,
+        291,
+        296,
+        302
+      ],
+      "raw_names": [
+        "서울 강서구",
+        "서울시"
+      ]
+    },
+    {
       "org": "고용노동부",
-      "events": 2,
-      "with_followup": 2,
+      "events": 3,
+      "with_followup": 3,
       "rate": 1.0,
       "latest_followup_at": "2026-06-04",
       "last_article_at": "2026-10-21",
-      "confirmed_signals": 43,
+      "confirmed_signals": 58,
       "event_ids": [
         153,
-        208
+        208,
+        298
       ],
       "raw_names": [
         "고용노동부"
@@ -12657,6 +12681,23 @@
       ]
     },
     {
+      "org": "국가유산청",
+      "events": 3,
+      "with_followup": 2,
+      "rate": 0.667,
+      "latest_followup_at": "2025-10-31",
+      "last_article_at": "2026-06-22",
+      "confirmed_signals": 13,
+      "event_ids": [
+        268,
+        271,
+        297
+      ],
+      "raw_names": [
+        "국가유산청"
+      ]
+    },
+    {
       "org": "인천시",
       "events": 3,
       "with_followup": 2,
@@ -12692,22 +12733,18 @@
       ]
     },
     {
-      "org": "서울시",
-      "events": 4,
-      "with_followup": 2,
-      "rate": 0.5,
-      "latest_followup_at": "2026-09-18",
-      "last_article_at": "2026-10-19",
-      "confirmed_signals": 9,
+      "org": "강릉시",
+      "events": 1,
+      "with_followup": 1,
+      "rate": 1.0,
+      "latest_followup_at": "2026-09-01",
+      "last_article_at": "2026-09-02",
+      "confirmed_signals": 41,
       "event_ids": [
-        168,
-        262,
-        289,
-        291
+        300
       ],
       "raw_names": [
-        "서울 강서구",
-        "서울시"
+        "강릉시"
       ]
     },
     {
@@ -12816,6 +12853,21 @@
       ]
     },
     {
+      "org": "국방부",
+      "events": 1,
+      "with_followup": 1,
+      "rate": 1.0,
+      "latest_followup_at": "2023-12-27",
+      "last_article_at": "2025-09-11",
+      "confirmed_signals": 1,
+      "event_ids": [
+        299
+      ],
+      "raw_names": [
+        "국방부"
+      ]
+    },
+    {
       "org": "남동구",
       "events": 1,
       "with_followup": 1,
@@ -12888,6 +12940,21 @@
       ],
       "raw_names": [
         "서천군"
+      ]
+    },
+    {
+      "org": "소방청",
+      "events": 1,
+      "with_followup": 1,
+      "rate": 1.0,
+      "latest_followup_at": "2024-10-09",
+      "last_article_at": "2026-08-25",
+      "confirmed_signals": 4,
+      "event_ids": [
+        301
+      ],
+      "raw_names": [
+        "소방청"
       ]
     },
     {
@@ -13073,22 +13140,6 @@
       ]
     },
     {
-      "org": "국가유산청",
-      "events": 2,
-      "with_followup": 1,
-      "rate": 0.5,
-      "latest_followup_at": "2025-10-31",
-      "last_article_at": "2026-06-22",
-      "confirmed_signals": 10,
-      "event_ids": [
-        268,
-        271
-      ],
-      "raw_names": [
-        "국가유산청"
-      ]
-    },
-    {
       "org": "대덕구",
       "events": 2,
       "with_followup": 1,
@@ -13102,6 +13153,22 @@
       ],
       "raw_names": [
         "대덕구"
+      ]
+    },
+    {
+      "org": "충남",
+      "events": 2,
+      "with_followup": 1,
+      "rate": 0.5,
+      "latest_followup_at": "2026-10-13",
+      "last_article_at": "2026-10-13",
+      "confirmed_signals": 26,
+      "event_ids": [
+        218,
+        294
+      ],
+      "raw_names": [
+        "충청남도"
       ]
     },
     {
@@ -13397,21 +13464,6 @@
       ]
     },
     {
-      "org": "충남",
-      "events": 1,
-      "with_followup": 0,
-      "rate": 0.0,
-      "latest_followup_at": null,
-      "last_article_at": "2026-04-27",
-      "confirmed_signals": 0,
-      "event_ids": [
-        218
-      ],
-      "raw_names": [
-        "충청남도"
-      ]
-    },
-    {
       "org": "충북",
       "events": 1,
       "with_followup": 0,
@@ -13473,6 +13525,34 @@
     }
   ],
   "recent_followups": [
+    {
+      "event_id": 294,
+      "event_title": "서천 서천특화시장 화재",
+      "event_status": "조치 완료 근거 확인",
+      "org": "충남",
+      "signal": "진행",
+      "confidence": 0.754,
+      "evidence_span": "소됐다...[서천]충남 서천군은 중단된 서천특화시장 재건축 사업을 화재발생 3년만에 본격 재개한다고 13일 밝혔다...서천군은 오는 19일 착공 전 사전작업을 시작으로 오는 1..",
+      "news_id": "01400201.20261013174329001",
+      "title": "충남 서천특화시장 재건축, 화재발생 3년만에 본격 재개",
+      "provider": "대전일보",
+      "published_at": "2026-10-13",
+      "link": "https://www.daejonilbo.com/news/articleView.html?idxno=2306722"
+    },
+    {
+      "event_id": 296,
+      "event_title": "서울 강동구 명일동 대형 땅꺼짐",
+      "event_status": "조치 완료 근거 확인",
+      "org": "서울시",
+      "signal": "진행",
+      "confidence": 0.702,
+      "evidence_span": "명일동 땅꺼짐 사고 현장, 지반보강 공법 달랐다…서울시는 ....명일동에서 땅꺼짐 사고가 발생한 서울지하철 9호선 4단계 1공구의 실시설계에 지하안전영향평가에서 제시된 ..",
+      "news_id": "02100851.20261008085743001",
+      "title": "명일동 땅꺼짐 사고 현장, 지반보강 공법 달랐다…서울시는 '적격' 판정",
+      "provider": "아주경제",
+      "published_at": "2026-10-08",
+      "link": "https://www.ajunews.com/view/20261008084039448"
+    },
     {
       "event_id": 291,
       "event_title": "서울 한강버스 시범운항 중 충돌사고",
@@ -13542,6 +13622,20 @@
       "provider": "경북도민일보",
       "published_at": "2026-09-02",
       "link": "https://www.hidomin.com/news/articleView.html?idxno=719583"
+    },
+    {
+      "event_id": 300,
+      "event_title": "강릉 극한가뭄 제한급수",
+      "event_status": "조치 완료 근거 확인",
+      "org": "강릉시",
+      "signal": "진행",
+      "confidence": 0.87,
+      "evidence_span": "는 오봉저수지를 중심 수원으로 활용하되 이를 보완할 수 있는 보조수원을 단계적으로 확보해 나간다는 구상이다...또한 강릉~제진 철도공사에서 발생하는 유출지하수도 생활용수로 활용할",
+      "news_id": "04100058.20260901180320001",
+      "title": "지난해 '최악 가뭄' 겪었던 강릉…김중남 시장 \"오봉저수지 의존도 낮췄다\"",
+      "provider": "노컷뉴스",
+      "published_at": "2026-09-01",
+      "link": null
     },
     {
       "event_id": 258,
@@ -13752,6 +13846,20 @@
       "provider": "경인일보",
       "published_at": "2026-08-03",
       "link": "https://www.kyeongin.com/article/1768350"
+    },
+    {
+      "event_id": 296,
+      "event_title": "서울 강동구 명일동 대형 땅꺼짐",
+      "event_status": "조치 완료 근거 확인",
+      "org": "서울시",
+      "signal": "진행",
+      "confidence": 0.856,
+      "evidence_span": "사고가 발생하기 4년 전인 2021년에도 사고발생 지점 인근 지하에서 진행 중인 공사로 지반침하 우려가 있다는 공문을 서울시에 보낸 바있다.....공사의 입찰참가자로 하여금 설계",
+      "news_id": "01100101.20260626060130001",
+      "title": "[단독]‘명일동 싱크홀 사고 예견’ 학회 “동부간선 지하화 공사로 성수동 지반침하 우려”",
+      "provider": "경향신문",
+      "published_at": "2026-06-26",
+      "link": "https://www.khan.co.kr/article/202606260600051"
     },
     {
       "event_id": 158,
@@ -13978,6 +14086,34 @@
       "link": "https://www.newspim.com/news/view/20260422001008"
     },
     {
+      "event_id": 294,
+      "event_title": "서천 서천특화시장 화재",
+      "event_status": "조치 완료 근거 확인",
+      "org": "충남",
+      "signal": "새로운문제",
+      "confidence": 0.755,
+      "evidence_span": "'2년째 제자리' 서천특화시장 재건축, 1호 공약으로 민주당 유승광 서천군수 후보 제공 ....서천..서천특화시장은 지난 2024년 대형 화재로 200여 개 전체 점포가 전소된 바",
+      "news_id": "01400201.20260422151640001",
+      "title": "박수현, '2년째 제자리' 서천특화시장 재건축, 1호 공약으로",
+      "provider": "대전일보",
+      "published_at": "2026-04-22",
+      "link": "https://www.daejonilbo.com/news/articleView.html?idxno=2270806"
+    },
+    {
+      "event_id": 294,
+      "event_title": "서천 서천특화시장 화재",
+      "event_status": "조치 완료 근거 확인",
+      "org": "충남",
+      "signal": "새로운문제",
+      "confidence": 0.698,
+      "evidence_span": "서천특화시장 재건축사업은 총사업비 419억원 규모로 충남개발공사가 위탁 시행하고 있으며 2027년 준공을 목표로 추진되는 과정에서 시공사 법정관리로 현재 공사가 중단된 상태다.",
+      "news_id": "01400351.20260421221108001",
+      "title": "유승광 서천군수 예비후보, 서천특화시장 조속 시공 건의안 민주당 현장 최고위에 전달",
+      "provider": "중도일보",
+      "published_at": "2026-04-21",
+      "link": "https://www.joongdo.co.kr/web/view.php?key=20260421010006615"
+    },
+    {
       "event_id": 169,
       "event_title": "성남 분당 정자교 보행로 붕괴",
       "event_status": "조치 완료 근거 확인",
@@ -14076,102 +14212,18 @@
       "link": "http://www.obsnews.co.kr/news/articleView.html?idxno=1519395"
     },
     {
-      "event_id": 281,
-      "event_title": "오산 가장교차로 고가도로 옹벽 붕괴 사망",
+      "event_id": 296,
+      "event_title": "서울 강동구 명일동 대형 땅꺼짐",
       "event_status": "조치 완료 근거 확인",
-      "org": "오산시",
-      "signal": "진행",
-      "confidence": 0.69,
-      "evidence_span": "매몰됐다...옹벽 상단에 설치된 L자 형태 옹벽이 먼저 가라앉았고 고가도로 포장면 땅..사고가 난 구간은 오산시 발주로 건화엔지니어링과 동아기술공사, 동림컨설턴트가 설계했다...",
-      "news_id": "02100801.20260226103032001",
-      "title": "오산 옹벽사고, 설계·시공·관리 총체 부실…전국 전수조사 나선다",
-      "provider": "아시아경제",
-      "published_at": "2026-02-26",
-      "link": "https://view.asiae.co.kr/article/2026022610184406824"
-    },
-    {
-      "event_id": 287,
-      "event_title": "광주 금호타이어 광주공장 화재",
-      "event_status": "조치 완료 근거 확인",
-      "org": "광주경찰청",
+      "org": "서울시",
       "signal": "완료",
-      "confidence": 0.861,
-      "evidence_span": "어는 지난해 8월 시작된 광주공장 정련공정 해체 공사가 최근 6개월만에 완료됐다며, 이기간 건설폐기물 등 ..한편 광주공장이 함평 이전을 준비하고 있는만큼 철거된 부지는 별도로 활",
-      "news_id": "08100101.20260215215902001",
-      "title": "‘대형 화재’ 금호타이어 광주공장 해체 공사 완료",
-      "provider": "KBS",
-      "published_at": "2026-02-15",
-      "link": "https://news.kbs.co.kr/news/view.do?ncd=8486849&amp;ref=DA"
-    },
-    {
-      "event_id": 281,
-      "event_title": "오산 가장교차로 고가도로 옹벽 붕괴 사망",
-      "event_status": "조치 완료 근거 확인",
-      "org": "오산시",
-      "signal": "진행",
-      "confidence": 0.699,
-      "evidence_span": "사 현장에서 공사 추진 상황을 점검하고 있다.오산시 제공 ....점검을 진행 중이었고, 시설물 안전점검 업체도 현장에 도착해 안전점검을 준비하던 상황에서 옹벽 붕괴사고가 발생했다.",
-      "news_id": "01200101.20260212133002001",
-      "title": "오산시장, 서부로 도로 붕괴 사고에 “부당한 마녀사냥 멈춰야”",
-      "provider": "경기일보",
-      "published_at": "2026-02-12",
-      "link": "https://www.kyeonggi.com/article/20260212580224"
-    },
-    {
-      "event_id": 16,
-      "event_title": "부산 만덕~센텀 대심도 터널 공사장 토사 붕괴",
-      "event_status": "새로운 문제 발생",
-      "org": "부산시",
-      "signal": "완료",
-      "confidence": 0.745,
-      "evidence_span": "GS건설, 부산 최초 대심도 ..‘만덕~센텀 고속화도로’ 개통…“40분 거리 10분대로” GS건설이 부산의 동서를 지하로 잇는 대심도 고속화도로를 성공적으로 완공했다...",
-      "news_id": "02100861.20260211101628001",
-      "title": "GS건설, 부산 최초 대심도 ‘만덕~센텀 고속화도로’ 개통…“40분 거리 10분대로”",
-      "provider": "브릿지경제",
-      "published_at": "2026-02-11",
-      "link": "https://www.viva100.com/article/20260210500413"
-    },
-    {
-      "event_id": 281,
-      "event_title": "오산 가장교차로 고가도로 옹벽 붕괴 사망",
-      "event_status": "조치 완료 근거 확인",
-      "org": "오산시",
-      "signal": "진행",
-      "confidence": 0.722,
-      "evidence_span": "재해처벌법 위반(중대시민재해) 혐의로 이권재 오산시장에 대한 강제수사에 착수했다..경찰은 이날 압수수색을 통해 시정 총책임자인 이권재 오산시장이 사고 예방 조치를 소홀히 했는지 여",
-      "news_id": "01100101.20260204102843001",
-      "title": "[속보]경찰, ‘오산 옹벽 붕괴 사망사고’ 이권재 오산시장 압수수색···중대시민재해 관련",
-      "provider": "경향신문",
-      "published_at": "2026-02-04",
-      "link": "https://www.khan.co.kr/article/202602041027001"
-    },
-    {
-      "event_id": 281,
-      "event_title": "오산 가장교차로 고가도로 옹벽 붕괴 사망",
-      "event_status": "조치 완료 근거 확인",
-      "org": "오산시",
-      "signal": "진행",
-      "confidence": 0.833,
-      "evidence_span": "권재 오산시장 첫 강제수사…6월 지방선거 영향 미치나 경찰이 지난해 발생한 경기 오산 고가도로 옹벽 붕괴 사고와 관련해 이권재 오산시장을 상대로 강제수사에 착수했다.....오산..",
-      "news_id": "01100701.20260204112921001",
-      "title": "경찰, 이권재 오산시장 첫 강제수사…6월 지방선거 영향 미치나",
-      "provider": "세계일보",
-      "published_at": "2026-02-04",
-      "link": "https://www.segye.com/newsView/20260204508205"
-    },
-    {
-      "event_id": 281,
-      "event_title": "오산 가장교차로 고가도로 옹벽 붕괴 사망",
-      "event_status": "조치 완료 근거 확인",
-      "org": "오산시",
-      "signal": "진행",
-      "confidence": 0.73,
-      "evidence_span": "= 지난해 경기 오산시 가장동에서 발생한 고가도로 옹벽 붕괴 참사를 수사 중인 경찰이 시정 총책임자인 이권재 오산시장에 대한 강제수사에 전격 착수했다...",
-      "news_id": "04100078.20260204105419001",
-      "title": "경찰 '옹벽 붕괴 참사' 오산시장실 압수수색...중대시민재해 정조준",
-      "provider": "뉴스핌",
-      "published_at": "2026-02-04",
-      "link": "https://www.newspim.com/news/view/20260204000418"
+      "confidence": 0.603,
+      "evidence_span": "..터널을 굴착하는 과정에서 하중을 충분히 견딜 수 있는 보강공법을 적용한 보완설계를 완료했다...",
+      "news_id": "01100501.20260326140929001",
+      "title": "9호선 4단계 명일동 구간 지반보강 완료…서울시 “안전 최우선 공사 재개”",
+      "provider": "문화일보",
+      "published_at": "2026-03-26",
+      "link": "https://www.munhwa.com/article/11577572?ref=kpf"
     }
   ],
   "disclaimer": "보도가 없다는 사실은 조치가 없었다는 근거가 아니라, 확인이 필요하다는 신호입니다."
