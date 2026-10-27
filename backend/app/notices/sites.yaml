@@ -162,7 +162,7 @@ sites:
 
   - key: korea-press
     name: 정책브리핑 보도자료 (중앙부처·위원회)
-    orgs: [국토교통부, 행정안전부, 고용노동부, 환경부, 해양수산부, 산업통상자원부, 농림축산식품부, 소방청, 경찰청, 해양경찰청, 산림청, 기상청, 교육부, 보건복지부]
+    orgs: [국토교통부, 행정안전부, 고용노동부, 환경부, 해양수산부, 산업통상자원부, 농림축산식품부, 소방청, 경찰청, 해양경찰청, 산림청, 기상청, 교육부, 보건복지부, 국가유산청, 국무총리, 국무조정실, 중앙재난안전대책본부]
     domain: korea.kr
     list_url: "https://www.korea.kr/briefing/pressReleaseList.do?pageIndex={page}"
     search_url: "https://www.korea.kr/briefing/pressReleaseList.do?srchWord={query}&startDate=2023-01-01&endDate=2030-12-31&pageIndex={page}"

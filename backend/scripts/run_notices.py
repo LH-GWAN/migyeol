@@ -4,6 +4,8 @@
   python scripts/run_notices.py --event-id 3
   python scripts/run_notices.py --check-sites         # 등록부의 각 게시판 목록 1~2쪽을 실제로 파싱해 본다 (docs/NOTICES.md 기록용)
   python scripts/run_notices.py --check-sites --site busan-press --query 안전
+  python scripts/run_notices.py --rescore [--dry-run]     # 네트워크 없이 저장된 org_notices 를 현재 매칭 규칙으로 다시 점수 매긴다
+  python scripts/run_notices.py --rescore 171 --dry-run   # 한 사건만, DB 는 바꾸지 않고 결과만 본다
 
 트리거되지 않은 사건에는 어떤 요청도 보내지 않는다. 모든 요청은 허용 도메인·robots.txt·요청 간격을 거친다.
 """
@@ -24,7 +26,7 @@ from app.db.session import init_db, session_factory  # noqa: E402
 from app.notices.fetcher import HttpFetcher, NoticeFetchError  # noqa: E402
 from app.notices.guard import BlockedURL  # noqa: E402
 from app.notices.parser import parse_body, parse_list  # noqa: E402
-from app.notices.service import run_checks  # noqa: E402
+from app.notices.service import rescore_all, run_checks  # noqa: E402
 from app.notices.sites import load_sites  # noqa: E402
 
 
@@ -80,6 +82,8 @@ def main() -> int:
     g.add_argument("--all", action="store_true")
     g.add_argument("--event-id", type=int)
     g.add_argument("--check-sites", action="store_true")
+    g.add_argument("--rescore", nargs="?", const="all", metavar="EVENT_ID", help="저장된 org_notices 재점수 (임계값 미만 삭제, 요청 없음). 사건 번호를 주면 그 사건만")
+    ap.add_argument("--dry-run", action="store_true", help="--rescore: 결과만 출력하고 DB 는 바꾸지 않는다")
     ap.add_argument("--site", default=None, help="--check-sites: 이 key 만")
     ap.add_argument("--query", default=None, help="--check-sites: 게시판 검색도 시험")
     ap.add_argument("--pages", type=int, default=2, help="--check-sites: 목록 몇 쪽 (기본 2)")
@@ -96,12 +100,27 @@ def main() -> int:
     init_db()
     session = session_factory()()
     try:
+        if args.rescore is not None:
+            out = rescore_all(session, settings, event_id=None if args.rescore == "all" else int(args.rescore), dry_run=args.dry_run)
+            print_rescore(out)
+            return 0
         today = date.fromisoformat(args.today) if args.today else None
         out = run_checks(session, settings, event_id=args.event_id, today=today)
     finally:
         session.close()
     print(json.dumps(out, ensure_ascii=False, indent=2, default=str))
     return 0
+
+
+def print_rescore(out: dict) -> None:
+    """사건별 전후 건수 표 + 삭제·유지 항목 (docs/NOTICES.md 기록용)."""
+    print(f"# rescore dry_run={out['dry_run']} events={out['events']} before={out['before']} after={out['after']} deleted={out['deleted']}")
+    for r in out["results"]:
+        print(f"\n## 사건 {r['event_id']} {r['title']} — {r['before']} → {r['after']}")
+        for e in r["kept"]:
+            print(f"  유지 {e['published_at']} {e['after']:.2f} {e['title']}  [{', '.join(e['matched'])}]")
+        for e in r["dropped"]:
+            print(f"  삭제 {e['published_at']} {e['before']:.2f}→{e['after']:.2f} {e['title']}  [{', '.join(e['matched'])}]")
 
 
 if __name__ == "__main__":

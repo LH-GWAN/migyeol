@@ -101,8 +101,21 @@ def _load_default() -> tuple[Site, ...]:
     return tuple(_load(SITES_FILE))
 
 
-def sites_for_org(org: str | None, sites: list[Site] | None = None) -> list[Site]:
+# 등록부에 없는 하위 기관을 상위 기관 게시판으로 묶는 규칙 (정규 키 접미 → 상위 정규 키). canonical_org 는 바꾸지 않는다.
+PARENT_ORG_SUFFIX: dict[str, str] = {"해양경찰서": "해양경찰청"}  # '완도해양경찰서' → 해양경찰청(정책브리핑)
+
+
+def notice_org(org: str | None) -> str:
+    """게시판을 찾을 때 쓰는 기관 키: 정규화 뒤, 등록부에 없는 하위 기관은 상위 기관으로."""
     key = canonical_org(org)
+    for suffix, parent in PARENT_ORG_SUFFIX.items():
+        if key.endswith(suffix) and key != suffix and len(key) > len(suffix):
+            return parent
+    return key
+
+
+def sites_for_org(org: str | None, sites: list[Site] | None = None) -> list[Site]:
+    key = notice_org(org)
     if not key:
         return []
     return [s for s in (sites if sites is not None else load_sites()) if key in s.orgs]

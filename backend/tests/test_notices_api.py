@@ -251,3 +251,77 @@ def test_api_run_requires_admin_token_and_checks(client, session, monkeypatch):
     body = r.json()
     assert body["events"] == 8 and body["triggered"] == 2 and body["requests"] == 0 and len(body["results"]) == 8
     assert client.post("/api/notices/run", json={"event_id": 999999}, headers={"X-Admin-Token": "secret"}).status_code == 404
+
+
+# ---------------------------------------------------------------------------
+# 재점수 (--rescore) — 저장된 항목을 현재 규칙으로 다시 매기고 임계값 미만은 삭제, 플래그·확인 기록 정합
+# ---------------------------------------------------------------------------
+
+
+def _junk(ev: Event, title: str, url: str, published_at: date) -> OrgNotice:
+    """옛 규칙(시설명 단독 0.6)으로 저장된 것처럼 꾸민 잡음 항목."""
+    return OrgNotice(event_id=ev.id, org="가온시", site_key="gaon-press", site_url=GAON.first_page_url, title=title, url=url, published_at=published_at, snippet="", match_score=0.6, matched_terms=["지하차도"])
+
+
+def test_rescore_removes_items_below_threshold_and_fixes_flag_and_check(session):
+    st = get_settings()
+    ev = _ev(session, "달빛지하차도")
+    service.check_event(session, ev, st, TODAY, fetcher=FixtureFetcher(PAGES, allowed_csv=st.notice_allowed_domains, extra_domains=[GAON.domain]), sites=[GAON])
+    session.add(_junk(ev, "지하차도 사진 공모전 수상작 전시", "https://www.gaon.go.kr/press/view?id=77", date(2026, 5, 1)))
+    # 다른 사건(청솔산): 잡음만 하나 있고 플래그·확인 기록이 '찾음' 으로 남은 상태
+    ev6 = _ev(session, "청솔산")
+    session.add(_junk(ev6, "산 사진 공모전", "https://www.gaon.go.kr/press/view?id=78", date(2026, 5, 2)))
+    ev6.org_notice_found = True
+    session.add(NoticeCheck(event_id=ev6.id, triggered=True, reason="t", outcome="found", items_found=1, requests=3))
+    session.commit()
+    assert session.query(OrgNotice).filter_by(event_id=ev.id).count() == 3
+
+    dry = service.rescore_all(session, st, dry_run=True)
+    assert dry["dry_run"] and dry["events"] == 2 and dry["before"] == 4 and dry["after"] == 2 and dry["deleted"] == 2
+    assert session.query(OrgNotice).count() == 4  # dry-run 은 지우지 않는다
+
+    out = service.rescore_all(session, st)
+    assert (out["before"], out["after"], out["deleted"]) == (4, 2, 2)
+    r1 = next(r for r in out["results"] if r["event_id"] == ev.id)
+    assert [e["title"] for e in r1["dropped"]] == ["지하차도 사진 공모전 수상작 전시"] and r1["dropped"][0]["after"] < st.notice_match_threshold
+    rows = session.query(OrgNotice).filter_by(event_id=ev.id).order_by(OrgNotice.published_at.desc()).all()
+    assert [r.title for r in rows] == ["달빛지하차도 배수펌프 증설 공사 준공", "가온시, 달빛지하차도 진입 차단시설 설치 완료"]
+    assert rows[0].match_score == pytest.approx(1.0) and rows[0].matched_terms == ["달빛지하차도", "배수펌프", "+조치 어휘: 준공"]
+    session.refresh(ev)
+    session.refresh(ev6)
+    assert ev.org_notice_found is True
+    assert session.query(OrgNotice).filter_by(event_id=ev6.id).count() == 0 and ev6.org_notice_found is False
+    chk6 = session.query(NoticeCheck).filter_by(event_id=ev6.id).order_by(NoticeCheck.id.desc()).first()
+    assert chk6.outcome == "not_found" and chk6.items_found == 0
+    chk1 = session.query(NoticeCheck).filter_by(event_id=ev.id, triggered=True).order_by(NoticeCheck.id.desc()).first()
+    assert chk1.outcome == "found" and chk1.items_found == 2
+    # 한 사건만 지정
+    one = service.rescore_all(session, st, event_id=ev.id)
+    assert one["events"] == 1 and one["before"] == 2 and one["deleted"] == 0
+
+
+def test_rescore_cli_runs_without_network(session, capsys, monkeypatch):
+    """scripts/run_notices.py --rescore --dry-run: 요청 없이 사건별 전후 건수를 출력한다."""
+    import importlib.util
+    from pathlib import Path
+
+    st = get_settings()
+    ev = _ev(session, "달빛지하차도")
+    service.check_event(session, ev, st, TODAY, fetcher=FixtureFetcher(PAGES, allowed_csv=st.notice_allowed_domains, extra_domains=[GAON.domain]), sites=[GAON])
+    session.add(_junk(ev, "지하차도 사진 공모전", "https://www.gaon.go.kr/press/view?id=79", date(2026, 5, 1)))
+    session.commit()
+    # scripts/ 패키지 import 대신 파일로 로드 (iCloud 자리표시 __init__.py 가 읽기 타임아웃을 낼 수 있다)
+    spec = importlib.util.spec_from_file_location("run_notices_cli", Path(__file__).resolve().parent.parent / "scripts" / "run_notices.py")
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    monkeypatch.setattr(mod, "HttpFetcher", lambda **kw: (_ for _ in ()).throw(AssertionError("요청하면 안 된다")))
+    monkeypatch.setattr(service, "HttpFetcher", lambda **kw: (_ for _ in ()).throw(AssertionError("요청하면 안 된다")))
+    monkeypatch.setattr("sys.argv", ["run_notices.py", "--rescore", "--dry-run"])
+    assert mod.main() == 0
+    out = capsys.readouterr().out
+    assert "dry_run=True" in out and "before=3 after=2 deleted=1" in out and "삭제 2026-05-01" in out
+    assert session.query(OrgNotice).filter_by(event_id=ev.id).count() == 3  # dry-run
+    monkeypatch.setattr("sys.argv", ["run_notices.py", "--rescore", str(ev.id)])
+    assert mod.main() == 0
+    session.expire_all()
+    assert session.query(OrgNotice).filter_by(event_id=ev.id).count() == 2

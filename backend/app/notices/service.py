@@ -22,7 +22,7 @@ from ..db.models import Article, Event, StatusJudgment, _now
 from ..rules.orgs import canonical_org
 from .fetcher import Fetcher, HttpFetcher, NoticeFetchError
 from .guard import BlockedURL
-from .matcher import event_terms, score_title
+from .matcher import event_terms, own_regions, score_title
 from .models import NoticeCheck, OrgNotice
 from .parser import parse_body, parse_list
 from .sites import Site, load_sites, sites_for_org
@@ -92,9 +92,18 @@ def _search_queries(event: Event) -> list[str]:
     return out[:2]
 
 
+def _event_terms(event: Event):
+    """사건의 매칭 용어 — 시설명·핵심어·약속어 + 지역명(책임기관 자신의 이름이 아닐 때)."""
+    return event_terms(event.facility, event.keywords, event.promise_terms, region=event.region, org=canonical_org(event.responsible_org))
+
+
+def _own_regions(event: Event) -> set[str]:
+    return own_regions(event.region, canonical_org(event.responsible_org))
+
+
 def _scan_site(site: Site, event: Event, settings: Settings, fetcher: Fetcher, cutoff: date) -> tuple[list[dict], dict]:
     """한 게시판의 목록을 최대 notice_max_pages 쪽 읽고 매칭 항목을 돌려준다."""
-    terms = event_terms(event.facility, event.keywords, event.promise_terms)
+    terms = _event_terms(event)
     info = {"key": site.key, "org": site.orgs[0], "name": site.name, "url": site.first_page_url, "pages": 0, "items": 0, "error": None}
     found: list[dict] = []
     seen: set[str] = set()
@@ -116,9 +125,10 @@ def _scan_site(site: Site, event: Event, settings: Settings, fetcher: Fetcher, c
                     if it.url in seen or (it.published_at is not None and it.published_at < cutoff):
                         continue
                     seen.add(it.url)
-                    score, matched = score_title(it.title, terms)
-                    if score >= settings.notice_match_threshold:
-                        found.append({"item": it, "score": score, "matched": matched})
+                    # 요약 가점은 목록 페이지가 주는 요약에만 적용된다 (상세 본문은 매칭된 항목만 뒤에 가져온다)
+                    m = score_title(it.title, terms, snippet=it.snippet, published_at=it.published_at, occurred_at=event.occurred_at, own=_own_regions(event))
+                    if m.score >= settings.notice_match_threshold:
+                        found.append({"item": it, "score": m.score, "matched": m.labels})
                 dated = [it.published_at for it in items if it.published_at is not None]
                 if dated and max(dated) < cutoff:
                     break  # 최신순 목록에서 발생일 이전 글만 남았다
@@ -230,6 +240,61 @@ def run_checks(session: Session, settings: Settings, event_id: int | None = None
         "found": sum(1 for r in results if r["outcome"] == "found"),
         "items": sum(r["items_found"] for r in results),
         "requests": sum(r["requests"] for r in results),
+        "results": results,
+    }
+
+
+def rescore_event(session: Session, event: Event, settings: Settings, dry_run: bool = False) -> dict:
+    """저장된 org_notices 를 현재 매칭 규칙으로 다시 점수 매긴다 (네트워크 없음).
+
+    임계값 미만은 삭제하고, 남은 항목의 점수·일치 용어를 갱신한다. `Event.org_notice_found` 와
+    가장 최근 실제 확인 기록(`notice_checks`, 결과 found/not_found)의 `items_found`·`outcome` 을 남은 건수에 맞춘다.
+    dry_run 이면 결과만 계산하고 DB 는 바꾸지 않는다.
+    """
+    terms = _event_terms(event)
+    rows = session.query(OrgNotice).filter_by(event_id=event.id).order_by(OrgNotice.id).all()
+    kept: list[dict] = []
+    dropped: list[dict] = []
+    for r in rows:
+        m = score_title(r.title, terms, snippet=r.snippet, published_at=r.published_at, occurred_at=event.occurred_at, own=_own_regions(event))
+        entry = {"id": r.id, "title": r.title, "published_at": r.published_at, "before": r.match_score, "after": m.score, "matched": m.labels}
+        if m.score >= settings.notice_match_threshold:
+            kept.append(entry)
+            if not dry_run:
+                r.match_score = m.score
+                r.matched_terms = m.labels
+        else:
+            dropped.append(entry)
+            if not dry_run:
+                session.delete(r)
+    if not dry_run:
+        session.flush()
+        _set_found_flag(event, bool(kept))
+        last = (
+            session.query(NoticeCheck)
+            .filter(NoticeCheck.event_id == event.id, NoticeCheck.triggered.is_(True), NoticeCheck.outcome.in_(("found", "not_found")))
+            .order_by(NoticeCheck.id.desc())
+            .first()
+        )
+        if last is not None:
+            last.items_found = len(kept)
+            last.outcome = "found" if kept else "not_found"
+        session.commit()
+    return {"event_id": event.id, "title": event.title, "before": len(rows), "after": len(kept), "kept": kept, "dropped": dropped}
+
+
+def rescore_all(session: Session, settings: Settings, event_id: int | None = None, dry_run: bool = False) -> dict:
+    """org_notices 가 있는 사건 전체(또는 한 사건)를 다시 점수 매긴다."""
+    q = session.query(Event).filter(Event.id.in_(session.query(OrgNotice.event_id).distinct()))
+    if event_id is not None:
+        q = q.filter(Event.id == event_id)
+    results = [rescore_event(session, ev, settings, dry_run=dry_run) for ev in q.order_by(Event.id).all()]
+    return {
+        "dry_run": dry_run,
+        "events": len(results),
+        "before": sum(r["before"] for r in results),
+        "after": sum(r["after"] for r in results),
+        "deleted": sum(len(r["dropped"]) for r in results),
         "results": results,
     }
 
