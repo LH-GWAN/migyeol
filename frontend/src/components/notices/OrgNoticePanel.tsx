@@ -1,6 +1,6 @@
 import Link from "next/link";
 import type { Result } from "@/lib/api";
-import { formatDate, formatDateTime } from "@/lib/format";
+import { cleanSnippet, formatDate, formatDateTime } from "@/lib/format";
 import type { EventNoticesOut, NoticeState } from "@/lib/notices";
 
 /**
@@ -75,7 +75,7 @@ export default function OrgNoticePanel({ eventId, result }: { eventId: number; r
                     {it.published_at ? formatDate(it.published_at) : "게시일 미상"} · {it.site_name}
                   </span>
                 </div>
-                {it.snippet && <p className="mt-1 text-xs leading-relaxed text-gray-600">{it.snippet}</p>}
+                {cleanSnippet(it.snippet) && <p className="mt-1 text-xs leading-relaxed text-gray-600">{cleanSnippet(it.snippet)}</p>}
                 <p className="mt-1 flex flex-wrap items-center gap-1 text-[11px] text-gray-500">
                   매칭 점수 <span className="font-semibold text-gray-800">{it.match_score.toFixed(2)}</span>
                   {it.matched_terms.map((t) => (

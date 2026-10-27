@@ -4,6 +4,7 @@ import Hero from "@/components/dashboard/Hero";
 import IncidentBars from "@/components/dashboard/IncidentBars";
 import KpiTiles from "@/components/dashboard/KpiTiles";
 import NeedsCheckTop from "@/components/dashboard/NeedsCheckTop";
+import NoticeCases from "@/components/dashboard/NoticeCases";
 import OrgTable from "@/components/dashboard/OrgTable";
 import Panel from "@/components/dashboard/Panel";
 import RecentFeed from "@/components/dashboard/RecentFeed";
@@ -14,17 +15,18 @@ import {
   getByIncident,
   getByOrg,
   getDashboardSummary,
+  getNoticeCases,
   getRecentFollowups,
   getTimeseries,
-  type OrgSort,
   type TimeseriesRow,
 } from "@/lib/dashboard";
 
 export const dynamic = "force-dynamic";
 
-type SearchParams = Record<string, string | string[] | undefined>;
-
-const ORG_SORTS: readonly OrgSort[] = ["followup", "rate", "events"];
+/** 대시보드 요약에 보여 주는 줄 수 — 나머지는 /orgs, /followups 에서 (2026-10-27 피드백: 대시보드가 너무 길다) */
+const ORG_ROWS = 5;
+const RECENT_ROWS = 5;
+const NEEDS_CHECK_ROWS = 5;
 
 function sumOrNull(rows: TimeseriesRow[], key: "dead" | "injured"): number | null {
   const vals = rows.map((r) => r[key]).filter((v): v is number => typeof v === "number");
@@ -32,19 +34,16 @@ function sumOrNull(rows: TimeseriesRow[], key: "dead" | "injured"): number | nul
 }
 
 /** v2 화면 0 — 시민용 대시보드. 숫자는 전부 /api/dashboard/* 와 /api/events 에서 온다. */
-export default async function DashboardPage({ searchParams }: { searchParams: Promise<SearchParams> }) {
-  const sp = await searchParams;
-  const rawSort = Array.isArray(sp.org_sort) ? sp.org_sort[0] : sp.org_sort;
-  const orgSort: OrgSort = ORG_SORTS.includes(rawSort as OrgSort) ? (rawSort as OrgSort) : "followup";
-
-  const [summary, month, day, incidents, orgs, recent, top] = await Promise.all([
+export default async function DashboardPage() {
+  const [summary, month, day, incidents, orgs, recent, top, cases] = await Promise.all([
     safe(getDashboardSummary()),
     safe(getTimeseries("month")),
     safe(getTimeseries("day")),
     safe(getByIncident()),
-    safe(getByOrg(orgSort)),
-    safe(getRecentFollowups(10)),
-    safe(getEvents({ needs_check: true, sort: "priority", size: 5 })),
+    safe(getByOrg("followup")),
+    safe(getRecentFollowups(RECENT_ROWS)),
+    safe(getEvents({ needs_check: true, sort: "priority", size: NEEDS_CHECK_ROWS })),
+    safe(getNoticeCases(1)),
   ]);
 
   if (!summary.ok) {
@@ -91,14 +90,29 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
       <Panel
         id="orgs"
         title="기관별 후속보도 현황"
-        subtitle="책임 기관별로 묶었습니다. 후속보도가 확인된 기관이 위에 옵니다. 기관명을 누르면 그 기관의 사건만 봅니다."
+        subtitle={`후속보도가 확인된 건수가 많은 기관 ${ORG_ROWS}곳. 기관명을 누르면 그 기관의 사건만 봅니다.`}
         disclaimer={s.disclaimer}
+        action={
+          <Link href="/orgs" className="text-xs font-semibold text-blue-700 hover:underline">
+            전체 {s.orgs}곳 보기 →
+          </Link>
+        }
       >
-        {orgs.ok ? <OrgTable rows={orgs.data} sort={orgSort} /> : <ErrorBox title="기관별 집계를 불러오지 못했습니다" error={orgs.error} />}
+        {orgs.ok ? <OrgTable rows={orgs.data} sort="followup" limit={ORG_ROWS} /> : <ErrorBox title="기관별 집계를 불러오지 못했습니다" error={orgs.error} />}
       </Panel>
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-5">
-        <Panel className="lg:col-span-3" title="최근 후속보도" subtitle="조치 완료·진행 또는 새로운 문제를 전한 최신 기사" disclaimer={s.disclaimer}>
+        <Panel
+          className="lg:col-span-3"
+          title="최근 후속보도"
+          subtitle={`조치 완료·진행 또는 새로운 문제를 전한 최신 기사 ${RECENT_ROWS}건`}
+          disclaimer={s.disclaimer}
+          action={
+            <Link href="/followups" className="text-xs font-semibold text-blue-700 hover:underline">
+              더 보기 →
+            </Link>
+          }
+        >
           {recent.ok ? <RecentFeed items={recent.data} /> : <ErrorBox title="최근 후속보도를 불러오지 못했습니다" error={recent.error} />}
         </Panel>
         <Panel
@@ -115,6 +129,15 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
           {top.ok ? <NeedsCheckTop cards={top.data.items} /> : <ErrorBox title="사건 목록을 불러오지 못했습니다" error={top.error} />}
         </Panel>
       </div>
+
+      <Panel
+        id="cases"
+        title="기관 발표로 확인된 사례"
+        subtitle="후속보도가 오래 없는 사건은 책임기관의 공식 보도자료·공지 게시판을 확인합니다. 여기서 찾은 발표는 보조 근거이며 사건 상태를 바꾸지 않습니다."
+        disclaimer={s.disclaimer}
+      >
+        {cases.ok ? <NoticeCases items={cases.data.items} /> : <ErrorBox title="사례를 불러오지 못했습니다" error={cases.error} />}
+      </Panel>
     </div>
   );
 }

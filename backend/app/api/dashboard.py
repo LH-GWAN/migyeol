@@ -393,6 +393,126 @@ def build_recent_followups(facts: list[EventFacts], limit: int) -> list[dict]:
 
 
 # ---------------------------------------------------------------------------
+# 기관 발표로 확인된 사례 (v3 — 2026-10-27 멘토 피드백: 실제 사례 2건을 있는 그대로)
+# ---------------------------------------------------------------------------
+
+CASE_KINDS = {
+    "notice_without_followup": "후속보도는 없지만 기관 발표가 있는 사건",
+    "notice_before_followup": "기관 발표는 일찍, 후속보도는 한참 뒤에 나온 사건",
+}
+CASE_MIN_GAP_DAYS = 30  # 기관 발표 → 후속보도 사이가 이 이상 벌어져야 '한참 뒤'로 센다
+
+
+def _site_names() -> dict[str, str]:
+    try:
+        from ..notices.sites import load_sites
+
+        return {s.key: s.name for s in load_sites()}
+    except Exception:  # 등록부를 못 읽어도 사례 집계는 계속
+        return {}
+
+
+def _notice_out(n, site_names: dict[str, str]) -> dict:
+    return {
+        "title": n.title,
+        "published_at": ser._iso(n.published_at),
+        "url": n.url,
+        "site_key": n.site_key,
+        "site_name": site_names.get(n.site_key) or n.site_key,
+        "site_url": n.site_url,
+        "snippet": n.snippet,
+        "match_score": n.match_score,
+        "matched_terms": list(n.matched_terms or []),
+    }
+
+
+def _norm(t: str) -> str:
+    return "".join(str(t or "").split())
+
+
+def _facility_hit(facility: str | None, terms: list) -> bool:
+    """매칭된 용어(가점 태그 제외)나 '+요약:' 태그가 사건 시설명과 겹치면 True. 시설명이 없는 사건은 통과."""
+    fac = _norm(facility)
+    if len(fac) < 2:
+        return True
+    for raw in terms or []:
+        t = str(raw)
+        if t.startswith("+요약:"):
+            t = t.split(":", 1)[1]
+        elif t.startswith("+"):
+            continue
+        tn = _norm(t)
+        if len(tn) >= 2 and (tn in fac or fac in tn):
+            return True
+    return False
+
+
+def build_notice_cases(session: Session, facts: list[EventFacts], per_kind: int = 1) -> list[dict]:
+    """기관 공식 게시판에서 발표가 확인된 사건 가운데 두 종류의 사례를 고른다 (보조 근거, 상태는 그대로).
+
+    - notice_without_followup: 발생일 이후의 기관 발표가 있는데, 그 발표일 이후로 확인된 후속보도(유효 신호)가 없는 사건.
+      사건에 시설명이 있으면 발표 제목·요약이 시설명과 겹쳐야 한다(다른 곳의 같은 종류 사고 발표를 거른다).
+      시설명 일치 → 매칭 점수 → 책임기관 자체 게시판 → 최근 발표 순.
+    - notice_before_followup: 발생일 이후의 기관 발표로부터 30일 이상 지나서야 다음 후속보도(유효 신호)가 확인된 사건.
+      발표→보도 간격이 긴 사건부터.
+    """
+    from ..notices.models import OrgNotice
+
+    site_names = _site_names()
+    by_event: dict[int, list] = {}
+    for n in session.query(OrgNotice).order_by(OrgNotice.match_score.desc(), OrgNotice.published_at.desc()).all():
+        by_event.setdefault(n.event_id, []).append(n)
+
+    without: list[tuple[tuple, dict]] = []
+    before: list[tuple[tuple, dict]] = []
+    for f in facts:
+        ev = f.event
+        notices = [n for n in by_event.get(f.event.id, []) if n.published_at and (ev.occurred_at is None or n.published_at >= ev.occurred_at)]
+        if not notices:
+            continue
+        confirmed_dates = sorted(a.published_at for _, a in f.confirmed if a.published_at)
+        base = {
+            "event_id": ev.id,
+            "title": ev.title,
+            "status": ev.status,
+            "org": f.org,
+            "incident_type": ev.incident_type,
+            "occurred_at": ser._iso(ev.occurred_at),
+            "last_article_at": ser._iso(ev.last_followup_at),
+            "articles_after": len(f.followups),
+            "latest_confirmed_at": ser._iso(f.latest_confirmed_at),
+            "notices_count": len(notices),
+        }
+        # ① 발표 뒤 확인된 후속보도가 없는 사건
+        cands = [n for n in notices if not any(d >= n.published_at for d in confirmed_dates) and _facility_hit(ev.facility, n.matched_terms)]
+        if cands:
+            cands.sort(key=lambda n: (-n.match_score, 0 if n.site_key.startswith("korea-") else -1, -n.published_at.toordinal()))
+            n = cands[0]
+            gap = (n.published_at - ev.occurred_at).days if ev.occurred_at else None
+            without.append(
+                ((-n.match_score, 0 if n.site_key.startswith("korea-") else -1, -n.published_at.toordinal()),
+                 {**base, "kind": "notice_without_followup", "notice": _notice_out(n, site_names), "gap_days": gap, "followup_after_at": None})
+            )
+        # ② 발표 → 한참 뒤에야 다음 후속보도
+        best = None
+        for n in sorted(notices, key=lambda n: n.published_at):
+            nxt = next((d for d in confirmed_dates if d >= n.published_at), None)
+            if nxt is None:
+                continue
+            gap = (nxt - n.published_at).days
+            if gap >= CASE_MIN_GAP_DAYS and (best is None or gap > best[0]):
+                best = (gap, n, nxt)
+        if best:
+            gap, n, nxt = best
+            before.append(((-gap, -n.match_score), {**base, "kind": "notice_before_followup", "notice": _notice_out(n, site_names), "gap_days": gap, "followup_after_at": ser._iso(nxt)}))
+    without.sort(key=lambda r: r[0])
+    before.sort(key=lambda r: r[0])
+    out = [c for _, c in without[:per_kind]] + [c for _, c in before[:per_kind]]
+    for c in out:
+        c["kind_label"] = CASE_KINDS[c["kind"]]
+    return out
+
+# ---------------------------------------------------------------------------
 # 엔드포인트
 # ---------------------------------------------------------------------------
 
@@ -429,6 +549,12 @@ def by_org(sort: OrgSort = "followup", session: Session = Depends(get_session)):
 @router.get("/recent-followups")
 def recent_followups(limit: int = Query(default=10, ge=1, le=50), session: Session = Depends(get_session)):
     return build_recent_followups(collect_facts(session), limit)
+
+
+@router.get("/notice-cases")
+def notice_cases(per_kind: int = Query(default=1, ge=1, le=5), session: Session = Depends(get_session)):
+    """기관 발표로 확인된 사례 — 종류별 per_kind 건. 보조 근거이며 사건 상태(5종)를 바꾸지 않는다."""
+    return {"items": build_notice_cases(session, collect_facts(session), per_kind), "kinds": CASE_KINDS, "disclaimer": DISCLAIMER}
 
 
 @router.get("/experiment")

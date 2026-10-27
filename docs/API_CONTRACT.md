@@ -250,13 +250,20 @@
 ### GET `/api/dashboard/recent-followups?limit=10` (1~50)
 `[{ event_id, event_title, event_status, org, signal, confidence, evidence_span, news_id, title, provider, published_at, link }]` 최신순.
 
+### GET `/api/dashboard/notice-cases?per_kind=1` (1~5)
+`{ items[], kinds{}, disclaimer }` — 기관 공식 게시판에서 발표가 확인된 **사례**(2026-10-27 멘토 피드백). 종류별 `per_kind` 건.
+- `kind` = `notice_without_followup`(발생일 이후의 기관 발표가 있는데 그 발표일 이후로 확인된 후속보도(유효 신호)가 없는 사건. 사건에 시설명이 있으면 발표의 매칭 용어·요약이 시설명과 겹쳐야 한다. 매칭 점수 → 책임기관 자체 게시판 → 최근 발표 순) | `notice_before_followup`(발생일 이후의 기관 발표로부터 30일 이상 지나서야 다음 후속보도(유효 신호)가 확인된 사건, 간격 긴 순).
+- item = `{ kind, kind_label, event_id, title, status, org, incident_type, occurred_at, last_article_at, articles_after, latest_confirmed_at, notices_count, notice{ title, published_at, url, site_key, site_name, site_url, snippet, match_score, matched_terms }, gap_days(①: 발생→발표, ②: 발표→후속보도), followup_after_at(②: 발표 뒤 처음 확인된 후속보도일) }`. 보조 근거이며 상태 5종을 바꾸지 않는다.
+
 ### GET `/api/dashboard/experiment`
 `experiment_latest.json` 그대로(개발 프롬프트 v2 §4.6 스키마). 없으면 404, 깨졌으면 503.
 
-### GET `/api/press/draft` · `/api/press/draft?event_id=` · `/api/press/events`
-보도자료 초안(공개). `{ scope: "all"|"event", event_id, title, header_note, markdown, sections: [{heading, body}], sources: [{ref, news_id, title, provider, published_at, link}], generated_at, writer, stats, data_source: "experiment"|"db", experiment_generated_at, disclaimer }`
-- 본문의 `[n]` 은 `sources[].ref` 와 대응한다. `writer` 는 `template-v1`(기본) 또는 `LLM_MODE=live` 일 때 `llm(<모델>)`. `data_source` 가 `experiment` 면 리드·유형별·기관별 숫자를 실험 리포트에서 가져온다.
-- `/api/press/events` 는 사건별 초안 선택 목록 `[{id, title, status}]`.
+### GET `/api/press/draft` · `/api/press/draft?event_id=` · `/api/press/draft?format=brief|article` · `/api/press/events`
+보도자료 초안(공개). `{ scope: "all"|"event", event_id, format: "brief"|"article", title, subtitle, header_note, markdown, sections: [{heading, body}], sources: [{ref, news_id, title, provider, published_at, link}], generated_at, writer, stats, data_source: "experiment"|"db", experiment_generated_at, disclaimer }`
+- `format=brief`(기본) 는 **사건 브리프**: 절 제목 + 목록(전체 `요약 / 재난 유형별 현황 / 후속보도가 확인된 기관과 사례 / 후속보도가 확인되지 않은 사건 / 기관 공식 게시판 확인 결과 / 분석 방법 / 유의 사항 / 문의 / 근거 기사`, 사건별 `사건 요약 / 발표된 약속 / 후속보도 / 기관 발표 확인 / 현재 상태 / 문의 / 근거 기사`). `subtitle` 은 null.
+- `format=article` 은 **기사체**: 사실 기반 제목 + `subtitle`(부제 1줄) + 절 `리드 / 본문 / 배경 / 마무리 / 근거 기사`. 글머리표·표 없이 문단(빈 줄 구분)만 쓴다. 본문은 발표 당시 기관 발언 인용 → 뒤 보도에서 확인된 것 → 확인되지 않은 것 → 기관 공식 게시판 발표(날짜·제목) 순. `markdown` 은 절 제목 없이 문단을 잇고 「근거 기사」 만 `##` 로 둔다. 그 밖의 값(`format` 외)은 `essay` 등 → 422.
+- 두 형식 모두 숫자·날짜·근거 번호는 같은 집계(`press/data.py`)에서만 오고 **같은 사건에서 `sources` 는 번호까지 동일**하다. 본문의 `[n]` 은 `sources[].ref` 와 대응한다. `writer` 는 `template-v1`(브리프) / `article-v1`(기사체), `LLM_MODE=live` 일 때는 두 형식 모두 `llm-press-v1(<모델>)` 이 같은 검사(숫자·근거 번호 불변, 금지 표현 없음)로 리드·본문 문장만 다듬는다. `data_source` 가 `experiment` 면 리드·유형별·기관별 숫자를 실험 리포트에서 가져온다.
+- `/api/press/events` 는 사건별 초안 선택 목록 `[{id, title, status, org, occurred_at, has_followup, notice_found}]`.
 
 ### GET `/api/notices/events/{event_id}` (공개, 외부 요청 없음)
 `{ event_id, org, triggered, reason, basis_date, trigger_days, state, state_label, note, checked_at, sites: [{name, org, url}], items: [{title, published_at, url, snippet, match_score, matched_terms, site_name}], disclaimer }`

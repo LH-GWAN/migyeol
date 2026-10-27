@@ -344,3 +344,67 @@ def test_export_dashboard_writes_aggregate_file(client, tmp_path, monkeypatch):
     assert data["summary"]["events_total"] == 8
     assert sum(r["occurred"] for r in data["daily"]) == 8
     assert data["by_org"] == client.get("/api/dashboard/by-org").json()
+
+
+# ---------------------------------------------------------------------------
+# notice-cases (2026-10-27 멘토 피드백: 기관 발표로 확인된 실제 사례)
+# ---------------------------------------------------------------------------
+
+
+def _event_rows(c: TestClient) -> list[dict]:
+    return c.get("/api/events?size=100").json()["items"]
+
+
+def test_notice_cases_empty_without_notices(client):
+    body = client.get("/api/dashboard/notice-cases").json()
+    assert body["items"] == []
+    assert set(body["kinds"]) == {"notice_without_followup", "notice_before_followup"}
+    assert body["disclaimer"] == DISCLAIMER
+
+
+def test_notice_cases_pick_one_per_kind(dash_db, client):
+    from datetime import date, timedelta
+
+    from app.db.models import Event
+    from app.notices.models import OrgNotice
+
+    cards = _event_rows(client)
+    with_fu = next(c for c in cards if c["followup_count"] > 0 and c["status"] != "후속보도 부족")
+    no_fu = next(c for c in cards if c["followup_count"] == 0)
+    session = session_factory()()
+    try:
+        ev_a = session.get(Event, no_fu["id"])
+        ev_b = session.get(Event, with_fu["id"])
+        # ① 후속보도 없는 사건: 발생 뒤의 발표 둘 (점수 높은 쪽이 뽑혀야 한다)
+        for score, days, title, terms in (
+            (0.95, 30, "다른 곳의 같은 종류 사고 발표", ["침수", "+조치 어휘: 점검"]),  # 시설명과 안 겹침 → ① 에서 제외
+            (0.6, 20, "낮은 점수 발표", [ev_a.facility or "달빛지하차도"]),
+            (0.9, 10, "가온시, 달빛지하차도 보강 공사 착수", [ev_a.facility or "달빛지하차도"]),
+        ):
+            session.add(OrgNotice(event_id=ev_a.id, org="가온시", site_key="gaon-press", site_url="https://www.gaon.go.kr/press",
+                                  title=title, published_at=ev_a.occurred_at + timedelta(days=days), url=f"https://www.gaon.go.kr/press/{days}",
+                                  snippet="본문", match_score=score, matched_terms=terms))
+        # ② 후속보도 있는 사건: 후속보도보다 훨씬 전(발생 3일 뒤)의 발표
+        session.add(OrgNotice(event_id=ev_b.id, org="가온시", site_key="gaon-press", site_url="https://www.gaon.go.kr/press",
+                              title="가온시, 사고 원인 조사 착수", published_at=ev_b.occurred_at + timedelta(days=3), url="https://www.gaon.go.kr/press/b",
+                              snippet="", match_score=0.6, matched_terms=["조사"]))
+        session.commit()
+        body = client.get("/api/dashboard/notice-cases").json()
+        kinds = {c["kind"]: c for c in body["items"]}
+        assert kinds["notice_without_followup"]["event_id"] == ev_a.id
+        assert kinds["notice_without_followup"]["notice"]["title"] == "가온시, 달빛지하차도 보강 공사 착수"
+        assert kinds["notice_without_followup"]["notices_count"] == 3
+        assert kinds["notice_without_followup"]["kind_label"] == "후속보도는 없지만 기관 발표가 있는 사건"
+        assert kinds["notice_without_followup"]["articles_after"] == 0
+        b = kinds.get("notice_before_followup")
+        # 발표(발생 3일 뒤)로부터 30일 이상 지나서 확인된 후속보도가 있을 때만 ② 가 나온다
+        assert b is None or (b["event_id"] == ev_b.id and b["gap_days"] >= 30 and b["followup_after_at"] is not None)
+        assert date.fromisoformat(kinds["notice_without_followup"]["notice"]["published_at"]) >= ev_a.occurred_at
+        for c in body["items"]:
+            assert c["status"] in STATUSES
+            text = json.dumps(c, ensure_ascii=False)
+            assert not any(w in text for w in FORBIDDEN)
+    finally:
+        session.query(OrgNotice).delete()
+        session.commit()
+        session.close()

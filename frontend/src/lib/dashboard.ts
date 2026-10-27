@@ -129,6 +129,49 @@ export interface RecentFollowup {
   link: string | null;
 }
 
+export type NoticeCaseKind = "notice_without_followup" | "notice_before_followup";
+
+export interface NoticeCaseNotice {
+  title: string;
+  published_at: string | null;
+  url: string;
+  site_key: string;
+  site_name: string;
+  site_url: string;
+  snippet: string;
+  match_score: number;
+  matched_terms: string[];
+}
+
+/** 기관 공식 게시판에서 발표가 확인된 사례 (보조 근거 — 상태 5종을 바꾸지 않는다) */
+export interface NoticeCase {
+  kind: NoticeCaseKind;
+  kind_label: string;
+  event_id: number;
+  title: string;
+  status: EventStatus;
+  org: string;
+  incident_type: string | null;
+  occurred_at: string | null;
+  /** 마지막 연결 기사일 */
+  last_article_at: string | null;
+  /** 사건 이후 연결 기사 수 (후속보도로 확인된 것만이 아니라 전체) */
+  articles_after: number;
+  latest_confirmed_at: string | null;
+  notices_count: number;
+  notice: NoticeCaseNotice;
+  /** without: 발생 → 기관 발표, before: 기관 발표 → 다음 후속보도 (일) */
+  gap_days: number | null;
+  /** before: 발표 뒤 처음 확인된 후속보도일 */
+  followup_after_at: string | null;
+}
+
+export interface NoticeCasesOut {
+  items: NoticeCase[];
+  kinds: Record<NoticeCaseKind, string>;
+  disclaimer: string;
+}
+
 const REQUEST_TIMEOUT_MS = 10_000;
 
 async function get<T>(path: string, opts: { nullOn404?: boolean } = {}): Promise<T> {
@@ -195,6 +238,11 @@ export function getByOrg(sort: OrgSort = "followup"): Promise<OrgRow[]> {
 /** GET /api/dashboard/recent-followups */
 export function getRecentFollowups(limit = 10): Promise<RecentFollowup[]> {
   return get<RecentFollowup[]>(`/api/dashboard/recent-followups${qs({ limit })}`);
+}
+
+/** GET /api/dashboard/notice-cases — 종류별 per_kind 건 */
+export function getNoticeCases(perKind = 1): Promise<NoticeCasesOut> {
+  return get<NoticeCasesOut>(`/api/dashboard/notice-cases${qs({ per_kind: perKind })}`);
 }
 
 /** GET /api/dashboard/experiment — 리포트가 아직 없으면(404) null */

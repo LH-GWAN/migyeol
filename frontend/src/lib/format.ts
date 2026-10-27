@@ -141,3 +141,14 @@ export function formatThreshold(key: string, value: number): { label: string; va
   if (meta.unit) return { label: meta.label, value: `${value}${meta.unit}` };
   return { label: meta.label, value: value <= 1 ? `${value} (${formatPercent(value)})` : String(value) };
 }
+
+/** 게시판 요약(본문 첫 300자)에 남은 HTML 엔티티와 끝에서 잘린 엔티티 조각(&nbs…)을 정리한다. */
+export function cleanSnippet(text: string | null | undefined): string {
+  if (!text) return "";
+  return text
+    .replace(/&nbsp;?/g, " ")
+    .replace(/&amp;?/g, "&")
+    .replace(/&[a-zA-Z#0-9]{0,6}$/, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}

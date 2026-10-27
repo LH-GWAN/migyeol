@@ -52,9 +52,15 @@ function Rows({ rows, rankStart }: { rows: OrgRow[]; rankStart: number | null })
   );
 }
 
-export default function OrgTable({ rows, sort }: { rows: OrgRow[]; sort: OrgSort }) {
-  const confirmed = rows.filter((r) => r.with_followup > 0);
-  const none = rows.filter((r) => r.with_followup === 0);
+/**
+ * limit 가 있으면(대시보드 요약) 서버 정렬 순서대로 앞 limit 곳만, 정렬 버튼·묶음 머리 없이 보여 준다.
+ * 전체 표(/orgs)는 limit 없이 — 정렬 버튼과 "확인된 기관 / 아직 없는 기관" 묶음을 보여 준다.
+ */
+export default function OrgTable({ rows, sort, limit }: { rows: OrgRow[]; sort: OrgSort; limit?: number }) {
+  const compact = typeof limit === "number";
+  const shown = compact ? rows.slice(0, limit) : rows;
+  const confirmed = shown.filter((r) => r.with_followup > 0);
+  const none = shown.filter((r) => r.with_followup === 0);
   const groupHead = (label: string, count: number) => (
     <tr className="bg-gray-50">
       <td colSpan={6} className="px-3 py-1.5 text-xs font-semibold text-gray-600">
@@ -64,11 +70,12 @@ export default function OrgTable({ rows, sort }: { rows: OrgRow[]; sort: OrgSort
   );
   return (
     <div className="flex flex-col gap-3">
+      {!compact && (
       <nav className="flex flex-wrap gap-1 text-xs" aria-label="기관 정렬">
         {SORTS.map((s) => (
           <Link
             key={s.key}
-            href={s.key === "followup" ? "/#orgs" : `/?org_sort=${s.key}#orgs`}
+            href={s.key === "followup" ? "/orgs" : `/orgs?sort=${s.key}`}
             scroll={false}
             className={`rounded-md px-2.5 py-1 font-semibold ${sort === s.key ? "bg-gray-900 text-white" : "text-gray-600 hover:bg-gray-100"}`}
             aria-current={sort === s.key ? "true" : undefined}
@@ -77,6 +84,7 @@ export default function OrgTable({ rows, sort }: { rows: OrgRow[]; sort: OrgSort
           </Link>
         ))}
       </nav>
+      )}
       {rows.length === 0 ? (
         <p className="text-sm text-gray-500">집계할 기관이 없습니다.</p>
       ) : (
@@ -96,10 +104,16 @@ export default function OrgTable({ rows, sort }: { rows: OrgRow[]; sort: OrgSort
               </tr>
             </thead>
             <tbody>
-              {confirmed.length > 0 && groupHead("후속보도가 확인된 기관", confirmed.length)}
-              <Rows rows={confirmed} rankStart={1} />
-              {none.length > 0 && groupHead("아직 후속보도가 확인되지 않은 기관", none.length)}
-              <Rows rows={none} rankStart={null} />
+              {compact ? (
+                <Rows rows={shown} rankStart={1} />
+              ) : (
+                <>
+                  {confirmed.length > 0 && groupHead("후속보도가 확인된 기관", confirmed.length)}
+                  <Rows rows={confirmed} rankStart={1} />
+                  {none.length > 0 && groupHead("아직 후속보도가 확인되지 않은 기관", none.length)}
+                  <Rows rows={none} rankStart={null} />
+                </>
+              )}
             </tbody>
           </table>
         </div>
