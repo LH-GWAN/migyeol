@@ -13,6 +13,7 @@ from ..db.models import Event, Report
 from ..db.session import get_session
 from ..pipeline.review import recompute_needs_review
 from ..rules.orgs import canonical_org
+from ..support.service import support_out
 from . import serializers as ser
 from .deps import event_or_404
 
@@ -89,6 +90,12 @@ def get_event(ev: Event = Depends(event_or_404), session: Session = Depends(get_
 @router.get("/{event_id}/evidence")
 def get_evidence(ev: Event = Depends(event_or_404), session: Session = Depends(get_session)):
     return ser.evidence_out(session, ev, get_settings().today())
+
+
+@router.get("/{event_id}/support")
+def get_support(ev: Event = Depends(event_or_404), session: Session = Depends(get_session)):
+    """민간(기업·단체·개인) 지원 소식 — 연결 기사에서 규칙으로 뽑은 보조 근거 (공개, 외부 요청 없음). 상태를 바꾸지 않는다."""
+    return support_out(session, ev)
 
 
 @router.get("/{event_id}/trend")

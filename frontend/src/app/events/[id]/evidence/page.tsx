@@ -6,6 +6,7 @@ import Disclaimer from "@/components/Disclaimer";
 import ErrorBox from "@/components/ErrorBox";
 import ReportForm from "@/components/ReportForm";
 import OrgNoticePanel from "@/components/notices/OrgNoticePanel";
+import SupportPanel from "@/components/support/SupportPanel";
 import StatusBadge from "@/components/StatusBadge";
 import { getEvidence, isEventNotFound, safe } from "@/lib/api";
 import {
@@ -18,6 +19,7 @@ import {
   SIGNAL_LABELS,
 } from "@/lib/format";
 import { getEventNotices } from "@/lib/notices";
+import { getEventSupport } from "@/lib/support";
 import type { SignalKind } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
@@ -76,7 +78,7 @@ export default async function EvidencePage({ params }: { params: Params }) {
   const eventId = parseId(id);
   if (eventId === null) notFound();
 
-  const [result, notices] = await Promise.all([safe(getEvidence(eventId)), safe(getEventNotices(eventId))]);
+  const [result, notices, support] = await Promise.all([safe(getEvidence(eventId)), safe(getEventNotices(eventId)), safe(getEventSupport(eventId))]);
   if (!result.ok) {
     // Only the backend's own "event N not found" becomes a 404 page; any other failure is shown inline.
     if (isEventNotFound(result.error, eventId)) notFound();
@@ -322,8 +324,9 @@ export default async function EvidencePage({ params }: { params: Params }) {
         )}
       </section>
 
-      {/* v2 §3 기관 발표 확인 (트랙 C) */}
+      {/* v2 §3 기관 발표 확인 (트랙 C) → 민간 지원 소식 (docs/SUPPORT.md): 사건 발생 → 기관 발표 → 민간 지원 소식 → 후속보도 확인 */}
       <OrgNoticePanel eventId={ev.event_id} result={notices} />
+      <SupportPanel result={support} />
 
       {/* Low-confidence links */}
       <section className="rounded-lg border border-gray-200 bg-white p-5">

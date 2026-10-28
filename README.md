@@ -82,9 +82,10 @@ backend/app/llm        프롬프트 3종(약속 추출 / 후속 신호 / 보도�
 backend/app/experiment v2 실험: 원천 기사 100건 → 자동 시드 → 군집 → 후속보도 탐지 → 지표(reports/experiment_latest.json)
 backend/app/notices    v2 공공기관 게시판 확인(트리거형, 뉴스 도메인 거부) · sites.yaml 등록부
 backend/app/press      v2 보도자료 초안 작성기(템플릿 / LLM)
+backend/app/support    민간(기업·단체·개인) 지원 소식 — 연결 기사 메타데이터에서 규칙으로 추출, 상태와 무관한 보조 근거 (docs/SUPPORT.md)
 backend/app/api        /api/events, /api/dashboard, /api/press, /api/notices, /api/admin, /api/pipeline, /api/meta
-frontend/src/app       /  대시보드 · /orgs 기관별 전체 · /followups 최근 후속보도 전체 · /events 목록 · /events/[id] 타임라인 · /events/[id]/evidence 근거(+기관 발표 확인) · /press 보도자료 초안 · /about · /admin
-docs/                  ARCHITECTURE · API_CONTRACT · CHANGELOG · DEMO_SCRIPT · EXPERIMENT · NOTICES · screenshots/
+frontend/src/app       /  대시보드 · /orgs 기관별 전체 · /followups 최근 후속보도 전체 · /events 목록 · /events/[id] 타임라인 · /events/[id]/evidence 근거(+기관 발표 확인 +민간 지원 소식) · /press 보도자료 초안 · /about · /admin
+docs/                  ARCHITECTURE · API_CONTRACT · CHANGELOG · DEMO_SCRIPT · EXPERIMENT · NOTICES · SUPPORT · screenshots/
 ```
 
 자세한 설계는 [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md), API 응답 형식은 [docs/API_CONTRACT.md](docs/API_CONTRACT.md), 예선/본선 개발 범위 구분은 [docs/CHANGELOG.md](docs/CHANGELOG.md).
@@ -109,8 +110,9 @@ BIGKINDS_MODE=record LLM_MODE=rules EMBEDDING_BACKEND=st .venv/bin/python script
 ```
 
 - `LLM_MODE=rules`(`app/llm/rules_adapter.py`)는 LLM 키 없이 약속 추출·후속 신호를 규칙으로 낸다. 키가 오면 `LLM_MODE=live` 로만 바꾼다(프로토콜·프롬프트·스키마 동일).
-- 화면: `/` 대시보드(KPI·월별/일별 시계열·재난 유형별·기관별 후속보도 현황 상위 5 → `/orgs` 전체·최근 후속보도 5 → `/followups` 전체·확인 필요 상위 5·기관 발표로 확인된 사례 2) → `/events`(탭 확인 필요 / 후속보도 확인됨, `?org=` 기관 필터) → 타임라인 → 근거(「기관 발표 확인」 패널) → `/press` 보도자료 초안(전체·사건별, 복사·Markdown 다운로드). 캡처는 `docs/screenshots/dashboard_*.png`, `press_*.png`.
+- 화면: `/` 대시보드(KPI·월별/일별 시계열·재난 유형별·기관별 후속보도 현황 상위 5 → `/orgs` 전체·최근 후속보도 5 → `/followups` 전체·확인 필요 상위 5·기관 발표로 확인된 사례 2) → `/events`(탭 확인 필요 / 후속보도 확인됨, `?org=` 기관 필터) → 타임라인 → 근거(「기관 발표 확인」·「민간 지원 소식」 패널 — 사건 발생 → 기관 발표 → 민간 지원 소식 → 후속보도 확인) → `/press` 보도자료 초안(전체·사건별, 복사·Markdown 다운로드). 캡처는 `docs/screenshots/dashboard_*.png`, `press_*.png`.
 - 공공기관 게시판 확인은 뉴스 크롤링이 아니다: `후속보도 부족`·`판단 불가` 상태로 90일 이상 조용한 사건만, 책임기관의 공식 보도자료 게시판(`app/notices/sites.yaml`, 광역 11 + 정책브리핑)만, robots.txt·2초 간격·목록 제목 위주로 읽고, 결과는 상태를 바꾸지 않는 보조 근거다(`docs/NOTICES.md`).
+- 민간 지원 소식(`app/support/`, `docs/SUPPORT.md`)은 별도 기업 칸이 아니라 사건 타임라인 안의 사실 표시다: 연결 기사의 제목·발췌에서 성금·구호물품·자원봉사 같은 어휘와 기업·단체 이름을 규칙으로 뽑고(공공기관·모금 창구·정당 제외), 사건 설명에 이름이 있는 주체는 「사건 당사자」로 표시한다. 상태를 바꾸지 않는 보조 근거이며 `scripts/run_support.py --all` 로 재생성한다(실험 DB 16개 사건 154행, 표본 30행 정밀도 0.97).
 - 실험 방법·호출 수·지표·한계는 `docs/EXPERIMENT.md`, 최신 숫자는 `reports/experiment_latest.json`(대시보드와 보도자료가 같은 파일을 읽는다).
 
 **실험 결과 (2026-10-27 기준, 전국 2023~2025 발생, 사건 100건 = 정리 시드 90건 + 10-27 추가 10건, 실 API 호출 누적 ≈ 9,800회 — 학습 기반 재순위·2단계 후속 신호 보강 적용)**
