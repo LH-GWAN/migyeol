@@ -2,6 +2,16 @@
 
 공고문 유의사항에 따라 **예선(설계·목업)** 과 **본선(실 API 연동·신규 개발)** 범위를 구분해 기록한다.
 
+## 2026-10-29 사건 페이지 「민간 지원 소식」 — 타임라인의 세 번째 주체 (기업·단체·개인)
+
+결정: 별도 '기업 칸'이나 광고 성격의 칸은 두지 않는다(사고 당사자 기업이 홍보하는 자리로 보이면 신뢰를 잃는다). 사건 타임라인 안에 **사건 발생 → 기관 발표 → 민간 지원 소식 → 후속보도 확인** 순서로 사실만 보인다. 상태 5종·판정은 건드리지 않는 보조 근거. 평가 단어는 쓰지 않는다. 규칙·수치는 `docs/SUPPORT.md`.
+
+- **추출 규칙** `backend/app/support/extractor.py`, 어휘·주체 상수 `backend/app/rules/support_terms.py`(테스트로 고정): 활성 연결 기사(발생일 이후)의 제목·hilight·content_200 을 문장으로 나눠 지원 어휘(성금·기부·구호물품·자원봉사·위로금·기탁 …)가 있는 문장에서 기업·단체 이름을 토큰 단위로 뽑는다. 공공 주체(`rules/actors`)·공직자 모임·정당·모금 창구·수혜자·사건 설명 속 이름('금호타이어 화재') 제외, 주어 판정(조사·쉼표·'임직원들이' 연쇄), 같은 기사 안 부분 이름 중복 제거, 개인은 '개인'으로만. 사건 설명(제목·요약·시설·책임기관)에 이름이 있으면 `actor_role=당사자`.
+- **저장·실행**: 새 테이블 `support_mentions`(`backend/app/support/models.py`, (event_id, news_id, actor) 유일, `init_db` 에 등록), `scripts/run_support.py --all|--event N [--dump]`(멱등, 외부 요청 없음). 실험 DB 100건 → 16개 사건 154행(기사 138건), 무작위 30행 정밀도 29/30. 1차 규칙(23개 사건 339행)의 잡음(부분 이름 중복·당사자 이름의 사건 설명·공동모금회·정당·'경기부지사'의 '기부'·캡션 토큰·무관한 연말 봉사 기사)을 보고 조였다.
+- **API** `GET /api/events/{id}/support`(공개): `{ event_id, count, actors, items[], note, disclaimer }`, `docs/API_CONTRACT.md` v2 절.
+- **화면** `frontend/src/components/support/SupportPanel.tsx` — 근거 화면 `/events/[id]/evidence` 의 「기관 발표 확인」 패널 다음(앵커 `#support-heading`). 행 = 날짜·주체(종류 칩·「사건 당사자」 칩)·지원 어휘 칩·근거 문구·기사 제목 링크(`provider_link_page` 있을 때만). 8건 뒤는 접기. 없으면 "연결 기사에서 확인된 민간 지원 언급이 없습니다".
+- **테스트** `tests/test_support_extractor.py`(가상 문장: 어휘 경계·주체·공공 제외·수혜 제외·사건 설명 속 이름·개인 익명화·당사자·중복 제거), `tests/test_support_api.py`(가상 기사 행으로 저장·멱등·응답 형태·404). 문서 `docs/SUPPORT.md` 신규, `README.md`·`docs/QA.md`(기업 칸이 없는 이유·추출 방법과 정확도)·`docs/DEMO_SCRIPT.md` §4 갱신.
+
 ## 예선 단계 (2026-09, API 키 없음) — Phase 0
 
 빅카인즈 API 직접 활용이 제한되므로, 지침서 요청·응답 구조를 그대로 따르는 **가상 사건 픽스처**로 데이터 흐름과 화면을 설계·검증했다.

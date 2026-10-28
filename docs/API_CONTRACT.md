@@ -269,6 +269,10 @@
 `{ event_id, org, triggered, reason, basis_date, trigger_days, state, state_label, note, checked_at, sites: [{name, org, url}], items: [{title, published_at, url, snippet, match_score, matched_terms, site_name}], disclaimer }`
 - `state` ∈ `found` / `not_triggered` / `no_site` / `not_found` / `not_checked` / `error`. 기관 게시판 항목은 **보조 근거**이며 5개 상태를 바꾸지 않는다(v2 §3).
 
+### GET `/api/events/{event_id}/support` (공개, 외부 요청 없음) — 민간 지원 소식
+`{ event_id, count, actors, items: [{news_id, title, published_at, provider, provider_link_page, actor, actor_kind, actor_role, support_terms, evidence_span}], note, disclaimer }`
+- 연결 기사(활성 연결, 발생일 이후)의 빅카인즈 메타데이터에서 규칙으로 뽑은 **기업·단체·개인의 피해 복구·구호 지원 언급**(`docs/SUPPORT.md`). `actor_kind` ∈ `기업`/`단체`/`개인`(개인은 이름 없이 `개인`), `actor_role` ∈ `당사자`(주체 이름이 사건 제목·요약·시설·책임기관에 있음)/`제3자`. `items` 는 게시일 오름차순, `evidence_span` ≤ 200자. `disclaimer` = "연결 기사에서 규칙으로 뽑은 지원 언급이며 사건 상태와 무관합니다". 보조 근거이며 상태 5종을 바꾸지 않는다. 저장분은 CLI `scripts/run_support.py --all|--event N` 으로 재생성한다.
+
 ### POST `/api/notices/run` (관리자 토큰)
 `{ event_id? }` → 트리거된 사건에 대해 확인 실행. `{ events, triggered, found, items, requests }`. CLI `scripts/run_notices.py --all|--event-id N|--check-sites` 와 같은 함수. 스케줄러는 매일 05:30 KST 에 같은 일을 한다.
 
