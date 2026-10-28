@@ -23,6 +23,24 @@ def test_r1_new_problem_wins_when_latest():
     j = judge(signals, [promise(date(2025, 6, 30))], [date(2025, 5, 15), date(2026, 7, 12)], TODAY, TH)
     assert j.status == STATUS_NEW_PROBLEM and j.reason == "R1_new_problem"
     assert j.counted_signal_ids == [2]
+    # 그 전의 완료 근거는 채택하지 않고 '이전 완료 근거'로 남긴다
+    assert j.prior_done_signal_ids == [1]
+    assert [e["signal_id"] for e in j.evidence if e.get("role") == "prior_done"] == [1]
+    assert "완료 근거 1건" in j.reason_text
+
+
+def test_r1_without_prior_completion_has_no_prior_done():
+    # R2 기준 미달 완료(0.65 한 건)는 '이전 완료 근거'가 아니다
+    signals = [sig("완료", 0.65, date(2025, 5, 15), i=1), sig("새로운문제", 0.85, date(2026, 7, 12), i=2)]
+    j = judge(signals, [promise()], [date(2025, 5, 15), date(2026, 7, 12)], TODAY, TH)
+    assert j.status == STATUS_NEW_PROBLEM
+    assert j.prior_done_signal_ids == [] and all("role" not in e for e in j.evidence)
+
+
+def test_completion_after_new_problem_returns_to_done():
+    signals = [sig("새로운문제", 0.85, date(2026, 3, 1), i=1), sig("완료", 0.9, date(2026, 7, 12), i=2)]
+    j = judge(signals, [promise()], [date(2026, 3, 1), date(2026, 7, 12)], TODAY, TH)
+    assert j.status == STATUS_DONE and j.prior_done_signal_ids == []
 
 
 def test_r2_single_strong_completion():

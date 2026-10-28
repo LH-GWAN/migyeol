@@ -149,7 +149,7 @@
   "unresolved_reason": null,
   "signals": [
     { "id": 11, "signal": "완료", "promise_id": 3, "matches_promise": true, "confidence": 0.9,
-      "evidence_span": "전 구간 라이닝 보강을 완료했으며", "rationale": "…", "counted": true, "considered": false, "active": true, "article": { "...": "ArticleOut" } }
+      "evidence_span": "전 구간 라이닝 보강을 완료했으며", "rationale": "…", "counted": true, "considered": false, "prior_done": false, "active": true, "article": { "...": "ArticleOut" } }
   ],
   "low_confidence_links": [ { "article": { "...": "ArticleOut" }, "link_score": 0.47, "link_reason": "facility+facility-title+seed-kw=2" } ],
   "last_followup_at": "2025-12-22",
@@ -159,7 +159,7 @@
 }
 ```
 - `signals` 는 현재 prompt_version 의 신호만. 해제된 연결의 신호는 빠진다. `active=false` 는 검토 대기 연결이거나 삭제된 기사.
-- `counted` = 최신 판정 규칙(R1~R5)이 근거로 채택한 신호. 일치하고 기준 이상이어도 우선순위가 높은 규칙이 먼저 적용되면 false 다. `considered` = R5 가 참고로 보여 주는 기준 미달 신호.
+- `counted` = 최신 판정 규칙(R1~R5)이 근거로 채택한 신호. 일치하고 기준 이상이어도 우선순위가 높은 규칙이 먼저 적용되면 false 다. `considered` = R5 가 참고로 보여 주는 기준 미달 신호. `prior_done` = R1(새로운 문제)일 때 그 전에 R2 를 만족하던 완료 근거 — `considered` 이기도 하며 채택하지는 않는다.
 - `next_scheduled_run` 은 `SCHEDULER_ENABLED=false` 면 null.
 - 판정 전 사건: `judged=false`, `confidence` null, `rule.text`·`unresolved_reason` = `아직 상태 판정이 실행되지 않음`.
 

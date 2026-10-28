@@ -229,6 +229,8 @@ export interface SignalOut {
   counted: boolean;
   /** R5 reference signal: looked at by the rule but not adopted */
   considered: boolean;
+  /** R1 only: completion evidence that satisfied R2 before the newer 새로운문제 signal (shown, not adopted) */
+  prior_done?: boolean;
   /** false when the article link was rejected / under review / cancelled */
   active: boolean;
   article: ArticleOut | null; // 신호의 기사가 DB에 없으면 null

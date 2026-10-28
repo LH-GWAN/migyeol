@@ -4,6 +4,7 @@
 
 R1  가장 최근 유효 신호가 새로운문제(≥ completion_min_conf)                       -> 새로운 문제 발생
     (같은 날짜 동률이면 새로운문제를 우선 — 보수적)
+    그 전에 R2 를 만족하는 완료 근거가 있었으면 '이전 완료 근거'로 함께 남긴다 (채택하지 않음, evidence role=prior_done)
 R2  완료 신호 ≥ completion_min_conf 1건 이상, 또는 ≥ signal_min_conf 로 서로 다른 발췌·날짜 2건 이상 -> 조치 완료 근거 확인
 R3  진행 신호 1건 이상                                                          -> 조치 진행 정황 확인
 R4  후속 기사 0건 / 마지막 후속 기사 stale_followup_days 이전 / 기한 경과+완료·진행 없음 -> 후속보도 부족
@@ -76,10 +77,11 @@ class Judgment:
     unresolved_reason: str | None = None
     counted_signal_ids: list[int] = field(default_factory=list)
     valid_signal_ids: list[int] = field(default_factory=list)  # 유효 신호 전체 (단계 갱신·참고 표시용)
+    prior_done_signal_ids: list[int] = field(default_factory=list)  # R1 직전까지 R2 를 만족하던 완료 근거 (참고)
 
 
-def _ev(s: SignalIn) -> dict:
-    return {
+def _ev(s: SignalIn, role: str = "") -> dict:
+    out = {
         "signal_id": s.id,
         "news_id": s.news_id,
         "signal": s.signal,
@@ -87,6 +89,9 @@ def _ev(s: SignalIn) -> dict:
         "span": s.evidence_span,
         "published_at": s.published_at.isoformat() if s.published_at else None,
     }
+    if role:
+        out["role"] = role
+    return out
 
 
 def is_valid(s: SignalIn, th: Thresholds) -> bool:
@@ -125,19 +130,27 @@ def judge(
     def mean_conf(items: list[SignalIn]) -> float:
         return round(sum(s.confidence for s in items) / len(items), 3) if items else 0.5
 
+    done_ok = bool(strong_done) or _distinct_evidence(done) >= 2  # R2 조건
     # R1
     if latest is not None and latest.signal == SIGNAL_NEW_PROBLEM and latest.confidence >= th.completion_min_conf:
+        # 완료 근거가 있었던 사건이면 그 근거도 함께 보여 준다 — '완료 뒤 새 문제' 를 한 화면에서 읽을 수 있게
+        prior = sorted(strong_done or done, key=lambda s: (s.published_at or date.min, s.id or 0)) if done_ok else []
+        text = f"가장 최근 유효 신호가 '새로운 문제'(신뢰도 {latest.confidence:.2f}, 기준 {th.completion_min_conf} 이상)"
+        if prior:
+            last_done = prior[-1].published_at
+            text += f" — 그 전에 완료 근거 {len(prior)}건이 확인됐음(마지막 {last_done.isoformat() if last_done else '날짜 없음'})"
         return Judgment(
             status=STATUS_NEW_PROBLEM,
             reason="R1_new_problem",
-            reason_text=f"가장 최근 유효 신호가 '새로운 문제'(신뢰도 {latest.confidence:.2f}, 기준 {th.completion_min_conf} 이상)",
+            reason_text=text,
             confidence=mean_conf(problems),
-            evidence=[_ev(s) for s in problems],
+            evidence=[_ev(s) for s in problems] + [_ev(s, "prior_done") for s in prior],
             counted_signal_ids=[s.id for s in problems if s.id is not None],
             valid_signal_ids=valid_ids,
+            prior_done_signal_ids=[s.id for s in prior if s.id is not None],
         )
     # R2
-    if strong_done or _distinct_evidence(done) >= 2:
+    if done_ok:
         counted = strong_done or done
         if strong_done:
             text = f"완료 신호 {len(strong_done)}건(최고 신뢰도 {max(s.confidence for s in strong_done):.2f})이 기준 {th.completion_min_conf} 이상"

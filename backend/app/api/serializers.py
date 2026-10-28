@@ -1,7 +1,7 @@
 """DB 모델 -> API 응답 (docs/API_CONTRACT.md). 기사 응답에는 전문이 없다 — hilight(≤200자)와 외부 링크만.
 
 - 근거·근거 수에는 활성 연결(해제·검토 대기 제외)·삭제되지 않은 기사·현재 prompt_version 신호만 들어간다.
-- counted = 최신 판정 규칙이 채택한 신호(StatusJudgment.counted_signal_ids). considered = R5 참고 신호.
+- counted = 최신 판정 규칙이 채택한 신호(StatusJudgment.counted_signal_ids). considered = R5 참고 신호와 R1 의 이전 완료 근거(prior_done).
 - 카드의 '발표된 기한' 과 '기한 경과 N일' 은 같은 약속(기한이 지난 약속 우선, 없으면 확약 > 계획)을 가리킨다.
 - 판정 이력이 없는 사건은 사유를 '아직 상태 판정이 실행되지 않음' 으로 명시한다.
 """
@@ -237,6 +237,7 @@ def evidence_out(session: Session, event: Event, today: date) -> dict:
     j = latest_judgment(session, event)
     counted_ids = set(j.counted_signal_ids or []) if j else set()
     considered_ids = {e.get("signal_id") for e in (j.evidence if j else [])} - counted_ids
+    prior_done_ids = {e.get("signal_id") for e in (j.evidence if j else []) if e.get("role") == "prior_done"}
     active = {l.news_id for l in active_links(event)}
     signals: list[dict] = []
     for s in _current_signals(event):
@@ -256,6 +257,7 @@ def evidence_out(session: Session, event: Event, today: date) -> dict:
                 "rationale": s.rationale,
                 "counted": s.id in counted_ids and is_active,
                 "considered": s.id in considered_ids,
+                "prior_done": s.id in prior_done_ids,
                 "active": is_active,
                 "article": article_out(art, link),
             }

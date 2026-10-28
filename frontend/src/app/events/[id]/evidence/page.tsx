@@ -98,6 +98,11 @@ export default async function EvidencePage({ params }: { params: Params }) {
   const thresholds = Object.entries(ev.rule.thresholds ?? {});
   const counted = ev.signals.filter((s) => s.counted).length;
   const considered = ev.signals.filter((s) => !s.counted && s.considered).length;
+  // R1(새로운 문제) 직전까지 완료로 판정되던 근거 — 채택하지 않지만 '완료 뒤 새 문제' 흐름을 보여 준다
+  const priorDone = ev.signals
+    .filter((s) => s.prior_done && s.active !== false)
+    .sort((a, b) => (a.article?.published_at ?? "").localeCompare(b.article?.published_at ?? ""));
+  const newProblems = ev.signals.filter((s) => s.counted && s.signal === "새로운문제");
 
   return (
     <div className="flex flex-col gap-6">
@@ -170,6 +175,38 @@ export default async function EvidencePage({ params }: { params: Params }) {
         )}
       </section>
 
+      {ev.status === "새로운 문제 발생" && priorDone.length > 0 && (
+        <section className="rounded-lg border border-gray-200 bg-white p-5">
+          <h2 className="text-base font-bold text-gray-900">
+            이전 완료 근거 <span className="text-sm font-normal text-gray-500">{priorDone.length}건</span>
+          </h2>
+          <p className="mt-1 text-xs text-gray-500">
+            이 사건은 아래 보도로 조치 완료 근거가 확인됐지만, 그 뒤 보도에서 새로운 문제가 나와 현재 상태가 「새로운 문제 발생」입니다.
+            완료 근거는 판정에 반영하지 않고 참고로 보여 줍니다.
+          </p>
+          <ol className="mt-3 flex flex-col gap-3">
+            {priorDone.map((s) => (
+              <li key={s.id} className="rounded-md border border-gray-100 bg-gray-50 px-4 py-3">
+                <div className="flex flex-wrap items-center gap-2">
+                  <SignalBadge signal={s.signal} />
+                  {s.article && <ArticleMeta article={s.article} />}
+                </div>
+                {s.evidence_span && <q className="mt-2 block text-sm leading-relaxed text-gray-800">{s.evidence_span}</q>}
+                {s.article && <ArticleLink article={s.article} className="mt-1 inline-block text-sm" />}
+              </li>
+            ))}
+            {newProblems.length > 0 && (
+              <li className="rounded-md border border-red-100 bg-red-50 px-4 py-3">
+                <div className="flex flex-wrap items-center gap-2">
+                  <SignalBadge signal="새로운문제" />
+                  <span className="text-xs text-red-800">이후 새로운 문제 보도 {newProblems.length}건 — 아래 후속 신호 표의 「반영」</span>
+                </div>
+              </li>
+            )}
+          </ol>
+        </section>
+      )}
+
       {isUnresolved && (
         <section className="rounded-lg border border-amber-200 bg-amber-50 p-5">
           <h2 className="text-base font-bold text-amber-900">
@@ -199,7 +236,7 @@ export default async function EvidencePage({ params }: { params: Params }) {
         </h2>
         <p className="mt-1 text-xs text-gray-500">
           반영 = 이번 판정 규칙(R1~R5)이 근거로 채택한 신호. 일치·기준 이상이어도 우선순위가 높은 규칙이 먼저 적용되면 미반영될 수
-          있습니다. 「참고(미반영)」는 규칙이 살펴봤지만 채택하지 않은 신호, 「제외된 연결」은 기사 연결이 해제·검토 중·삭제되어
+          있습니다. 「참고(미반영)」는 규칙이 살펴봤지만 채택하지 않은 신호, 「이전 완료 근거」는 새로운 문제 보도 전에 완료로 판정되던 신호, 「제외된 연결」은 기사 연결이 해제·검토 중·삭제되어
           판정에서 빠진 신호입니다.
         </p>
         {ev.signals.length === 0 ? (
@@ -262,6 +299,10 @@ export default async function EvidencePage({ params }: { params: Params }) {
                         </span>
                       ) : s.counted ? (
                         <span className="whitespace-nowrap text-xs font-semibold text-green-700">반영</span>
+                      ) : s.prior_done ? (
+                        <span className="whitespace-nowrap rounded bg-gray-100 px-1.5 py-0.5 text-[11px] text-gray-700">
+                          이전 완료 근거
+                        </span>
                       ) : s.considered ? (
                         <span className="whitespace-nowrap rounded bg-amber-50 px-1.5 py-0.5 text-[11px] text-amber-800">
                           참고(미반영)
