@@ -35,6 +35,7 @@ from .schemas import FollowupInput, FollowupSignal, PromiseExtraction, PromiseIn
 
 RULES_MODEL = "rules-v2"  # v2: 문장 가중치 (2026-10-24). 모델명이 바뀌면 후속 신호 캐시가 무효가 되어 다시 분류된다
 RULES_MODEL_V3 = "rules-v3"  # v3: 표현 고침 등 FOLLOWUP_* 보강을 켠 규칙 (2026-10-25, docs/EXPERIMENT.md §10) — 켠 상태로 분류한 신호는 v2 캐시와 섞이지 않는다
+RULES_MODEL_V4 = "rules-v4"  # v4: 제목형 표현·약속 없는 사건의 직접 후속 경로 (2026-10-29, docs/EXPERIMENT.md §14)
 
 # ---------------------------------------------------------------- ⓐ 약속 추출
 # 구체 행동 동사 (명사형 어간). '…하겠다' 앞에 오면 계획 이상
@@ -285,6 +286,33 @@ _PREVENT_RE = re.compile(r"추가\s*(사고|붕괴|피해)\s*(를|가|의|도)?\
 # 꼬리 없는 '재개장·재개통' 옆에 앞날을 가리키는 말이 있으면 아직 열리지 않았다 ('청과동, 내년 2월 재개장')
 _FUTURE_WORD_RE = re.compile(r"(내년|다음\s*달|오는\s|예정|목표|계획|앞두|앞둔)")
 
+# ---- rules-v4 제목형 표현 (FOLLOWUP_HEADLINE_EXPRESSIONS) — 제목은 '복구 완료' 처럼 명사로 끝나 과거형 정규식(_PAST_DONE_RE)이 놓친다.
+# 수색·진화·구조·감식(응급 대응 자체)의 '마무리' 는 넣지 않는다 — 맹검 라벨 기준(EXPERIMENT §12.1)에서 후속 조치가 아니다
+_HEADLINE_DONE_RE = re.compile(
+    r"((복구|설치|교체|정비|보강|철거|이전|준설|정밀\s*점검|안전\s*점검|안전\s*진단|정밀\s*진단|점검|진단|개선|보수|재건|재시공|공사|조사|지급|도입|구축|배치|복원)"
+    r"\s*(작업|사업|공사)?\s*(이|을|가|를)?\s*(모두\s*|전부\s*|최종\s*)?(완료|마무리|끝)(?!\s*(예정|계획|목표|못|안\s|하지|되지|않|할|될|시점|기한|일|때|까지|후|뒤|되면|하면|이후|직후))"
+    r"|(전체|전면|완전|모두|100\s*%)\s*(복구|정상화|재개|재가동|복원)(?!\s*(공사|사업|계획|작업|을|를|에|위해|위한|까지|때|방안|대책))"
+    r"|재가동(했|됐|돼|(?=\s|$|…|,|\.))"
+    r"|((작업\s*)?중지|통제|제한\s*급수|급수\s*제한|대피\s*명령|운행\s*중지|사용\s*중지|출입\s*금지|봉쇄|폐쇄|경보|특보)\s*(명령\s*)?(이|가|을|를)?\s*(\S+\s*){0,2}?(전면\s*)?해제)"
+)
+# 조사·수사의 결과 (원인 규명을 약속·지시한 사건의 후속) — '원인' 과 결론 표현이 한 문장에, 추정·조사 중은 제외
+# 제목형 완료 바로 옆(앞 12자·뒤 8자)에 앞날을 가리키는 말이 있으면 진행 — '작업중지 연내 전면해제'. '장마 앞두고 복구 완료' 의 '앞두' 는 넣지 않는다
+_HEADLINE_FUTURE_RE = re.compile(r"(내년|다음\s*달|오는\s|예정|목표|계획|연내|올해\s*안|이달\s*중)")
+_CAUSE_RESULT_RE = re.compile(r"(직접\s*원인|원인이었|원인으로\s*(결론|확인|밝혀|드러|판명)|결론(지었|났|냈|을\s*내)|밝혀(졌|져)|드러(났|나)|판명|확인(됐|되었)|과실(이|로|\s*때문))")
+CAUSE_RESULT_TAG = "조사 결과 표현"  # judge 가 원천 발언 직후(같은 발표의 전재일 수 있음)면 내린다
+_CAUSE_PENDING_RE = re.compile(r"(추정|조사\s*중|규명\s*(중|못|안)|조사할|밝힐|파악\s*중|오리무중|난항|못\s*(밝|찾))")
+_HEADLINE_PROGRESS_RE = re.compile(
+    r"((복구율|공정률|진척률|진행률)\s*\d+"
+    r"|\d[\d,.]*\s*(억|조|만)\s*원?\s*(을|를|이|가)?\s*(\S+\s*)?(투입|편성|지원|확보|배정|지급|집행)"
+    r"|(추가|긴급|예비비\s*로?)\s*(편성|투입|배정)"
+    r"|(구호금|지원금|재난지원금|보상금|보험금|위로금|성금|복구비|생계비|구호비|격려금)\s*(을|를)?\s*(\S+\s*)?(선)?지급"
+    r"|(24시간|집중|특별|합동)\s*(현장\s*)?순찰|현장\s*순찰"  # '집중 단속' 은 예방 캠페인이 많아 넣지 않는다
+    r"|(임시\s*(숙소|주거|시장|주택|대피소|거처|상가|매장)|심리\s*상담소|상담소|쉼터|구호소)\s*(\S+\s*){0,2}?(운영|마련|설치|개장|개소)"
+    r"|(\d+\s*월\s*(부터|중|말|초)?|올해\s*안|연내|이달\s*(부터|중|말)?|다음\s*달\s*(부터|중|말|초)?)\s*(\S+\s*)?(복구|공사|정비|착공|개통|재개장|재개통|개장|운영|시행|설치|해제|교체|철거)"
+    r"|(입건|송치|구속\s*영장)(했|됐|돼|(?=\s|$|…|,|\.))"  # 수사 단계만 — 기소·재판·선고는 맹검 라벨 기준에서 후속 조치가 아니다
+    r"|현재\s*진행형)"
+)
+
 
 def action_groups(text: str) -> set[int]:
     """문장·약속에 나온 행동 묶음 번호."""
@@ -297,17 +325,31 @@ _RESUMED_RE = re.compile(
 )
 
 
-def _expressions(s: str, fixes: bool = False) -> list[tuple[str, re.Match[str]]]:
-    """fixes (FOLLOWUP_EXPRESSION_FIXES): '추가 피해 최소화·예방' 은 새로운 문제가 아니고, 앞날을 가리키는 말 옆의 꼬리 없는 '재개장·재개통' 은 완료가 아니다."""
+def _expressions(s: str, fixes: bool = False, headline: bool = False) -> list[tuple[str, re.Match[str]]]:
+    """fixes (FOLLOWUP_EXPRESSION_FIXES): '추가 피해 최소화·예방' 은 새로운 문제가 아니고, 앞날을 가리키는 말 옆의 꼬리 없는 '재개장·재개통' 은 완료가 아니다.
+    headline (FOLLOWUP_HEADLINE_EXPRESSIONS, rules-v4): 제목형 명사 표현(_HEADLINE_DONE_RE·_HEADLINE_PROGRESS_RE·조사 결과)도 본다.
+    이때 앞날의 '재개장·재개통' 은 버리지 않고 진행(일정이 잡힌 복구)으로 본다."""
     found: list[tuple[str, re.Match[str]]] = []
-    for sig, pat in (("새로운문제", _NEW_PROBLEM_RE), ("완료", _PAST_DONE_RE), ("완료", _RESUMED_RE), ("진행", _PROGRESS_RE)):
+    pats = [("새로운문제", _NEW_PROBLEM_RE), ("완료", _PAST_DONE_RE), ("완료", _RESUMED_RE), ("진행", _PROGRESS_RE)]
+    if headline:
+        pats += [("완료", _HEADLINE_DONE_RE), ("진행", _HEADLINE_PROGRESS_RE)]
+    for sig, pat in pats:
         m = pat.search(s)
         if m:
             if fixes and sig == "새로운문제" and m.group(0).startswith("추가") and _PREVENT_RE.search(s):
                 continue  # '추가 피해 최소화·예방' — 새 문제가 아니라 예방 다짐
             if fixes and pat is _RESUMED_RE and m.group(0) in ("재개장", "재개통") and _FUTURE_WORD_RE.search(s):
+                if headline:
+                    found.append(("진행", m))  # '내년 2월 재개장' — 일정이 잡힌 복구는 진행
                 continue  # '내년 2월 재개장' — 계획이지 다시 연 것이 아니다
+            if pat is _HEADLINE_DONE_RE and _HEADLINE_FUTURE_RE.search(s[max(0, m.start() - 12) : m.end() + 8]):
+                found.append(("진행", m))  # '연내 전면해제' — 앞날의 완료는 진행
+                continue
             found.append((sig, m))
+    if headline and "원인" in s and not _CAUSE_PENDING_RE.search(s):
+        m = _CAUSE_RESULT_RE.search(s)
+        if m:
+            found.append(("완료", m))  # 조사·수사 결과 — '작업대 선로 침범이 직접 원인', '담배꽁초가 원인이었다'
     return found
 
 
@@ -319,6 +361,8 @@ class RulesLLM:
     @property
     def model(self) -> str:
         st = self.settings
+        if st is not None and (getattr(st, "followup_headline_expressions", False) or getattr(st, "followup_event_path", False)):
+            return RULES_MODEL_V4
         v3 = st is not None and (
             getattr(st, "followup_expression_fixes", False) or getattr(st, "followup_action_match", False)
             or getattr(st, "followup_skip_commitment", False) or not getattr(st, "followup_kw_alone", True)
@@ -425,6 +469,7 @@ class RulesLLM:
         kw_alone = bool(getattr(st, "followup_kw_alone", True))
         skip_commit = bool(getattr(st, "followup_skip_commitment", False))
         fixes = bool(getattr(st, "followup_expression_fixes", False))
+        headline = bool(getattr(st, "followup_headline_expressions", False))
         weighted = bool(inp.term_weights)
         identity = [t for t in (inp.identity_terms or []) if len(t) >= 2]
         terms_by_promise = {p.id: _promise_terms(p) for p in inp.promises}
@@ -438,7 +483,7 @@ class RulesLLM:
         expression_without_overlap = False
         priority = {"새로운문제": 3, "완료": 2, "진행": 1}
         for i, s in enumerate(sents):
-            found = _expressions(s, fixes)
+            found = _expressions(s, fixes, headline)
             if not found:
                 continue
             if i not in selected:
@@ -466,6 +511,7 @@ class RulesLLM:
                 pid, path, verb = near, "unique-word", near_kind  # 약속 키워드는 없지만 사건 고유어가 무거운 문장 — 임베딩이 가장 가까운 약속
             # 한 문장에 여러 표현이 있으면: 새로운문제 > 완료 > 진행. 단 '완료' 가 미래 서술어면 진행으로 본다
             sig, m = max(found, key=lambda x: priority[x[0]])
+            cause_result = m.re is _CAUSE_RESULT_RE
             span = _window(s, m)
             if sig == "완료" and completion_adjustment(span):
                 sig = "진행"
@@ -478,14 +524,15 @@ class RulesLLM:
                 detail = {
                     "overlap": overlap, "object_hits": obj_hits, "identity_hits": id_hits, "same_kind": verb, "path": path, "emb": emb, "kw": kw,
                     "title_sentence": i == 0, "commit": bool(_COMMIT_SENT_RE.search(s)), "demand": bool(_DEMAND_SENT_RE.search(s)),
-                    "rank": ranked.index(i), "n_sentences": len(sents),
+                    "rank": ranked.index(i), "n_sentences": len(sents), "cause_result": cause_result,
                 }
         if best is None:
             if expression_without_overlap:
                 return FollowupSignal(signal="불명확", promise_id=None, matches_promise=False, evidence_span="", confidence=0.4, rationale="조치 표현은 있으나 약속·사건과 관련된 문장이 아님 (규칙)"), detail
             return FollowupSignal(signal="무관", promise_id=None, matches_promise=False, evidence_span="", confidence=0.6, rationale="조치 상태 표현 없음 (규칙)"), detail
         overlap, _, relevance, sig, span, pid, conf = best
+        cause = bool(detail.get("cause_result"))
         return FollowupSignal(
             signal=sig, promise_id=pid, matches_promise=True, evidence_span=span, confidence=conf,
-            rationale=f"규칙: 관련 문장(관련도 {relevance:.2f}) · 약속 키워드 {overlap}개 겹침 + {sig} 표현",
+            rationale=f"규칙: 관련 문장(관련도 {relevance:.2f}) · 약속 키워드 {overlap}개 겹침 + {sig} 표현" + (f" · {CAUSE_RESULT_TAG}" if cause else ""),
         ), detail

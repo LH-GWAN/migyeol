@@ -37,6 +37,8 @@ os.environ.update(
         "FOLLOWUP_CUTOFF": "grace",
         "FOLLOWUP_MIN_LINK_PROB": "0",
         "FOLLOWUP_EXPRESSION_FIXES": "false",
+        "FOLLOWUP_HEADLINE_EXPRESSIONS": "false",
+        "FOLLOWUP_EVENT_PATH": "false",
         **FIXTURE_THRESHOLDS,
     }
 )

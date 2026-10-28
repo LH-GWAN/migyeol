@@ -24,6 +24,7 @@ from ..bigkinds.protocol import BigKindsClient
 from ..config import STATUS_DONE, Settings
 from ..db.models import Article, Event, FollowupSignal, Promise, StatusJudgment, TrendSnapshot
 from ..llm.client import PROMPT_VERSIONS, LLMClient, LLMFailure, validate_span
+from ..llm.rules_adapter import CAUSE_RESULT_TAG
 from ..llm.schemas import FollowupInput, PromiseRef
 from ..rules import priority as priority_rules
 from ..rules.status import SIGNAL_PROGRESS, Judgment, PromiseIn, SignalIn, Thresholds, judge
@@ -132,6 +133,33 @@ def usable_followup_link(link, settings: Settings) -> bool:
     return link.is_active and (not low_prob_link(link, settings) or kept_late(link))
 
 
+EVENT_PATH_PROMISE_ID = 0  # 사건 직접 후속 경로의 가짜 약속 id — 신호에는 promise_id 없이(NULL) 저장한다
+CAUSE_RESULT_MIN_DAYS = 7  # 조사 결과 표현(rules-v4)은 원천 발언 뒤 이 일수가 지나야 후속으로 센다
+
+
+def event_path_on(promises: list[Promise], settings: Settings) -> bool:
+    """추적 약속이 없는 사건의 직접 후속 경로를 쓰는가 (FOLLOWUP_EVENT_PATH)."""
+    return not promises and bool(getattr(settings, "followup_event_path", False))
+
+
+def event_path_link(link, settings: Settings) -> bool:
+    """직접 후속 경로에 쓰는 연결: 관리자 확정·수동이거나 재순위 확률 ≥ FOLLOWUP_EVENT_MIN_PROB (재순위가 꺼져 있으면 연결 점수로)."""
+    if link.confirmed or link.link_method == "manual":
+        return True
+    p = link_prob(link)
+    return (p if p is not None else float(link.link_score or 0.0)) >= float(getattr(settings, "followup_event_min_prob", 0.8))
+
+
+def event_path_ref(event: Event, settings: Settings) -> PromiseRef:
+    """약속이 없는 사건의 '사건 자체의 직접 후속 조치' — 시설명·사건 고유어(가중치 ≥ LINK_UNIQUE_MIN)를 대상어로 하는 가짜 약속.
+    맹검 라벨 기준(EXPERIMENT §12.1)의 "발언에서 밝힌 그 조치(또는 그 사건의 직접 후속 조치)" 의 뒷부분이다."""
+    weights = event.term_weights or {}
+    unique = [w for w, v in sorted(weights.items(), key=lambda x: -x[1]) if v >= settings.link_unique_min and len(w) >= 2][:6]
+    words = [event.facility or "", *unique]
+    action = " ".join(dict.fromkeys(w for w in words if w)) or (event.title or "")
+    return PromiseRef(id=EVENT_PATH_PROMISE_ID, actor_org=event.responsible_org or "", action=f"{action} 복구·재개·후속 조치"[:160])
+
+
 def days_since_followup(session: Session, event: Event, settings: Settings, today: date) -> int:
     """우선순위용 '보도 공백' 일수. 후속 기사가 없는 사건도 기준일(발생+유예 / 첫 약속) 이후 경과로 가산점을 받는다.
     판정(rejudge)과 API(live_priority)가 같은 값을 쓰도록 한 곳에 둔다."""
@@ -176,8 +204,15 @@ def classify_followups(
     existing = {s.news_id: s for s in event.signals if s.prompt_version == version}
     followups = followup_articles(session, event, settings)
     stats = {"event": event.key, "followups": len(followups), "llm_calls": 0, "llm_failed": 0, "reclassified": 0, "deferred": 0}
-    if not promises:
+    event_path = event_path_on(promises, settings)
+    if not promises and not event_path:
         return stats  # 추적 약속이 없으면 신호가 뜻이 없다 — LLM 을 부르지 않는다 (R5 사유로 표시)
+    if event_path:
+        # 약속이 없는 사건: 사건 자체의 직접 후속 조치를 가짜 약속 하나로 보고, 같은 사건일 확률이 높은 연결 기사만 분류한다
+        refs = [event_path_ref(event, settings)]
+        ok = {l.news_id for l in event.links if event_path_link(l, settings)}
+        followups = [a for a in followups if a.news_id in ok]
+        stats["event_path"] = len(followups)
 
     quotes_by_news: dict[str, list[str]] = {}
     for q in event.quotations:
@@ -228,17 +263,25 @@ def classify_followups(
 
     pdates = promise_dates(session, promises) if settings.followup_cutoff == "source" else {}
     links = {l.news_id: l for l in event.links}
+    src_day = source_date(session, event) or event.occurred_at
     for a, res in results:
         pid = res.promise_id if res.promise_id in promise_ids else None
+        matched_event = event_path and bool(res.matches_promise) and res.promise_id == EVENT_PATH_PROMISE_ID
         if pid is not None and pid in pdates and a.published_at <= pdates[pid]:
             # 신호가 가리킨 약속의 발언일보다 앞서거나 같은 날 기사는 그 약속의 후속이 아니다 (FOLLOWUP_CUTOFF=source)
             res = res.model_copy(update={"signal": "불명확", "matches_promise": False, "rationale": f"{res.rationale} · 약속 발언일({pdates[pid]}) 이전·당일 기사"})
             pid = None
+        if CAUSE_RESULT_TAG in (res.rationale or "") and a.published_at is not None and a.published_at <= src_day + timedelta(days=CAUSE_RESULT_MIN_DAYS):
+            # 원천 발언 직후의 '원인은 …' 보도는 같은 발표(원인 조사 결과 브리핑)의 전재일 때가 많다 — 조사 결과의 후속으로 세지 않는다
+            res = res.model_copy(update={"signal": "불명확", "matches_promise": False, "rationale": f"{res.rationale} · 원천 발언 {CAUSE_RESULT_MIN_DAYS}일 안의 원인 보도"})
+            pid = None
+            matched_event = False
         link = links.get(a.news_id)
         if res.signal == SIGNAL_PROGRESS and link is not None and kept_late(link) and low_prob_link(link, settings):
             # 바닥 규칙으로 남은 늦은 같은 시설 기사의 '진행' 은 다른 공사·점검일 수 있다 — 완료·새로운문제 근거로만 쓴다
             res = res.model_copy(update={"signal": "불명확", "matches_promise": False, "rationale": f"{res.rationale} · 재순위 확률이 낮은 늦은 기사의 진행 표현"})
             pid = None
+            matched_event = False
         sig = existing.get(a.news_id)
         if sig is None:
             sig = FollowupSignal(event_id=event.id, news_id=a.news_id, prompt_version=version)
@@ -246,10 +289,10 @@ def classify_followups(
             existing[a.news_id] = sig
         sig.promise_id = pid
         sig.signal = res.signal
-        sig.matches_promise = bool(res.matches_promise and pid is not None)
+        sig.matches_promise = bool(res.matches_promise and pid is not None) or matched_event
         sig.evidence_span = res.evidence_span[:200]
         sig.confidence = res.confidence
-        sig.rationale = res.rationale
+        sig.rationale = res.rationale + (" · 약속 없는 사건의 직접 후속(사건 시설·고유어)" if matched_event else "")
         sig.model = llm.model
         sig.promise_set_hash = pset
     session.commit()

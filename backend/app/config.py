@@ -102,6 +102,10 @@ class Settings(BaseSettings):
     # source = 원천 발언 다음 날부터, 신호가 가리킨 약속의 발언 다음 날부터 (유예 없음 — 라벨은 다음 날의 '철거 완료' 도 후속으로 본다)
     followup_cutoff: Literal["grace", "source"] = "source"
     followup_min_link_prob: float = 0.6  # 재순위 확률이 이보다 낮은 연결은 후속 근거로 쓰지 않는다 (재순위를 켠 연결만, 관리자 확정·수동 연결은 그대로)
+    # 3단계 재현율 보강 (docs/EXPERIMENT.md §14) — 맹검 라벨로 놓친 후속의 대부분이 제목형 명사 표현과 약속 없는 사건이었다
+    followup_headline_expressions: bool = True  # '복구 완료·전체 복구·재가동·작업중지 해제·직접 원인·구호금 지급·○억 투입·24시간 순찰·9월부터 복구' 같은 제목형 표현 (rules-v4)
+    followup_event_path: bool = True  # 추적 약속이 없는 사건은 사건 자체의 직접 후속 조치(같은 시설·사건의 복구·재개·처분)를 신호로 본다
+    followup_event_min_prob: float = 0.8  # 위 경로는 재순위 확률이 이 이상인 연결(또는 관리자 확정·수동 연결)에만
     signal_min_conf: float = 0.6
     completion_min_conf: float = 0.7
     stale_followup_days: int = 60
