@@ -1,5 +1,5 @@
 {
- "generated_at": "2026-10-29T01:42:10+09:00",
+ "generated_at": "2026-10-29T03:05:10+09:00",
  "as_of": "2026-10-22",
  "bigkinds_mode": "record",
  "seeds_file": "seeds/events.yaml",
@@ -11,13 +11,13 @@
  },
  "events": {
   "total": 100,
-  "with_followup": 71,
-  "followup_rate": 0.71,
+  "with_followup": 68,
+  "followup_rate": 0.68,
   "by_status": {
    "조치 완료 근거 확인": 42,
-   "조치 진행 정황 확인": 18,
-   "새로운 문제 발생": 8,
-   "후속보도 부족": 30,
+   "조치 진행 정황 확인": 17,
+   "새로운 문제 발생": 7,
+   "후속보도 부족": 32,
    "판단 불가": 2
   },
   "with_org_notice": 7,
@@ -27,22 +27,22 @@
   }
  },
  "windows_days": {
-  "30": 56,
-  "90": 62,
-  "180": 63,
-  "365": 66
+  "30": 50,
+  "90": 58,
+  "180": 60,
+  "365": 63
  },
  "signals": {
-  "완료": 277,
-  "진행": 706,
-  "새로운문제": 118
+  "완료": 280,
+  "진행": 700,
+  "새로운문제": 96
  },
  "by_incident_type": [
   {
    "incident_type": "사고>산업사고",
    "events": 44,
-   "with_followup": 36,
-   "rate": 0.818
+   "with_followup": 35,
+   "rate": 0.795
   },
   {
    "incident_type": "사고>교통사고",
@@ -53,8 +53,8 @@
   {
    "incident_type": "재해>자연재해",
    "events": 27,
-   "with_followup": 20,
-   "rate": 0.741
+   "with_followup": 18,
+   "rate": 0.667
   }
  ],
  "by_org": [
@@ -117,18 +117,6 @@
    ]
   },
   {
-   "org": "국가유산청",
-   "events": 3,
-   "with_followup": 3,
-   "rate": 1.0,
-   "latest_followup_at": "2025-10-31",
-   "event_ids": [
-    297,
-    268,
-    271
-   ]
-  },
-  {
    "org": "한국철도공사",
    "events": 3,
    "with_followup": 3,
@@ -163,17 +151,6 @@
    ]
   },
   {
-   "org": "부산시",
-   "events": 2,
-   "with_followup": 2,
-   "rate": 1.0,
-   "latest_followup_at": "2026-05-18",
-   "event_ids": [
-    16,
-    228
-   ]
-  },
-  {
    "org": "성남시",
    "events": 2,
    "with_followup": 2,
@@ -196,6 +173,18 @@
    ]
   },
   {
+   "org": "국가유산청",
+   "events": 3,
+   "with_followup": 2,
+   "rate": 0.667,
+   "latest_followup_at": "2025-10-31",
+   "event_ids": [
+    297,
+    268,
+    271
+   ]
+  },
+  {
    "org": "인천시",
    "events": 3,
    "with_followup": 2,
@@ -205,18 +194,6 @@
     164,
     193,
     219
-   ]
-  },
-  {
-   "org": "중앙재난안전대책본부",
-   "events": 3,
-   "with_followup": 2,
-   "rate": 0.667,
-   "latest_followup_at": "2025-12-22",
-   "event_ids": [
-    217,
-    245,
-    283
    ]
   },
   {
@@ -532,6 +509,17 @@
    ]
   },
   {
+   "org": "부산시",
+   "events": 2,
+   "with_followup": 1,
+   "rate": 0.5,
+   "latest_followup_at": "2026-05-18",
+   "event_ids": [
+    16,
+    228
+   ]
+  },
+  {
    "org": "충남",
    "events": 2,
    "with_followup": 1,
@@ -552,6 +540,18 @@
     247,
     275,
     282
+   ]
+  },
+  {
+   "org": "중앙재난안전대책본부",
+   "events": 3,
+   "with_followup": 1,
+   "rate": 0.333,
+   "latest_followup_at": "2025-12-22",
+   "event_ids": [
+    217,
+    245,
+    283
    ]
   },
   {
@@ -5524,7 +5524,7 @@
  ],
  "labels": {
   "labeled": 100,
-  "followup_precision": 0.93,
+  "followup_precision": 0.971,
   "followup_recall": 0.868,
   "cluster_precision": 0.871,
   "org_accuracy": 0.837
@@ -5537,7 +5537,7 @@
    "time_line": 988,
    "word_cloud": 0
   },
-  "elapsed_sec": 8980.5,
+  "elapsed_sec": 8981.5,
   "recordings": 12764
  },
  "success": {

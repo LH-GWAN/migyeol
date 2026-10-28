@@ -39,6 +39,8 @@ os.environ.update(
         "FOLLOWUP_EXPRESSION_FIXES": "false",
         "FOLLOWUP_HEADLINE_EXPRESSIONS": "false",
         "FOLLOWUP_EVENT_PATH": "false",
+        "FOLLOWUP_PHRASE_FIXES": "false",
+        "FOLLOWUP_EARLY_PROBLEM_DAYS": "0",
         **FIXTURE_THRESHOLDS,
     }
 )

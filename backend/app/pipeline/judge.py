@@ -24,7 +24,7 @@ from ..bigkinds.protocol import BigKindsClient
 from ..config import STATUS_DONE, Settings
 from ..db.models import Article, Event, FollowupSignal, Promise, StatusJudgment, TrendSnapshot
 from ..llm.client import PROMPT_VERSIONS, LLMClient, LLMFailure, validate_span
-from ..llm.rules_adapter import CAUSE_RESULT_TAG
+from ..llm.rules_adapter import CAUSE_RESULT_TAG, INVESTIGATION_TAG
 from ..llm.schemas import FollowupInput, PromiseRef
 from ..rules import priority as priority_rules
 from ..rules.status import SIGNAL_PROGRESS, Judgment, PromiseIn, SignalIn, Thresholds, judge
@@ -135,6 +135,26 @@ def usable_followup_link(link, settings: Settings) -> bool:
 
 EVENT_PATH_PROMISE_ID = 0  # 사건 직접 후속 경로의 가짜 약속 id — 신호에는 promise_id 없이(NULL) 저장한다
 CAUSE_RESULT_MIN_DAYS = 7  # 조사 결과 표현(rules-v4)은 원천 발언 뒤 이 일수가 지나야 후속으로 센다
+RECURRENCE_MIN_DAYS = 90  # 같은 시설 재발(rules-v5)은 발생 뒤 이 일수가 지난 기사만
+_RECUR_ACCIDENT_RE = re.compile(r"(사고|추락|전복|좌초|넘어져|넘어지|뒤집|충돌|붕괴|무너|화재|불이?\s*나|불길|침수|물에\s*잠|폭발|사망|숨져|숨진|부상|다쳐)")
+_INVESTIGATION_SOURCE_RE = re.compile(r"(수사|감식|원인|규명|조사|입건|처벌|엄정|진상)")
+_GENERIC_FACILITY = {"공사장", "공사현장", "현장", "시장", "도로", "터널", "교량", "다리", "선착장", "항구", "하천", "아파트", "건물", "공장", "창고", "물류센터"}
+
+
+def recurrence_article(event: Event, a: Article) -> bool:
+    """같은 시설의 새 사고 보도 — 발생 RECURRENCE_MIN_DAYS 뒤, 제목에 사건 시설명(일반 시설어 아님) + 사고어 (FOLLOWUP_RECURRENCE)."""
+    fac = (event.facility or "").strip()
+    if len(fac) < 3 or fac in _GENERIC_FACILITY or a.published_at is None:
+        return False
+    if a.published_at <= event.occurred_at + timedelta(days=RECURRENCE_MIN_DAYS):
+        return False
+    title = a.title or ""
+    return fac in title and bool(_RECUR_ACCIDENT_RE.search(title))
+
+
+def investigation_source(event: Event) -> bool:
+    """원천 발언이 수사·조사·원인 규명을 말하는가."""
+    return bool(_INVESTIGATION_SOURCE_RE.search(event.source_quotation or ""))
 
 
 def event_path_on(promises: list[Promise], settings: Settings) -> bool:
@@ -207,11 +227,12 @@ def classify_followups(
     event_path = event_path_on(promises, settings)
     if not promises and not event_path:
         return stats  # 추적 약속이 없으면 신호가 뜻이 없다 — LLM 을 부르지 않는다 (R5 사유로 표시)
+    recur = {a.news_id for a in followups if getattr(settings, "followup_recurrence", False) and recurrence_article(event, a)}
     if event_path:
         # 약속이 없는 사건: 사건 자체의 직접 후속 조치를 가짜 약속 하나로 보고, 같은 사건일 확률이 높은 연결 기사만 분류한다
         refs = [event_path_ref(event, settings)]
         ok = {l.news_id for l in event.links if event_path_link(l, settings)}
-        followups = [a for a in followups if a.news_id in ok]
+        followups = [a for a in followups if a.news_id in ok or a.news_id in recur]
         stats["event_path"] = len(followups)
 
     quotes_by_news: dict[str, list[str]] = {}
@@ -264,9 +285,24 @@ def classify_followups(
     pdates = promise_dates(session, promises) if settings.followup_cutoff == "source" else {}
     links = {l.news_id: l for l in event.links}
     src_day = source_date(session, event) or event.occurred_at
+    early_days = int(getattr(settings, "followup_early_problem_days", 0) or 0)
+    invest_ok = investigation_source(event)
     for a, res in results:
         pid = res.promise_id if res.promise_id in promise_ids else None
         matched_event = event_path and bool(res.matches_promise) and res.promise_id == EVENT_PATH_PROMISE_ID
+        if a.news_id in recur and res.signal not in ("완료", "새로운문제"):
+            # 같은 시설의 새 사고 = 조치 뒤의 재발 (맹검 라벨 기준의 '재발') — 약속과 묶지 않고 사건 단위 신호로
+            res = res.model_copy(update={"signal": "새로운문제", "matches_promise": True, "confidence": max(res.confidence, 0.7),
+                                         "evidence_span": (a.title or "")[:200], "rationale": f"{res.rationale} · 같은 시설 재발(발생 {RECURRENCE_MIN_DAYS}일 뒤 같은 시설 사고)"})
+            pid, matched_event = None, True
+        if early_days and res.signal == "새로운문제" and a.published_at is not None and a.published_at <= event.occurred_at + timedelta(days=early_days):
+            # 발생 직후의 '또·지연' 은 사건 자체의 전개 ('7년 만에 또 지진', '비바람에 항공기 지연') — 조치 뒤의 새 문제가 아니다
+            res = res.model_copy(update={"signal": "불명확", "matches_promise": False, "rationale": f"{res.rationale} · 발생 {early_days}일 안의 새로운문제 표현"})
+            pid, matched_event = None, False
+        if getattr(settings, "followup_investigation_source", False) and not invest_ok and INVESTIGATION_TAG in (res.rationale or ""):
+            # 원천 발언이 수사·조사를 말하지 않은 사건에서 입건·송치·원인 보도는 그 조치의 후속이 아니다 (야탑동 칭찬 발언·반얀트리 노동부 점검)
+            res = res.model_copy(update={"signal": "불명확", "matches_promise": False, "rationale": f"{res.rationale} · 원천 발언이 수사·조사가 아님"})
+            pid, matched_event = None, False
         if pid is not None and pid in pdates and a.published_at <= pdates[pid]:
             # 신호가 가리킨 약속의 발언일보다 앞서거나 같은 날 기사는 그 약속의 후속이 아니다 (FOLLOWUP_CUTOFF=source)
             res = res.model_copy(update={"signal": "불명확", "matches_promise": False, "rationale": f"{res.rationale} · 약속 발언일({pdates[pid]}) 이전·당일 기사"})

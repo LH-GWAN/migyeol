@@ -106,6 +106,13 @@ class Settings(BaseSettings):
     followup_headline_expressions: bool = True  # '복구 완료·전체 복구·재가동·작업중지 해제·직접 원인·구호금 지급·○억 투입·24시간 순찰·9월부터 복구' 같은 제목형 표현 (rules-v4)
     followup_event_path: bool = True  # 추적 약속이 없는 사건은 사건 자체의 직접 후속 조치(같은 시설·사건의 복구·재개·처분)를 신호로 본다
     followup_event_min_prob: float = 0.8  # 위 경로는 재순위 확률이 이 이상인 연결(또는 관리자 확정·수동 연결)에만
+    # rules-v5 (docs/EXPERIMENT.md §14.6) — 남은 오탐·놓침을 사건별로 따라가 만든 규칙. 기본값은 사건 단위 교차검증(학습 fold 에서 고른 조합)으로 골랐다:
+    # 구절 고침·발생 직후 새로운문제 내림은 켜고(교차검증 F1 0.898 → 0.914), 수사 출처·같은 행동 제목·재발은 끈다(교차검증에서 이득이 없거나 손해)
+    followup_phrase_fixes: bool = True  # '착수하라·마쳐야'(요구), '또 화재 당시'(또한), '공사 중이던 창고'(장소 설명)는 상태 표현이 아니다
+    followup_early_problem_days: int = 3  # 발생 뒤 이 일수 안 기사의 '새로운문제' 는 사건 자체의 전개로 보고 내린다 (0 = 끔)
+    followup_investigation_source: bool = False  # 수사·조사 표현(입건·송치·원인 결과 …) 신호는 원천 발언이 수사·조사를 말한 사건에서만 센다
+    followup_same_action: bool = False  # 제목 문장의 완료·진행 표현이 추적 약속과 같은 종류의 행동이면 약속 낱말이 안 겹쳐도 받는다
+    followup_recurrence: bool = False  # 발생 90일 뒤, 제목에 사건 시설명 + 같은 사고어가 있는 기사는 '새로운문제'(재발)로 본다
     signal_min_conf: float = 0.6
     completion_min_conf: float = 0.7
     stale_followup_days: int = 60

@@ -36,6 +36,7 @@ from .schemas import FollowupInput, FollowupSignal, PromiseExtraction, PromiseIn
 RULES_MODEL = "rules-v2"  # v2: 문장 가중치 (2026-10-24). 모델명이 바뀌면 후속 신호 캐시가 무효가 되어 다시 분류된다
 RULES_MODEL_V3 = "rules-v3"  # v3: 표현 고침 등 FOLLOWUP_* 보강을 켠 규칙 (2026-10-25, docs/EXPERIMENT.md §10) — 켠 상태로 분류한 신호는 v2 캐시와 섞이지 않는다
 RULES_MODEL_V4 = "rules-v4"  # v4: 제목형 표현·약속 없는 사건의 직접 후속 경로 (2026-10-29, docs/EXPERIMENT.md §14)
+RULES_MODEL_V5 = "rules-v5"  # v5: 구절 오독 고침·같은 행동 제목 경로·사건 단위 시기/출처 규칙 (2026-10-29, docs/EXPERIMENT.md §14.6)
 
 # ---------------------------------------------------------------- ⓐ 약속 추출
 # 구체 행동 동사 (명사형 어간). '…하겠다' 앞에 오면 계획 이상
@@ -259,6 +260,7 @@ def _window(sentence: str, m: re.Match[str]) -> str:
 
 
 KW_ALONE = 0.8  # 약속 키워드와 겹치지 않아도 이 이상 사건 고유어가 있는 문장은 신호 후보
+SAME_ACTION_CONF = 0.62  # rules-v5 같은 행동 제목 경로의 신뢰도 (SIGNAL_MIN_CONF 0.6 바로 위)
 _BASE_CONF = {2: 0.75, 1: 0.65, 0: 0.6}
 
 # ---- 보강 후보 (설정으로 켠다, docs/EXPERIMENT.md §10)
@@ -299,6 +301,12 @@ _HEADLINE_DONE_RE = re.compile(
 # 제목형 완료 바로 옆(앞 12자·뒤 8자)에 앞날을 가리키는 말이 있으면 진행 — '작업중지 연내 전면해제'. '장마 앞두고 복구 완료' 의 '앞두' 는 넣지 않는다
 _HEADLINE_FUTURE_RE = re.compile(r"(내년|다음\s*달|오는\s|예정|목표|계획|연내|올해\s*안|이달\s*중)")
 _HEADLINE_COND_RE = re.compile(r"(해야|아야|어야|려면|하도록|토록)")  # '공사를 완료하고 사용승인을 받아야' — 조건·요구이지 완료가 아니다
+# ---- rules-v5 구절 오독 고침 (FOLLOWUP_PHRASE_FIXES)
+_DEMAND_TAIL_RE = re.compile(r"^\S{0,3}?\s*(하라|해라|하십시오|해\s*달라|해\s*주길|해야|아야|어야|려면|하도록|토록)")  # '폐로 절차에 착수하라' — 요구
+_ALSO_AT_RE = re.compile(r"^\s*(당시|때|현장|이후|직후|로\s|으로\s|와\s|과\s|에\s*대한)")  # '또 화재 당시' — '또한 화재 때' 이지 재발이 아니다
+_UNDER_CONSTRUCTION_RE = re.compile(r"^\s*(이던|이었던|인\s|인데|에\s|에서)")  # '공사 중이던 냉동창고에서 불' — 장소 설명이지 진행이 아니다
+INVESTIGATION_TAG = "수사·조사 표현"  # judge 가 원천 발언이 수사·조사가 아닌 사건이면 내린다 (FOLLOWUP_INVESTIGATION_SOURCE)
+_INVESTIGATION_SPAN_RE = re.compile(r"(입건|송치|구속|수사|감식|합동\s*조사|압수수색|원인)")
 _CAUSE_RESULT_RE = re.compile(r"(직접\s*원인|원인이었|원인으로\s*(결론|확인|밝혀|드러|판명)|결론(지었|났|냈|을\s*내)|밝혀(졌|져)|드러(났|나)|판명|확인(됐|되었)|과실(이|로|\s*때문))")
 CAUSE_RESULT_TAG = "조사 결과 표현"  # judge 가 원천 발언 직후(같은 발표의 전재일 수 있음)면 내린다
 _CAUSE_PENDING_RE = re.compile(r"(추정|조사\s*중|규명\s*(중|못|안)|조사할|밝힐|파악\s*중|오리무중|난항|못\s*(밝|찾))")
@@ -326,7 +334,7 @@ _RESUMED_RE = re.compile(
 )
 
 
-def _expressions(s: str, fixes: bool = False, headline: bool = False) -> list[tuple[str, re.Match[str]]]:
+def _expressions(s: str, fixes: bool = False, headline: bool = False, phrase: bool = False) -> list[tuple[str, re.Match[str]]]:
     """fixes (FOLLOWUP_EXPRESSION_FIXES): '추가 피해 최소화·예방' 은 새로운 문제가 아니고, 앞날을 가리키는 말 옆의 꼬리 없는 '재개장·재개통' 은 완료가 아니다.
     headline (FOLLOWUP_HEADLINE_EXPRESSIONS, rules-v4): 제목형 명사 표현(_HEADLINE_DONE_RE·_HEADLINE_PROGRESS_RE·조사 결과)도 본다.
     이때 앞날의 '재개장·재개통' 은 버리지 않고 진행(일정이 잡힌 복구)으로 본다."""
@@ -343,6 +351,14 @@ def _expressions(s: str, fixes: bool = False, headline: bool = False) -> list[tu
                 if headline:
                     found.append(("진행", m))  # '내년 2월 재개장' — 일정이 잡힌 복구는 진행
                 continue  # '내년 2월 재개장' — 계획이지 다시 연 것이 아니다
+            if phrase:
+                tail = s[m.end() : m.end() + 12]
+                if sig in ("진행", "완료") and pat is not _PAST_DONE_RE and _DEMAND_TAIL_RE.search(tail):
+                    continue  # '착수하라·마쳐야' — 요구·조건이지 상태 보도가 아니다
+                if sig == "새로운문제" and m.group(0).startswith("또") and _ALSO_AT_RE.search(tail):
+                    continue  # '또 화재 당시' — 재발이 아니다
+                if pat is _PROGRESS_RE and m.group(0).replace(" ", "").startswith("공사중") and _UNDER_CONSTRUCTION_RE.search(tail):
+                    continue  # '공사 중이던 창고' — 장소 설명
             if pat in (_HEADLINE_DONE_RE, _HEADLINE_PROGRESS_RE) and _HEADLINE_COND_RE.search(s[m.end() : m.end() + 25]):
                 continue  # 조건·요구('…까지 공사를 완료하고 사용승인을 받아야') — 완료도 진행도 아니다
             if pat is _HEADLINE_DONE_RE and _HEADLINE_FUTURE_RE.search(s[max(0, m.start() - 12) : m.end() + 8]):
@@ -364,6 +380,9 @@ class RulesLLM:
     @property
     def model(self) -> str:
         st = self.settings
+        if st is not None and any(getattr(st, f, False) for f in ("followup_phrase_fixes", "followup_same_action", "followup_investigation_source",
+                                                                    "followup_recurrence")) or (st is not None and getattr(st, "followup_early_problem_days", 0)):
+            return RULES_MODEL_V5
         if st is not None and (getattr(st, "followup_headline_expressions", False) or getattr(st, "followup_event_path", False)):
             return RULES_MODEL_V4
         v3 = st is not None and (
@@ -473,6 +492,8 @@ class RulesLLM:
         skip_commit = bool(getattr(st, "followup_skip_commitment", False))
         fixes = bool(getattr(st, "followup_expression_fixes", False))
         headline = bool(getattr(st, "followup_headline_expressions", False))
+        phrase = bool(getattr(st, "followup_phrase_fixes", False))
+        same_action = bool(getattr(st, "followup_same_action", False))
         weighted = bool(inp.term_weights)
         identity = [t for t in (inp.identity_terms or []) if len(t) >= 2]
         terms_by_promise = {p.id: _promise_terms(p) for p in inp.promises}
@@ -486,7 +507,7 @@ class RulesLLM:
         expression_without_overlap = False
         priority = {"새로운문제": 3, "완료": 2, "진행": 1}
         for i, s in enumerate(sents):
-            found = _expressions(s, fixes, headline)
+            found = _expressions(s, fixes, headline, phrase)
             if not found:
                 continue
             if i not in selected:
@@ -506,28 +527,38 @@ class RulesLLM:
                 if k > overlap:
                     pid, overlap, obj_hits, id_hits, verb = p_id, k, len(hits) - len(ids), len(ids), same_kind
             path = "overlap"
+            same_action_hit = False
             if overlap == 0:
                 near_kind = near is not None and bool(groups_by_promise.get(near, set()) & s_groups)
                 if not kw_alone or not weighted or kw < KW_ALONE or near is None or (action_match and not near_kind):
-                    expression_without_overlap = True
-                    continue
-                pid, path, verb = near, "unique-word", near_kind  # 약속 키워드는 없지만 사건 고유어가 무거운 문장 — 임베딩이 가장 가까운 약속
+                    # rules-v5 같은 행동 제목 경로 (FOLLOWUP_SAME_ACTION): 제목 문장의 완료·진행 표현이 가장 가까운 약속과 같은 종류의 행동이면
+                    # ('복구를 완료하겠다' ↔ '장마 앞두고 복구 완료') 약속 낱말이 안 겹쳐도 받는다
+                    hit = next((p_id for p_id, g in groups_by_promise.items() if g & s_groups), None) if same_action and i == 0 else None
+                    if hit is None or not any(sig_ in ("완료", "진행") for sig_, _ in found):
+                        expression_without_overlap = True
+                        continue
+                    pid, path, verb, same_action_hit = hit, "same-action", True, True
+                else:
+                    pid, path, verb = near, "unique-word", near_kind  # 약속 키워드는 없지만 사건 고유어가 무거운 문장 — 임베딩이 가장 가까운 약속
             # 한 문장에 여러 표현이 있으면: 새로운문제 > 완료 > 진행. 단 '완료' 가 미래 서술어면 진행으로 본다
             sig, m = max(found, key=lambda x: priority[x[0]])
             cause_result = m.re is _CAUSE_RESULT_RE
+            investigation = bool(_INVESTIGATION_SPAN_RE.search(m.group(0))) or cause_result
             span = _window(s, m)
             if sig == "완료" and completion_adjustment(span):
                 sig = "진행"
             conf = _BASE_CONF[min(overlap, 2)]
             if weighted:
                 conf = min(0.9, max(0.3, conf + 0.2 * (kw - 0.5) + 0.1 * (emb - 0.5)))
+            if same_action_hit:
+                conf = SAME_ACTION_CONF  # 제목 + 같은 종류 행동 + 완료·진행 표현 — 관련도 점수 대신 고정값
             cand = (min(overlap, 2), priority[sig], round(emb + kw, 3), sig, span, pid, round(conf, 3))
             if best is None or cand[:3] > best[:3]:
                 best = cand
                 detail = {
                     "overlap": overlap, "object_hits": obj_hits, "identity_hits": id_hits, "same_kind": verb, "path": path, "emb": emb, "kw": kw,
                     "title_sentence": i == 0, "commit": bool(_COMMIT_SENT_RE.search(s)), "demand": bool(_DEMAND_SENT_RE.search(s)),
-                    "rank": ranked.index(i), "n_sentences": len(sents), "cause_result": cause_result,
+                    "rank": ranked.index(i), "n_sentences": len(sents), "cause_result": cause_result, "investigation": investigation,
                 }
         if best is None:
             if expression_without_overlap:
@@ -535,7 +566,9 @@ class RulesLLM:
             return FollowupSignal(signal="무관", promise_id=None, matches_promise=False, evidence_span="", confidence=0.6, rationale="조치 상태 표현 없음 (규칙)"), detail
         overlap, _, relevance, sig, span, pid, conf = best
         cause = bool(detail.get("cause_result"))
+        invest = bool(detail.get("investigation"))
+        tags = (f" · {CAUSE_RESULT_TAG}" if cause else "") + (f" · {INVESTIGATION_TAG}" if invest else "") + (" · 같은 행동 제목" if detail.get("path") == "same-action" else "")
         return FollowupSignal(
             signal=sig, promise_id=pid, matches_promise=True, evidence_span=span, confidence=conf,
-            rationale=f"규칙: 관련 문장(관련도 {relevance:.2f}) · 약속 키워드 {overlap}개 겹침 + {sig} 표현" + (f" · {CAUSE_RESULT_TAG}" if cause else ""),
+            rationale=f"규칙: 관련 문장(관련도 {relevance:.2f}) · 약속 키워드 {overlap}개 겹침 + {sig} 표현" + tags,
         ), detail

@@ -2,24 +2,24 @@
   "generated_for": "2026-10-22",
   "summary": {
     "events_total": 100,
-    "with_followup": 71,
-    "followup_rate": 0.71,
+    "with_followup": 68,
+    "followup_rate": 0.68,
     "overdue": 3,
     "with_org_notice": 7,
     "followup_articles": 6271,
     "orgs": 63,
     "by_status": {
       "조치 완료 근거 확인": 42,
-      "조치 진행 정황 확인": 18,
-      "새로운 문제 발생": 8,
-      "후속보도 부족": 30,
+      "조치 진행 정황 확인": 17,
+      "새로운 문제 발생": 7,
+      "후속보도 부족": 32,
       "판단 불가": 2
     },
-    "last_run": "2026-10-29T01:41:59+09:00",
+    "last_run": "2026-10-29T03:04:59+09:00",
     "as_of": "2026-10-22",
     "bigkinds_mode": "record",
     "experiment": {
-      "generated_at": "2026-10-29T01:42:10+09:00",
+      "generated_at": "2026-10-29T03:05:10+09:00",
       "as_of": "2026-10-22",
       "bigkinds_mode": "record",
       "seeds_file": "seeds/events.yaml",
@@ -31,13 +31,13 @@
       },
       "events": {
         "total": 100,
-        "with_followup": 71,
-        "followup_rate": 0.71,
+        "with_followup": 68,
+        "followup_rate": 0.68,
         "by_status": {
           "조치 완료 근거 확인": 42,
-          "조치 진행 정황 확인": 18,
-          "새로운 문제 발생": 8,
-          "후속보도 부족": 30,
+          "조치 진행 정황 확인": 17,
+          "새로운 문제 발생": 7,
+          "후속보도 부족": 32,
           "판단 불가": 2
         },
         "with_org_notice": 7,
@@ -47,19 +47,19 @@
         }
       },
       "windows_days": {
-        "30": 56,
-        "90": 62,
-        "180": 63,
-        "365": 66
+        "30": 50,
+        "90": 58,
+        "180": 60,
+        "365": 63
       },
       "signals": {
-        "완료": 277,
-        "진행": 706,
-        "새로운문제": 118
+        "완료": 280,
+        "진행": 700,
+        "새로운문제": 96
       },
       "labels": {
         "labeled": 100,
-        "followup_precision": 0.93,
+        "followup_precision": 0.971,
         "followup_recall": 0.868,
         "cluster_precision": 0.871,
         "org_accuracy": 0.837
@@ -72,7 +72,7 @@
           "time_line": 988,
           "word_cloud": 0
         },
-        "elapsed_sec": 8980.5,
+        "elapsed_sec": 8981.5,
         "recordings": 12764
       },
       "success": {
@@ -1545,7 +1545,7 @@
       "bucket": "2023-03-15",
       "occurred": 1,
       "followup_articles": 39,
-      "confirmed_followups": 2,
+      "confirmed_followups": 1,
       "dead": null,
       "injured": null
     },
@@ -2769,7 +2769,7 @@
       "bucket": "2023-08-15",
       "occurred": 0,
       "followup_articles": 29,
-      "confirmed_followups": 3,
+      "confirmed_followups": 2,
       "dead": null,
       "injured": null
     },
@@ -3633,7 +3633,7 @@
       "bucket": "2023-12-01",
       "occurred": 0,
       "followup_articles": 26,
-      "confirmed_followups": 3,
+      "confirmed_followups": 0,
       "dead": null,
       "injured": null
     },
@@ -3817,7 +3817,7 @@
       "bucket": "2023-12-24",
       "occurred": 0,
       "followup_articles": 33,
-      "confirmed_followups": 25,
+      "confirmed_followups": 22,
       "dead": null,
       "injured": null
     },
@@ -3825,7 +3825,7 @@
       "bucket": "2023-12-25",
       "occurred": 1,
       "followup_articles": 24,
-      "confirmed_followups": 16,
+      "confirmed_followups": 12,
       "dead": null,
       "injured": null
     },
@@ -4481,7 +4481,7 @@
       "bucket": "2024-03-16",
       "occurred": 0,
       "followup_articles": 7,
-      "confirmed_followups": 2,
+      "confirmed_followups": 1,
       "dead": null,
       "injured": null
     },
@@ -4753,7 +4753,7 @@
       "bucket": "2024-04-19",
       "occurred": 0,
       "followup_articles": 3,
-      "confirmed_followups": 2,
+      "confirmed_followups": 0,
       "dead": null,
       "injured": null
     },
@@ -5345,7 +5345,7 @@
       "bucket": "2024-07-02",
       "occurred": 0,
       "followup_articles": 12,
-      "confirmed_followups": 5,
+      "confirmed_followups": 6,
       "dead": null,
       "injured": null
     },
@@ -5385,7 +5385,7 @@
       "bucket": "2024-07-07",
       "occurred": 0,
       "followup_articles": 20,
-      "confirmed_followups": 3,
+      "confirmed_followups": 2,
       "dead": null,
       "injured": null
     },
@@ -5481,7 +5481,7 @@
       "bucket": "2024-07-19",
       "occurred": 0,
       "followup_articles": 9,
-      "confirmed_followups": 1,
+      "confirmed_followups": 0,
       "dead": null,
       "injured": null
     },
@@ -5753,7 +5753,7 @@
       "bucket": "2024-08-22",
       "occurred": 1,
       "followup_articles": 4,
-      "confirmed_followups": 1,
+      "confirmed_followups": 0,
       "dead": 7,
       "injured": 12
     },
@@ -6289,7 +6289,7 @@
       "bucket": "2024-10-28",
       "occurred": 0,
       "followup_articles": 9,
-      "confirmed_followups": 6,
+      "confirmed_followups": 5,
       "dead": null,
       "injured": null
     },
@@ -6857,7 +6857,7 @@
       "bucket": "2025-01-07",
       "occurred": 0,
       "followup_articles": 11,
-      "confirmed_followups": 1,
+      "confirmed_followups": 0,
       "dead": null,
       "injured": null
     },
@@ -7377,7 +7377,7 @@
       "bucket": "2025-03-13",
       "occurred": 0,
       "followup_articles": 12,
-      "confirmed_followups": 1,
+      "confirmed_followups": 0,
       "dead": null,
       "injured": null
     },
@@ -8017,7 +8017,7 @@
       "bucket": "2025-06-01",
       "occurred": 0,
       "followup_articles": 52,
-      "confirmed_followups": 7,
+      "confirmed_followups": 5,
       "dead": null,
       "injured": null
     },
@@ -8433,7 +8433,7 @@
       "bucket": "2025-07-23",
       "occurred": 0,
       "followup_articles": 59,
-      "confirmed_followups": 5,
+      "confirmed_followups": 4,
       "dead": null,
       "injured": null
     },
@@ -8657,7 +8657,7 @@
       "bucket": "2025-08-20",
       "occurred": 0,
       "followup_articles": 26,
-      "confirmed_followups": 2,
+      "confirmed_followups": 1,
       "dead": null,
       "injured": null
     },
@@ -9497,7 +9497,7 @@
       "bucket": "2025-12-03",
       "occurred": 0,
       "followup_articles": 9,
-      "confirmed_followups": 4,
+      "confirmed_followups": 3,
       "dead": null,
       "injured": null
     },
@@ -12155,7 +12155,7 @@
       "bucket": "2023-03",
       "occurred": 5,
       "followup_articles": 341,
-      "confirmed_followups": 12,
+      "confirmed_followups": 11,
       "dead": null,
       "injured": null
     },
@@ -12195,7 +12195,7 @@
       "bucket": "2023-08",
       "occurred": 5,
       "followup_articles": 268,
-      "confirmed_followups": 20,
+      "confirmed_followups": 19,
       "dead": null,
       "injured": null
     },
@@ -12227,7 +12227,7 @@
       "bucket": "2023-12",
       "occurred": 4,
       "followup_articles": 187,
-      "confirmed_followups": 45,
+      "confirmed_followups": 35,
       "dead": 1,
       "injured": 2
     },
@@ -12251,7 +12251,7 @@
       "bucket": "2024-03",
       "occurred": 3,
       "followup_articles": 105,
-      "confirmed_followups": 27,
+      "confirmed_followups": 26,
       "dead": null,
       "injured": null
     },
@@ -12259,7 +12259,7 @@
       "bucket": "2024-04",
       "occurred": 1,
       "followup_articles": 31,
-      "confirmed_followups": 10,
+      "confirmed_followups": 8,
       "dead": null,
       "injured": null
     },
@@ -12283,7 +12283,7 @@
       "bucket": "2024-07",
       "occurred": 6,
       "followup_articles": 218,
-      "confirmed_followups": 31,
+      "confirmed_followups": 30,
       "dead": 9,
       "injured": 7
     },
@@ -12291,7 +12291,7 @@
       "bucket": "2024-08",
       "occurred": 5,
       "followup_articles": 27,
-      "confirmed_followups": 7,
+      "confirmed_followups": 6,
       "dead": 7,
       "injured": 12
     },
@@ -12307,7 +12307,7 @@
       "bucket": "2024-10",
       "occurred": 1,
       "followup_articles": 59,
-      "confirmed_followups": 17,
+      "confirmed_followups": 16,
       "dead": null,
       "injured": null
     },
@@ -12331,7 +12331,7 @@
       "bucket": "2025-01",
       "occurred": 2,
       "followup_articles": 166,
-      "confirmed_followups": 28,
+      "confirmed_followups": 27,
       "dead": null,
       "injured": 7
     },
@@ -12347,7 +12347,7 @@
       "bucket": "2025-03",
       "occurred": 4,
       "followup_articles": 107,
-      "confirmed_followups": 33,
+      "confirmed_followups": 32,
       "dead": 1,
       "injured": 1
     },
@@ -12371,7 +12371,7 @@
       "bucket": "2025-06",
       "occurred": 0,
       "followup_articles": 167,
-      "confirmed_followups": 33,
+      "confirmed_followups": 31,
       "dead": null,
       "injured": null
     },
@@ -12379,7 +12379,7 @@
       "bucket": "2025-07",
       "occurred": 10,
       "followup_articles": 439,
-      "confirmed_followups": 36,
+      "confirmed_followups": 35,
       "dead": null,
       "injured": null
     },
@@ -12387,7 +12387,7 @@
       "bucket": "2025-08",
       "occurred": 4,
       "followup_articles": 420,
-      "confirmed_followups": 61,
+      "confirmed_followups": 60,
       "dead": null,
       "injured": null
     },
@@ -12419,7 +12419,7 @@
       "bucket": "2025-12",
       "occurred": 2,
       "followup_articles": 123,
-      "confirmed_followups": 46,
+      "confirmed_followups": 45,
       "dead": null,
       "injured": null
     },
@@ -12509,8 +12509,8 @@
       "incident_type": "사고>산업사고",
       "label": "산업사고",
       "events": 44,
-      "with_followup": 36,
-      "rate": 0.818,
+      "with_followup": 35,
+      "rate": 0.795,
       "subtypes": [
         "사고>산업사고"
       ]
@@ -12529,8 +12529,8 @@
       "incident_type": "재해>자연재해",
       "label": "자연재해",
       "events": 27,
-      "with_followup": 20,
-      "rate": 0.741,
+      "with_followup": 18,
+      "rate": 0.667,
       "subtypes": [
         "재해>자연재해"
       ]
@@ -12544,7 +12544,7 @@
       "rate": 0.857,
       "latest_followup_at": "2026-09-04",
       "last_article_at": "2026-09-11",
-      "confirmed_signals": 109,
+      "confirmed_signals": 107,
       "event_ids": [
         10,
         158,
@@ -12565,7 +12565,7 @@
       "rate": 0.833,
       "latest_followup_at": "2025-10-29",
       "last_article_at": "2026-08-26",
-      "confirmed_signals": 107,
+      "confirmed_signals": 105,
       "event_ids": [
         9,
         180,
@@ -12585,7 +12585,7 @@
       "rate": 0.667,
       "latest_followup_at": "2026-10-08",
       "last_article_at": "2026-10-19",
-      "confirmed_signals": 56,
+      "confirmed_signals": 55,
       "event_ids": [
         168,
         262,
@@ -12606,7 +12606,7 @@
       "rate": 1.0,
       "latest_followup_at": "2026-06-04",
       "last_article_at": "2026-10-21",
-      "confirmed_signals": 85,
+      "confirmed_signals": 84,
       "event_ids": [
         153,
         208,
@@ -12617,30 +12617,13 @@
       ]
     },
     {
-      "org": "국가유산청",
-      "events": 3,
-      "with_followup": 3,
-      "rate": 1.0,
-      "latest_followup_at": "2025-10-31",
-      "last_article_at": "2026-06-22",
-      "confirmed_signals": 18,
-      "event_ids": [
-        268,
-        271,
-        297
-      ],
-      "raw_names": [
-        "국가유산청"
-      ]
-    },
-    {
       "org": "한국철도공사",
       "events": 3,
       "with_followup": 3,
       "rate": 1.0,
       "latest_followup_at": "2026-07-07",
       "last_article_at": "2026-10-12",
-      "confirmed_signals": 24,
+      "confirmed_signals": 23,
       "event_ids": [
         152,
         212,
@@ -12683,22 +12666,6 @@
       ]
     },
     {
-      "org": "부산시",
-      "events": 2,
-      "with_followup": 2,
-      "rate": 1.0,
-      "latest_followup_at": "2026-05-18",
-      "last_article_at": "2026-05-18",
-      "confirmed_signals": 21,
-      "event_ids": [
-        16,
-        228
-      ],
-      "raw_names": [
-        "부산시"
-      ]
-    },
-    {
       "org": "성남시",
       "events": 2,
       "with_followup": 2,
@@ -12721,7 +12688,7 @@
       "rate": 1.0,
       "latest_followup_at": "2026-09-07",
       "last_article_at": "2026-10-02",
-      "confirmed_signals": 91,
+      "confirmed_signals": 90,
       "event_ids": [
         177,
         288
@@ -12731,13 +12698,30 @@
       ]
     },
     {
+      "org": "국가유산청",
+      "events": 3,
+      "with_followup": 2,
+      "rate": 0.667,
+      "latest_followup_at": "2025-10-31",
+      "last_article_at": "2026-06-22",
+      "confirmed_signals": 15,
+      "event_ids": [
+        268,
+        271,
+        297
+      ],
+      "raw_names": [
+        "국가유산청"
+      ]
+    },
+    {
       "org": "인천시",
       "events": 3,
       "with_followup": 2,
       "rate": 0.667,
       "latest_followup_at": "2026-04-23",
       "last_article_at": "2026-09-22",
-      "confirmed_signals": 32,
+      "confirmed_signals": 33,
       "event_ids": [
         164,
         193,
@@ -12749,30 +12733,13 @@
       ]
     },
     {
-      "org": "중앙재난안전대책본부",
-      "events": 3,
-      "with_followup": 2,
-      "rate": 0.667,
-      "latest_followup_at": "2025-12-22",
-      "last_article_at": "2026-03-22",
-      "confirmed_signals": 4,
-      "event_ids": [
-        217,
-        245,
-        283
-      ],
-      "raw_names": [
-        "중앙재난안전대책본부"
-      ]
-    },
-    {
       "org": "강릉시",
       "events": 1,
       "with_followup": 1,
       "rate": 1.0,
       "latest_followup_at": "2026-09-01",
       "last_article_at": "2026-09-02",
-      "confirmed_signals": 51,
+      "confirmed_signals": 50,
       "event_ids": [
         300
       ],
@@ -12832,7 +12799,7 @@
       "rate": 1.0,
       "latest_followup_at": "2024-03-17",
       "last_article_at": "2026-03-08",
-      "confirmed_signals": 2,
+      "confirmed_signals": 1,
       "event_ids": [
         196
       ],
@@ -12982,7 +12949,7 @@
       "rate": 1.0,
       "latest_followup_at": "2025-12-14",
       "last_article_at": "2026-08-12",
-      "confirmed_signals": 51,
+      "confirmed_signals": 44,
       "event_ids": [
         191
       ],
@@ -13177,7 +13144,7 @@
       "rate": 1.0,
       "latest_followup_at": "2024-09-11",
       "last_article_at": "2024-09-11",
-      "confirmed_signals": 2,
+      "confirmed_signals": 1,
       "event_ids": [
         213
       ],
@@ -13192,7 +13159,7 @@
       "rate": 1.0,
       "latest_followup_at": "2026-09-02",
       "last_article_at": "2026-09-04",
-      "confirmed_signals": 20,
+      "confirmed_signals": 18,
       "event_ids": [
         258
       ],
@@ -13224,13 +13191,29 @@
       "rate": 0.5,
       "latest_followup_at": "2024-05-22",
       "last_article_at": "2026-07-30",
-      "confirmed_signals": 20,
+      "confirmed_signals": 19,
       "event_ids": [
         18,
         210
       ],
       "raw_names": [
         "대덕구"
+      ]
+    },
+    {
+      "org": "부산시",
+      "events": 2,
+      "with_followup": 1,
+      "rate": 0.5,
+      "latest_followup_at": "2026-05-18",
+      "last_article_at": "2026-05-18",
+      "confirmed_signals": 20,
+      "event_ids": [
+        16,
+        228
+      ],
+      "raw_names": [
+        "부산시"
       ]
     },
     {
@@ -13264,6 +13247,23 @@
       ],
       "raw_names": [
         "전라남도"
+      ]
+    },
+    {
+      "org": "중앙재난안전대책본부",
+      "events": 3,
+      "with_followup": 1,
+      "rate": 0.333,
+      "latest_followup_at": "2025-12-22",
+      "last_article_at": "2026-03-22",
+      "confirmed_signals": 3,
+      "event_ids": [
+        217,
+        245,
+        283
+      ],
+      "raw_names": [
+        "중앙재난안전대책본부"
       ]
     },
     {
