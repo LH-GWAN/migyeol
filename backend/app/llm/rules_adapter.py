@@ -298,6 +298,7 @@ _HEADLINE_DONE_RE = re.compile(
 # 조사·수사의 결과 (원인 규명을 약속·지시한 사건의 후속) — '원인' 과 결론 표현이 한 문장에, 추정·조사 중은 제외
 # 제목형 완료 바로 옆(앞 12자·뒤 8자)에 앞날을 가리키는 말이 있으면 진행 — '작업중지 연내 전면해제'. '장마 앞두고 복구 완료' 의 '앞두' 는 넣지 않는다
 _HEADLINE_FUTURE_RE = re.compile(r"(내년|다음\s*달|오는\s|예정|목표|계획|연내|올해\s*안|이달\s*중)")
+_HEADLINE_COND_RE = re.compile(r"(해야|아야|어야|려면|하도록|토록)")  # '공사를 완료하고 사용승인을 받아야' — 조건·요구이지 완료가 아니다
 _CAUSE_RESULT_RE = re.compile(r"(직접\s*원인|원인이었|원인으로\s*(결론|확인|밝혀|드러|판명)|결론(지었|났|냈|을\s*내)|밝혀(졌|져)|드러(났|나)|판명|확인(됐|되었)|과실(이|로|\s*때문))")
 CAUSE_RESULT_TAG = "조사 결과 표현"  # judge 가 원천 발언 직후(같은 발표의 전재일 수 있음)면 내린다
 _CAUSE_PENDING_RE = re.compile(r"(추정|조사\s*중|규명\s*(중|못|안)|조사할|밝힐|파악\s*중|오리무중|난항|못\s*(밝|찾))")
@@ -342,6 +343,8 @@ def _expressions(s: str, fixes: bool = False, headline: bool = False) -> list[tu
                 if headline:
                     found.append(("진행", m))  # '내년 2월 재개장' — 일정이 잡힌 복구는 진행
                 continue  # '내년 2월 재개장' — 계획이지 다시 연 것이 아니다
+            if pat in (_HEADLINE_DONE_RE, _HEADLINE_PROGRESS_RE) and _HEADLINE_COND_RE.search(s[m.end() : m.end() + 25]):
+                continue  # 조건·요구('…까지 공사를 완료하고 사용승인을 받아야') — 완료도 진행도 아니다
             if pat is _HEADLINE_DONE_RE and _HEADLINE_FUTURE_RE.search(s[max(0, m.start() - 12) : m.end() + 8]):
                 found.append(("진행", m))  # '연내 전면해제' — 앞날의 완료는 진행
                 continue

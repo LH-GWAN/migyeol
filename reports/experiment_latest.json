@@ -1,5 +1,5 @@
 {
- "generated_at": "2026-10-29T01:30:24+09:00",
+ "generated_at": "2026-10-29T01:42:10+09:00",
  "as_of": "2026-10-22",
  "bigkinds_mode": "record",
  "seeds_file": "seeds/events.yaml",
@@ -33,8 +33,8 @@
   "365": 66
  },
  "signals": {
-  "완료": 278,
-  "진행": 705,
+  "완료": 277,
+  "진행": 706,
   "새로운문제": 118
  },
  "by_incident_type": [
@@ -5537,7 +5537,7 @@
    "time_line": 988,
    "word_cloud": 0
   },
-  "elapsed_sec": 8973.5,
+  "elapsed_sec": 8980.5,
   "recordings": 12764
  },
  "success": {
