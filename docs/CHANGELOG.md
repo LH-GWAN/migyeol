@@ -2,6 +2,21 @@
 
 공고문 유의사항에 따라 **예선(설계·목업)** 과 **본선(실 API 연동·신규 개발)** 범위를 구분해 기록한다.
 
+## 2026-10-30 진행 단계 '발생' — 발생 직후 기사 + 사고 사실 확인 기사 ('발생' 빈 사건 8 → 1, 지표 그대로)
+
+사용자 지적: "발생은 발생 후 3일 안 기사만이 아니라 발생을 확인한 기사도 포함해야 한다." 100건 중 8건(덱 대표 사례 영도 청동초 스쿨존 포함)이 '발생' 칸이 비어 있었다. 진단·전후: `docs/EXPERIMENT.md` §15, `docs/연구.md` 3.12.
+
+- `pipeline/link.py`: '발생' = 발생 −1 ~ +3일(`PHASE_OCCURRENCE_DAYS`) + 14일(`PHASE_CONFIRM_DAYS`) 안에 제목이 사고 사실(사상자·신원·피해 규모·경위)을 보도하고 원인조사·대응·후속·의견 표현이 없는 기사(`occurrence_report`·`occurrence_window`·`initial_phase`). 게이트는 발생 창 안에서 범위 + 사건 키워드 1개면 주제 조건 통과(`LINK_OCCURRENCE_GATE`, 사유 `occ-window`). 시드 제외어(`exclude_terms`, 사유 `x-exclude`). 발생 창 보강 후보는 가중치 핵심 문서에서 제외.
+- `pipeline/judge.py`·`extract.py`: `occ-window` 로만 들어온 연결은 후속 근거·약속 인용문으로 쓰지 않는다 — 발생 창 완화는 화면·군집용이고 판정 재료를 바꾸지 않는다.
+- `api/serializers.py`: 발생 3일 안의 '대응발표'(원천) 기사를 타임라인 '발생' 에도 싣는다(단계 값·'대응발표' 칸은 그대로).
+- `pipeline/collect.py`·`seeds.py`·`db/models.py`: 시드 `occurrence_query`(발생 −1 ~ +14일만 한 페이지 더, 후보 출처 `occurrence`)·`exclude_terms`. `scripts/experiment.py --events`(collect 를 고친 사건만, 비용 표 `collect_events`).
+- `seeds/events.yaml`: 282 영암 HD현대삼호 발생일 07-25 → **07-28**(전남소방본부 신고 23:21~22), summary. 200·225·268 `occurrence_query`. 157 `exclude_terms: [백령도, 모터보트]` — 01-05 백령도 모터보트 전복 10건(다른 사고, 군집 라벨 X)을 뺌(사용자 요청).
+- 화면(`Stepper.tsx`·`events/[id]/page.tsx`): 그래도 '발생' 이 비면 "YYYY년 M월 D일 발생 · 첫 보도 미연결". 단계 안내 문구에 '발생' 정의 한 줄.
+- 실 API 42회(수집 7 · 약속 재검색 35). 재생(`BIGKINDS_REPLAY_ONLY=true`)으로 같은 결과 확인.
+- 전후: '발생' 빈 사건 8 → 1(268 융건릉, 당시 보도 없음). 후속보도 68 · P/R/F1 0.971/0.868/0.917, 상태 42/17/7/32/2, 경과 창·신호 수 **그대로**. 군집 전체 라벨 0.911/0.905 → 0.912/0.907, 활성 연결 18,421 → 19,191(+791 · −21). 새 연결 표본 60건 중 55건 같은 사건 — 남은 56행을 `gold/cluster_full.csv` 에 에이전트 라벨로 추가(22,129행 기준 0.911/0.902 → 0.912/0.908). 리포트 `reports/experiment_20261030_0400.md`·`reports/eval_labels_20261030_occurrence.md`.
+- 처음 측정에서 F1 0.910(오탐 +1)·상태 43/16·거제 고현천 라벨 O 8건 손실이 나와 위 판정 재료 분리로 고쳤다(§15.4).
+- 테스트 `tests/test_occurrence_phase.py`(phase·gate·제외어·serializer·수집·판정 분리).
+
 ## 2026-10-29 화면 정리 — 「기관」 메뉴, 대시보드 3건, 타임라인·근거 화면 「더보기」
 
 사용자 지시(제출 전날): 화면 네 가지를 표시만 줄인다. 숫자·API 는 바꾸지 않았다. 캡처 `docs/screenshots/1029_*.png`(데스크톱 1280 · 모바일 375).

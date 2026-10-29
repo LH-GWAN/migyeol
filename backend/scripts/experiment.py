@@ -4,6 +4,7 @@
   BIGKINDS_MODE=record LLM_MODE=rules EMBEDDING_BACKEND=st .venv/bin/python scripts/experiment.py --stage all
   .venv/bin/python scripts/experiment.py --stage report                   # 사람 라벨(CSV)을 채운 뒤 지표만 다시
   .venv/bin/python scripts/experiment.py --stage all --seeds seeds/events.yaml   # 사람이 확정한 시드로 collect 이후 다시
+  BIGKINDS_MODE=record ... scripts/experiment.py --stage collect --seeds seeds/events.yaml --today 2026-10-22 --events x20250807-134   # 고친 사건만 다시 수집
 
 단계: discover(원천 인용문 수집) · seed(유니크화 → seeds/experiment.draft.yaml) · collect · link · followup(extract+judge) · report.
 기준일은 --today(기본: 오늘, KST). .env 의 TODAY_OVERRIDE(가상 픽스처용)는 쓰지 않는다 — 녹화 재생은 같은 --today 로.
@@ -53,6 +54,7 @@ def main() -> int:
     ap.add_argument("--issue-stride", type=int, default=1, help="이슈 랭킹 날짜 간격(일)")
     ap.add_argument("--workers", type=int, default=4, help="원천 수집 동시 요청 수 (시작 간격은 BIGKINDS_RPS)")
     ap.add_argument("--force", action="store_true", help="호출 계획이 예산의 2배를 넘어도 실행")
+    ap.add_argument("--events", default="", help="collect 를 이 사건 key 들만 (쉼표 구분, 예: x20250807-134,x20240429-052)")
     ap.add_argument("--quiet", action="store_true")
     args = ap.parse_args()
 
@@ -79,6 +81,7 @@ def main() -> int:
         workers=max(1, args.workers),
         query_hit_limit=settings.experiment_query_hit_limit,
         max_articles_per_event=settings.experiment_max_articles_per_event,
+        only_keys=tuple(k.strip() for k in args.events.split(",") if k.strip()),
     )
 
     plan = sources.call_plan(cfg.start, cfg.until, cfg.prefixes, cfg.max_pages, cfg.issue, cfg.max_events, cfg.issue_stride)

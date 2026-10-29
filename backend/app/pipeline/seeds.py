@@ -48,6 +48,10 @@ class Seed:
     keywords: list[str] = field(default_factory=list)
     summary: str = ""
     query: str = ""  # 사람 지정 질의 (있으면 그대로 사용, 연관어 확장 안 함)
+    # 발생 창 보강 질의 — 시드 질의가 사고 당일 보도를 놓칠 때(시설명이 아직 정해지지 않은 첫 보도) 발생−1 ~ +14일만 이 질의로 더 받는다
+    occurrence_query: str = ""
+    # 제목에 이 말이 있으면 이 사건의 기사가 아니다 — 같은 지역·같은 재난어의 다른 사고(옹진 어선 전복 ↔ 백령도 모터보트 전복). link.gate 가 x-exclude 로 뺀다
+    exclude_terms: list[str] = field(default_factory=list)
     # v2 §4.2 실험 자동 시드 (트랙 A). 사람이 만든 시드에는 없어도 된다
     source_news_id: str = ""
     source_quotation: str = ""
@@ -109,6 +113,8 @@ def load_seeds(path: Path) -> list[Seed]:
             keywords=[str(k) for k in (raw.get("keywords", []) or [])],
             summary=str(raw.get("summary", "") or ""),
             query=str(raw.get("query", "") or ""),
+            occurrence_query=str(raw.get("occurrence_query", "") or ""),
+            exclude_terms=[str(t) for t in (raw.get("exclude_terms", []) or []) if str(t).strip()],
             source_news_id=str(raw.get("source_news_id", "") or ""),
             source_quotation=str(raw.get("source_quotation", "") or "")[:300],
             auto_seed=bool(raw.get("auto_seed", False)),
@@ -148,6 +154,8 @@ def upsert_events(session: Session, seeds: list[Seed]) -> list[Event]:
         ev.occurred_at = s.occurred_at
         ev.summary = s.summary
         ev.query_override = s.query.strip()
+        ev.occurrence_query = s.occurrence_query.strip()
+        ev.exclude_terms = s.exclude_terms
         ev.active = True
         ev.source_news_id = s.source_news_id or None
         ev.source_quotation = s.source_quotation or None
@@ -178,4 +186,6 @@ def seed_from_event(ev: Event) -> Seed:
         keywords=list(ev.keywords or []),
         summary=ev.summary or "",
         query=ev.query_override or "",
+        occurrence_query=ev.occurrence_query or "",
+        exclude_terms=list(ev.exclude_terms or []),
     )

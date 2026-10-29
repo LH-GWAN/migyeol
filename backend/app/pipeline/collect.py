@@ -10,6 +10,7 @@
 - 수집한 기사는 (event_id, news_id, 질의 종류) 로 EventCandidate 에 기록해 link 단계의 후보로 쓴다.
   이번 실행의 시드 질의에서 빠진 후보(시드를 좁힌 경우)는 지운다. 0건 수집이면 지우지 않고 경고한다.
 - 사람 지정 질의(query_override)는 연관어 확장을 하지 않는다.
+- 시드에 occurrence_query 가 있으면 발생 창(발생−1 ~ +14일)만 그 질의로 한 페이지 더 받는다 (후보 출처 'occurrence', collect_occurrence).
 - 정렬은 지침서의 객체 형식(`{"date": "asc"}`) 만 쓴다 (실서버는 리스트 형식도 받지만 쓰지 않는다).
 """
 
@@ -507,10 +508,34 @@ def collect_event(
     else:
         info["warnings"].append("수집 0건 — 기존 후보를 유지" + (" (시드 query 지정 — 오타 확인)" if seed.query else ""))
     info["stale_candidates_removed"] = stale
+    if seed.occurrence_query:
+        info["occurrence"] = collect_occurrence(session, client, event, seed.occurrence_query, embedder, today)
+        new += info["occurrence"]["new"]
     session.commit()
     stats = {"event": event.key, "query": query, "expansions": expansions, "fetched": len(docs), "new": new, **info}
     log.info("collect %s", stats)
     return stats
+
+
+OCCURRENCE_CAP = 300  # 발생 창 보강 질의는 한 페이지만 받는다 (사건당 호출 1회)
+
+
+def collect_occurrence(
+    session: Session, client: BigKindsClient, event: Event, query: str, embedder: EmbeddingBackend | None, today: date
+) -> dict:
+    """발생 창 보강 — 시드 질의가 사고 당일·직후 보도를 놓친 사건(첫 보도에는 시설명이 아직 없다)에서 [발생−1, 발생+14] 만 넓은 질의로 더 받는다.
+
+    후보 출처는 'occurrence'. 시드 질의 후보와 달리 다음 수집에서 지우지 않는다(같은 질의면 같은 기사). 연결 여부는 link 의 게이트·점수가 정한다.
+    """
+    start = event.occurred_at - timedelta(days=1)
+    until = min(event.occurred_at + timedelta(days=INITIAL_DAYS), today + timedelta(days=1))
+    docs, total, truncated, _ = fetch_articles(client, query, start, until, OCCURRENCE_CAP)
+    new = 0
+    for d in docs:
+        _, created = upsert_article(session, d, embedder)
+        new += int(created)
+        add_candidate(session, event, d.news_id, "occurrence")
+    return {"query": query, "total_hits": total, "fetched": len(docs), "new": new, "truncated": truncated}
 
 
 def collect_promise_followups(

@@ -2,7 +2,8 @@
 
 후보 = 수집 단계가 이 사건을 위해 가져온 기사(EventCandidate) ∪ 기존 연결. 로컬 질의 재매칭은 하지 않는다.
 
-게이트(필수): 발행일 ≥ 발생일-1일 AND (지역 OR 시설 OR 기관 일치) AND (시설명 일치 OR 사건분류 계열 일치 OR 핵심어·연관어 2개 이상 OR 약속 행동 키워드 2개 이상)
+게이트(필수): 발행일 ≥ 발생일-1일 AND 제목에 시드 제외어(exclude_terms) 없음 AND (지역 OR 시설 OR 기관 일치) AND (시설명 일치 OR 사건분류 계열 일치 OR 핵심어·연관어 2개 이상 OR 약속 행동 키워드 2개 이상
+  OR 발생 창(occurrence_window) 안 + 사건 키워드(occurrence_terms) 1개 — LINK_OCCURRENCE_GATE)
 판정:
   - 강한 규칙 일치                                            -> 자동 연결 (rule)
       · 시설명이 제목에 있고 (지역·기관 또는 사건분류) 일치
@@ -293,6 +294,9 @@ def gate(event: Event, article: Article, settings: Settings | None = None, sourc
     reasons: list[str] = []
     if article.published_at is None or article.published_at < event.occurred_at - timedelta(days=1):
         return False, ["date"]
+    excluded = next((t for t in (event.exclude_terms or []) if t and t in (article.title or "")), None)
+    if excluded:
+        return False, [f"x-exclude={excluded}"]  # 시드 제외어 — 같은 지역의 다른 사고 (관리자 확정·수동 연결은 link_event 가 재평가하지 않는다)
     if event.region and event.region in text:
         reasons.append("region")
     if event.facility and event.facility in text:
@@ -319,6 +323,12 @@ def gate(event: Event, article: Article, settings: Settings | None = None, sourc
     if p_hits >= 2:
         reasons.append(f"promise-kw={p_hits}")
     topic_ok = "incident" in reasons or hits >= 2 or p_hits >= 2 or "facility" in reasons
+    if not topic_ok and scope_ok and settings.link_occurrence_gate and occurrence_window(event, article, settings):
+        # 사고 직후 기사는 시설명이 정확하지 않고('청동초 스쿨존' 대신 '영도구 등굣길', '고현천' 대신 '거제시 폭우') 사건분류도 비어 있다 —
+        # 범위 + 사건 키워드(occurrence_terms) 1개면 통과. 통과만 시킨다: 연결 여부는 점수·재순위가 정한다
+        if any(k in text for k in occurrence_terms(event)):
+            topic_ok = True
+            reasons.append("occ-window")
     if not (scope_ok and topic_ok):
         return False, reasons
     checks = scope_checks(event, article, settings, source_date)
@@ -372,18 +382,20 @@ def decide(strong: bool, other_hit: bool, cos: float, overlap: float, settings: 
     return "drop", "embedding", score, notes
 
 
-_NO_SCOPE = Settings(link_scope_rules=False, _env_file=None)
+_NO_SCOPE = Settings(link_scope_rules=False, link_occurrence_gate=False, _env_file=None)  # 가중치 핵심 문서는 이전 게이트 그대로 (결정성·다른 사건 가중치 불변)
 
 
 def core_documents(session: Session, event: Event) -> list[set[str]]:
-    """가중치 TF 의 핵심 문서: 시드 문장 + 원천 기사 + 발생일 ±CORE_DAYS 일 안의 게이트 통과 후보 (이전 연결 상태와 무관하게 결정적)."""
+    """가중치 TF 의 핵심 문서: 시드 문장 + 원천 기사 + 발생일 ±CORE_DAYS 일 안의 게이트 통과 후보 (이전 연결 상태와 무관하게 결정적, 발생 창 보강 후보 제외)."""
     docs = [W.text_tokens(" ".join([event.title or "", event.facility or "", " ".join(event.keywords or []), event.summary or ""]))]
     src_id = event.source_news_id
     src = session.get(Article, src_id) if src_id else None
     if src is not None:
         docs.append(W.article_tokens(src.title, src.hilight, src.tms_keywords))
+    # 발생 창 보강 질의(collect_occurrence)의 후보는 일부러 넓게 받은 것이라 사건 고유어를 흐린다 — 핵심 문서에 넣지 않는다 (시드 질의 후보만)
+    broad = {c.news_id for c in session.query(EventCandidate).filter_by(event_id=event.id, source="occurrence").all()}
     for a in candidate_articles(session, event):
-        if a.news_id == src_id or not W.core_window(event.occurred_at, a.published_at):
+        if a.news_id == src_id or a.news_id in broad or not W.core_window(event.occurred_at, a.published_at):
             continue
         if gate(event, a, _NO_SCOPE)[0]:  # 기간 창·지역 조건은 가중치에 기대므로 핵심 문서 선정에는 쓰지 않는다 (결정성)
             docs.append(W.article_tokens(a.title, a.hilight, a.tms_keywords))
@@ -404,8 +416,49 @@ def refresh_term_weights(session: Session, events: list[Event]) -> W.CorpusStats
     return stats
 
 
-def initial_phase(event: Event, article: Article) -> str:
-    if article.published_at is not None and (article.published_at - event.occurred_at).days <= 3:
+# '발생' 단계 = 사고가 났다는 사실 자체를 알린 보도. 발생 직후(PHASE_OCCURRENCE_DAYS) 기사는 모두, 그 뒤 PHASE_CONFIRM_DAYS 까지는
+# 제목이 사고 사실을 확인·보도하는 기사만 넣는다 — 사상자 집계·신원 확인·피해 규모·사고 경위의 첫 보도.
+# 제목의 주된 내용이 원인조사·수사, 대응·대책, 복구·지원, 추모, 의견(사설·칼럼)이면 사실 보도가 아니다 (하이라이트는 보지 않는다:
+# 발생 기사 본문에도 '경찰은 원인을 조사 중' 같은 문장이 흔하다).
+_OCCURRENCE_FACT_RE = re.compile(
+    r"(사망|숨져|숨진|숨지|숨졌|목숨|참변|참사|희생자|부상|다쳐|다친|중상|경상자|실종|사상자|명\s?구조|구조돼|구조됐|신원|피해\s?규모|피해액|"
+    r"피해\s?(눈덩이|속출|확산|집계|늘어|커져)|재산\s?피해|이재민|침수\s?(피해|가구|주택|차량)|경위|당시\s?상황|순간|CCTV|블랙박스|목격)"
+)
+_NOT_OCCURRENCE_RE = re.compile(
+    r"(원인|조사|감식|감사|수사|입건|송치|구속|영장|압수수색|기소|재판|선고|혐의|책임|처벌|대책|재발\s?방지|개선|점검|추진|계획|검토|예정|촉구|요구|"
+    r"지원|복구|보상|배상|추모|분향|장례|발인|영결|위로|조문|방문|간담회|대응|조치|강화하|강화한|강화키|예산|법안|발의|의무화|단속|설치|교체|보강|시위|집회|국감|"
+    r"국정감사|사설|칼럼|기고|시론|데스크|오피니언|기자수첩|포토)"
+)
+
+
+def occurrence_report(title: str) -> bool:
+    """제목이 사고 사실 자체(사상자·신원·피해 규모·경위)를 보도하고, 원인조사·대응·후속·의견 기사가 아니다."""
+    t = title or ""
+    return bool(_OCCURRENCE_FACT_RE.search(t)) and not _NOT_OCCURRENCE_RE.search(t)
+
+
+def occurrence_window(event: Event, article: Article, settings: Settings) -> bool:
+    """'발생' 단계 창: 발생 −1 ~ +PHASE_OCCURRENCE_DAYS 일, 또는 +PHASE_CONFIRM_DAYS 일 안의 사고 사실 보도 (initial_phase 와 연결 게이트가 같이 쓴다)."""
+    if article.published_at is None:
+        return False
+    days = (article.published_at - event.occurred_at).days
+    if days < -1:
+        return False
+    return days <= settings.phase_occurrence_days or (days <= settings.phase_confirm_days and occurrence_report(article.title or ""))
+
+
+def occurrence_terms(event: Event) -> tuple[str, ...]:
+    """발생 창 게이트의 사건 키워드: 시드 시설명·핵심어 + 사건 제목의 고유 어절(지역·일반어 제외) + 사건 제목의 재난어."""
+    title = event.title or ""
+    regions = W.region_terms(event.region or "")
+    title_terms = [t for t in W.text_tokens(title) if len(t) >= 2 and not W.is_generic(t, regions)]
+    incident = [w for w in _INCIDENT_WORDS if w in title]
+    return tuple(k for k in dict.fromkeys([event.facility or "", *(event.keywords or []), *title_terms, *incident]) if k)
+
+
+def initial_phase(event: Event, article: Article, settings: Settings | None = None) -> str:
+    """연결 직후 단계. extract 가 '대응발표', judge 가 '조치진행·결과확인' 으로 덮어쓴다 (그 뒤로는 바꾸지 않는다)."""
+    if occurrence_window(event, article, settings or get_settings()):
         return "발생"
     if _INVESTIGATION_RE.search((article.title or "") + " " + (article.hilight or "")):
         return "원인조사"
@@ -546,7 +599,7 @@ def link_event(
                 stats["dropped"] += 1
             continue
         if link is None:
-            link = EventArticle(event_id=event.id, news_id=art.news_id, phase=initial_phase(event, art))
+            link = EventArticle(event_id=event.id, news_id=art.news_id, phase=initial_phase(event, art, settings))
             event.links.append(link)
             existing[art.news_id] = link
         link.link_method = a.method
@@ -555,7 +608,7 @@ def link_event(
         link.needs_review = a.decision == "review"
         link.auto_decision = a.decision  # 관리자 처리와 무관한 파이프라인 결정 (평가용)
         if link.phase in ("발생", "원인조사", "기타"):
-            link.phase = initial_phase(event, art)
+            link.phase = initial_phase(event, art, settings)
         stats["linked" if a.decision == "link" else "review"] += 1
 
     recompute_needs_review(session, event)

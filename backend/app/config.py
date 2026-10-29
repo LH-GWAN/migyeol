@@ -79,6 +79,10 @@ class Settings(BaseSettings):
     link_late_match: Literal["title_hilight", "title", "title_region"] = "title_region"
     link_unique_min: float = 0.6  # 사건 고유어 = 사건 단어 가중치가 이 값 이상인 지역·일반어 아닌 단어 (+ 시설명)
     link_region_parent_ok: bool = False  # 기초 지역 사건에서 상위 광역명 + 사건 고유어를 지역어 대신 받아 준다
+    # 진행 단계 '발생' (link.initial_phase · link.occurrence_window, docs/EXPERIMENT.md §15) — 발생 직후 기사 + 사고 사실 자체를 확인·보도한 기사
+    phase_occurrence_days: int = 3  # 발생일 + N일 안 기사는 '발생' (원인조사·대응 표현이 있어도)
+    phase_confirm_days: int = 14  # 그 뒤 N일까지는 제목이 사고 사실(사상자·신원·피해 규모·경위)을 보도하고 원인조사·대응·후속 표현이 없으면 '발생'
+    link_occurrence_gate: bool = True  # 발생 창 안 기사는 범위(지역·시설·기관) + 사건 키워드(시드 핵심어·사건 제목 고유어·재난어) 1개면 주제 조건을 통과 (첫 보도는 시설명이 정확하지 않다)
     # 학습 기반 재순위 (pipeline/rerank.py, docs/EXPERIMENT.md §9). none 이면 위 임계값(link.decide) 그대로.
     # 기본 cross(2026-10-25 채택, §9·§10): 군집 정밀도·재현율 0.77/0.78 → 0.90/0.89. 교차 인코더가 없으면 features, 모델·의존성·학습 임베딩이 맞지 않으면 none
     link_reranker: Literal["none", "features", "cross"] = "cross"

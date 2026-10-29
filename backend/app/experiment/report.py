@@ -149,7 +149,7 @@ def render(latest: dict, facts: list[EventFacts], state: dict, lab: dict, org_ro
     a("| 단계 | 요청 수(엔드포인트별) | 네트워크 호출 | 소요(초) |")
     a("|---|---|---|---|")
     total_req = total_net = 0
-    for name in ("discover", "seed", "collect", "link", "followup", "report"):
+    for name in ("discover", "seed", "collect", "collect_events", "link", "followup", "report"):
         e = st.get(name)
         if not e:
             continue

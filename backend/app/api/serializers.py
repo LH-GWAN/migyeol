@@ -4,6 +4,7 @@
 - counted = 최신 판정 규칙이 채택한 신호(StatusJudgment.counted_signal_ids). considered = R5 참고 신호와 R1 의 이전 완료 근거(prior_done).
 - 카드의 '발표된 기한' 과 '기한 경과 N일' 은 같은 약속(기한이 지난 약속 우선, 없으면 확약 > 계획)을 가리킨다.
 - 판정 이력이 없는 사건은 사유를 '아직 상태 판정이 실행되지 않음' 으로 명시한다.
+- 타임라인 '발생' 에는 발생 −1 ~ +PHASE_OCCURRENCE_DAYS 일의 '대응발표' 기사(원천 기사 포함)도 함께 싣는다 (단계 값은 그대로, 두 칸에 모두 보인다).
 """
 
 from __future__ import annotations
@@ -200,11 +201,16 @@ def event_card(session: Session, event: Event, today: date) -> dict:
 def event_detail(session: Session, event: Event, today: date) -> dict:
     j = latest_judgment(session, event)
     by_phase: dict[str, list[dict]] = {p: [] for p in PHASES}
+    occurrence_days = get_settings().phase_occurrence_days
     for l in active_links(event):
         a = session.get(Article, l.news_id)
         if a is None or a.change_status == "cancelled":
             continue
-        by_phase.setdefault(l.phase if l.phase in PHASES else "기타", []).append(article_out(a, l))
+        out = article_out(a, l)
+        by_phase.setdefault(l.phase if l.phase in PHASES else "기타", []).append(out)
+        # 발생 직후의 원천 기사·대응발표 기사는 사고 사실도 함께 알린다 — 단계는 '대응발표' 그대로 두고 '발생' 에도 보여 준다
+        if l.phase == "대응발표" and a.published_at is not None and -1 <= (a.published_at - event.occurred_at).days <= occurrence_days:
+            by_phase["발생"].append(out)
     for items in by_phase.values():
         items.sort(key=lambda x: x["published_at"] or "")
     promises = [p for p in sorted(event.promises, key=lambda p: p.id) if p.strength != "해당없음" and p.merged_into_id is None]

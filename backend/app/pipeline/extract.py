@@ -24,7 +24,7 @@ from ..db.models import Article, Event, Promise, Quotation
 from ..llm.client import PROMPT_VERSIONS, LLMClient, LLMFailure
 from ..llm.schemas import PromiseInput
 from ..rules.actors import is_public_actor, looks_like_person, normalize_actor_org
-from .judge import clear_llm_failure, note_llm_failure
+from .judge import clear_llm_failure, note_llm_failure, occurrence_gate_link
 from .embeddings import EmbeddingBackend
 from .seeds import _quote, seed_from_event
 
@@ -228,7 +228,8 @@ def extract_event(
     call_budget: dict | None = None,
 ) -> dict:
     session.refresh(event)
-    linked_ids = {l.news_id for l in event.links if l.is_active}
+    # 발생 창 게이트 완화로만 들어온 연결(사고 직후 발생 보도)의 인용문은 약속으로 뽑지 않는다 — 그 완화는 화면·군집용이고 판정 재료를 바꾸지 않는다
+    linked_ids = {l.news_id for l in event.links if l.is_active and not occurrence_gate_link(l)}
     start = event.occurred_at
     until = event.occurred_at + timedelta(days=settings.quotation_window_days)
     query = quotation_query(event)

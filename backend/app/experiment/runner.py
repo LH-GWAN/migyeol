@@ -78,6 +78,7 @@ class ExperimentConfig:
     work_dir: Path = field(default_factory=lambda: BACKEND_DIR / "data" / "experiment")
     draft_path: Path = field(default_factory=lambda: BACKEND_DIR / "seeds" / "experiment.draft.yaml")
     seeds_path: Path | None = None  # --seeds: 사람이 고친 시드로 collect 이후를 돌린다
+    only_keys: tuple[str, ...] = ()  # --events: collect 를 이 사건들만 (시드 발생일·발생 창 질의를 고친 사건만 다시 받을 때)
     gold_dir: Path = field(default_factory=lambda: BACKEND_DIR / "gold")
     reports_dir: Path | None = None
     embedding_note: str = ""
@@ -299,6 +300,21 @@ class Experiment:
 
     def stage_collect(self) -> dict[str, Any]:
         t0 = self._begin()
+        if self.cfg.only_keys:
+            pipe = self._pipeline()
+            ids = {e.key: e.id for e in pipe.ensure_events()}
+            missing = [k for k in self.cfg.only_keys if k not in ids]
+            if missing:
+                raise ValueError(f"시드에 없는 사건: {missing}")
+            runs = [pipe.run("collect", event_id=ids[k]) for k in self.cfg.only_keys]
+            summary = [c for r in runs for c in r.stats.get("collect", [])]
+            failures = sum(len(r.stats.get("failures", [])) for r in runs)
+            extra = self.ensure_source_articles()
+            self._apply_meta()
+            # 전체 collect 기록(비용)은 덮지 않고 따로 남긴다 — 리포트 비용 표의 collect_events 행
+            return self._save_stage("collect_events", t0, {"only": list(self.cfg.only_keys), "per_event": [
+                {k: c.get(k) for k in ("event", "fetched", "new", "total_hits", "api_calls", "occurrence")} for c in summary
+            ], "failures": failures, **extra})
         run = self._pipeline().run("collect")
         extra = self.ensure_source_articles()
         self._apply_meta()

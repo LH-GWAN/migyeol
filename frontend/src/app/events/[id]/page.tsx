@@ -7,7 +7,7 @@ import ErrorBox from "@/components/ErrorBox";
 import PromiseCard from "@/components/PromiseCard";
 import { ShowMoreList } from "@/components/ShowMore";
 import StatusBadge from "@/components/StatusBadge";
-import Stepper, { STEP_PHASES } from "@/components/Stepper";
+import Stepper, { occurrenceEmptyText, STEP_PHASES } from "@/components/Stepper";
 import TrendChart from "@/components/TrendChart";
 import { getEvent, isEventNotFound, safe } from "@/lib/api";
 import {
@@ -168,9 +168,9 @@ export default async function EventPage({ params }: { params: Params }) {
       {/* Stepper */}
       <section className="rounded-lg border border-gray-200 bg-white p-5">
         <h2 className="mb-5 text-base font-bold text-gray-900">진행 단계</h2>
-        <Stepper timeline={timeline} />
+        <Stepper timeline={timeline} occurredAt={card.occurred_at} />
         <p className="mt-4 text-xs text-gray-500">
-          단계는 수집된 기사의 분류 결과입니다. 비어 있는 단계는 해당 보도를 찾지 못했다는 뜻이며, 조치가 없었다는 뜻이 아닙니다.
+          단계는 수집된 기사의 분류 결과입니다. &lsquo;발생&rsquo;에는 발생 직후 3일 안의 기사와 14일 안에 사고 사실(사상자·신원·피해 규모·경위)을 보도한 기사가 들어가며, 발생 직후의 대응 발표 기사는 두 단계에 함께 보입니다. 비어 있는 단계는 해당 보도를 찾지 못했다는 뜻이며, 조치가 없었다는 뜻이 아닙니다.
         </p>
       </section>
 
@@ -219,7 +219,7 @@ export default async function EventPage({ params }: { params: Params }) {
 
               {articles.length === 0 ? (
                 <p className="mt-3 rounded-md border border-dashed border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-500">
-                  이 단계의 보도를 찾지 못함
+                  {phase === "발생" ? occurrenceEmptyText(card.occurred_at) : "이 단계의 보도를 찾지 못함"}
                 </p>
               ) : (
                 <div className={isResponse ? "mt-4" : "mt-3"}>

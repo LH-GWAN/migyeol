@@ -38,6 +38,8 @@ class Event(Base):
     occurred_at: Mapped[date] = mapped_column(Date, index=True)
     seed_query: Mapped[str] = mapped_column(Text, default="")  # 실제로 쓰는 질의 (override 가 있으면 그대로)
     query_override: Mapped[str] = mapped_column(Text, default="")  # 시드 YAML 의 사람 지정 질의 (연관어 확장 안 함)
+    exclude_terms: Mapped[list] = mapped_column(JSON, default=list)  # 제목에 있으면 이 사건 후보에서 빼는 말 (같은 지역의 다른 사고, 시드 YAML 선택 필드)
+    occurrence_query: Mapped[str] = mapped_column(Text, default="")  # 발생 창(발생−1 ~ +14일)만 더 넓게 찾는 질의 (시드 YAML 선택 필드, collect)
     summary: Mapped[str] = mapped_column(Text, default="")
     active: Mapped[bool] = mapped_column(Boolean, default=True, index=True)  # 시드에서 빠진 사건은 False (목록 제외)
 
@@ -105,7 +107,7 @@ class EventCandidate(Base):
 
     event_id: Mapped[int] = mapped_column(ForeignKey("events.id", ondelete="CASCADE"), primary_key=True)
     news_id: Mapped[str] = mapped_column(ForeignKey("articles.news_id", ondelete="CASCADE"), primary_key=True)
-    source: Mapped[str] = mapped_column(String(16), default="seed")  # seed|promise
+    source: Mapped[str] = mapped_column(String(16), default="seed")  # seed|promise|occurrence (발생 창 보강 질의)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=_now)
 
     event: Mapped["Event"] = relationship(back_populates="candidates")

@@ -4,6 +4,7 @@
   FOLLOWUP_CUTOFF=grace : 기준일 = max(발생일 + 유예, 가장 이른 약속 발언일)
   FOLLOWUP_CUTOFF=source: 기준일 = max(발생일, 원천 발언일) — 그리고 신호는 그 신호가 가리킨 약속의 발언일 뒤 기사여야 한다 (docs/EXPERIMENT.md §10)
   FOLLOWUP_MIN_LINK_PROB: 재순위 확률(link_reason 의 p=)이 이보다 낮은 연결은 후속 기사에서 뺀다 (관리자 확정·수동 연결은 그대로).
+  발생 창 게이트 완화('occ-window')로만 들어온 연결은 발생 보도라 후속 기사에서 뺀다 (관리자 확정·수동 연결은 그대로).
 추적 약속 = is_trackable 이고 근거 기사가 활성 연결인 약속 (연결이 해제·삭제되면 약속도 추적에서 빠진다).
 신호 캐시 키: (event, news_id, prompt_version) + 분류 당시 model + 추적 약속 집합 해시. 모델이나 약속 집합이 바뀌면 다시 분류한다.
 LLM 호출은 DB 쓰기 트랜잭션 밖에서 하고, 실패한 기사는 저장하지 않는다(다음 실행에서 재시도). 최신 기사부터 분류한다.
@@ -128,9 +129,17 @@ def low_prob_link(link, settings: Settings) -> bool:
     return p is not None and p < settings.followup_min_link_prob
 
 
+def occurrence_gate_link(link) -> bool:
+    """발생 창 게이트 완화(link.gate 'occ-window')로만 들어온 자동 연결 — 사고 직후의 발생 보도라 후속 근거로도, 약속 추출(extract)의 인용문으로도
+    쓰지 않는다('호우 특보 해제' 같은 사건 전개를 완료로 읽지 않게, docs/EXPERIMENT.md §15). 관리자 확정·수동 연결은 그대로."""
+    if link.confirmed or link.link_method == "manual":
+        return False
+    return "occ-window" in (link.link_reason or "").split("+")
+
+
 def usable_followup_link(link, settings: Settings) -> bool:
-    """후속 근거로 쓸 연결: 활성 + 확률이 낮지 않거나, 낮아도 바닥 규칙으로 남은 늦은 기사(완료·새로운문제 근거로만 — classify_followups)."""
-    return link.is_active and (not low_prob_link(link, settings) or kept_late(link))
+    """후속 근거로 쓸 연결: 활성 + 발생 창 완화 연결이 아니고 + 확률이 낮지 않거나, 낮아도 바닥 규칙으로 남은 늦은 기사(완료·새로운문제 근거로만 — classify_followups)."""
+    return link.is_active and not occurrence_gate_link(link) and (not low_prob_link(link, settings) or kept_late(link))
 
 
 EVENT_PATH_PROMISE_ID = 0  # 사건 직접 후속 경로의 가짜 약속 id — 신호에는 promise_id 없이(NULL) 저장한다
