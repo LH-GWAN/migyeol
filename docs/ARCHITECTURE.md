@@ -213,7 +213,7 @@ migyeol/
 
 - **첫 화면**: 시민용 대시보드 `/`(`api/dashboard.py` 집계 6종) → 기자용 목록 `/events`(탭 확인 필요 / 후속보도 확인됨, `org=` 기관 필터) → 타임라인 → 근거(「기관 발표 확인」 패널) → 보도자료 초안 `/press`.
 - **실험**(`app/experiment/`, `scripts/experiment.py`): 인용문 검색(월별 × 계열, `_score` 상위 표본, 공공 주체 + 확약·계획 발언) + 이슈 랭킹(재난 어휘 토픽만)으로 원천 기사를 모아 유니크화(지역·시설·±14일·기관) → 자동 시드 → 기존 collect/link/extract/judge → §4.6 지표 → `reports/experiment_latest.json`(대시보드·보도자료가 읽는다). 자세한 방법·호출 수·한계는 `docs/EXPERIMENT.md`.
-- **LLM 없이**: `LLM_MODE=rules`(`app/llm/rules_adapter.py`, model `rules-v2`, 2단계 보강을 켜면 `rules-v3`)가 약속 추출·후속 신호를 규칙으로 낸다. 프로토콜·프롬프트 파일·스키마는 그대로라 키가 오면 `live` 로만 바꾼다. 보도자료는 `app/press/writer.py` 의 `TemplateWriter`(기본) / `LLMWriter`(live 일 때 문장 다듬기만, 숫자·근거 번호 검증 실패 시 템플릿 유지).
+- **LLM 없이**: `LLM_MODE=rules`(`app/llm/rules_adapter.py`, model `rules-v2`, 2단계 보강을 켜면 `rules-v3`, 10-29 제목형 표현·약속 없는 사건 경로를 켜면 `rules-v4`, 구절 오독 고침·발생 직후 새로운문제 내림(§14.6) 중 하나라도 켜면 `rules-v5` — 지금 기본값)가 약속 추출·후속 신호를 규칙으로 낸다. 프로토콜·프롬프트 파일·스키마는 그대로라 키가 오면 `live` 로만 바꾼다. 보도자료는 `app/press/writer.py` 의 `TemplateWriter`(기본) / `LLMWriter`(live 일 때 문장 다듬기만, 숫자·근거 번호 검증 실패 시 템플릿 유지).
 - **공공기관 게시판 확인**(`app/notices/`): 트리거(후속보도 부족·판단 불가 + `NOTICE_TRIGGER_DAYS` 경과) → 등록부 `sites.yaml`(광역 11 + 정책브리핑) → guard(뉴스 도메인 거부·허용 접미) → robots.txt(RFC 9309) → 호스트별 2초 간격 → 목록 제목·날짜·URL, 매칭 항목만 본문 300자 → `org_notices`·`notice_checks`, `Event.org_notice_found`. 상태 5종은 바꾸지 않는 **보조 근거**. 스케줄러 05:30 KST. 등록부와 확인 기록은 `docs/NOTICES.md`.
 - **기관 정규화**: `rules/orgs.canonical_org()` — 광역·기초 지자체(청·장·지사 꼬리), 중앙부처 약칭, 공사·공단 — 대시보드 기관별 집계·목록 `org` 필터·보도자료·게시판 등록부가 같은 키를 쓴다.
 
