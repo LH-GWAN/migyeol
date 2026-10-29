@@ -179,7 +179,8 @@ def _merge_duplicates(event: Event, embedder: EmbeddingBackend | None) -> int:
 
 
 def count_pending_quotations(event: Event) -> int:
-    active = {l.news_id for l in event.links if l.is_active}
+    # extract_event 가 추출하는 연결과 같은 집합 — 발생 창 완화 연결의 인용문은 뽑지 않으므로 대기로 세지 않는다 (영구 '잠정' 방지)
+    active = {l.news_id for l in event.links if l.is_active and not occurrence_gate_link(l)}
     return sum(1 for q in event.quotations if q.is_public_actor and not q.promises and q.news_id in active)
 
 

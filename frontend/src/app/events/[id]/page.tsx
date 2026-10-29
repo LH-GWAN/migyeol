@@ -74,7 +74,7 @@ export default async function EventPage({ params }: { params: Params }) {
       {/* Header summary */}
       <header className="rounded-lg border border-gray-200 bg-white p-6 shadow-sm">
         <div className="flex flex-wrap items-start justify-between gap-4">
-          <div className="min-w-0 flex-1">
+          <div className="min-w-[min(100%,20rem)] flex-1">
             <div className="flex flex-wrap items-center gap-2">
               <h1 className="text-2xl font-bold leading-tight text-gray-900">{card.title}</h1>
               {showsDeadlinePassed(card.status, card.deadline_passed_days) && (
@@ -112,7 +112,7 @@ export default async function EventPage({ params }: { params: Params }) {
             </dl>
           </div>
 
-          <div className="flex w-full flex-col gap-2 rounded-md border border-gray-100 bg-gray-50 p-4 sm:w-auto sm:min-w-[260px]">
+          <div className="flex w-full flex-col gap-2 rounded-md border border-gray-100 bg-gray-50 p-4 sm:w-80 sm:shrink-0">
             <span className="text-xs font-semibold text-gray-500">현재 상태</span>
             <div className="flex flex-wrap items-center gap-2">
               {judged ? (

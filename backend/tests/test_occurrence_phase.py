@@ -299,6 +299,24 @@ def test_extract_skips_quotes_from_occurrence_gate_links(session, monkeypatch):
     assert {q.news_id for q in e.quotations} == {"ok1"}
 
 
+def test_pending_quotations_skip_occurrence_gate_links(session):
+    """추출하지 않는 발생 창 완화 연결의 인용문은 '대기' 로 세지 않는다 — 예전 실행에서 저장된 인용문이 남아도 영구 '잠정' 이 되지 않게."""
+    from app.db.models import Quotation
+    from app.pipeline.extract import count_pending_quotations
+
+    e = ev(**YEONGDO, key="yd6")
+    session.add(e)
+    session.flush()
+    _link(session, e, art("부산 영도구 등굣길 참변", 0, news_id="ok2"), "발생")
+    _link(session, e, art("부산 영도구 스쿨존 사망", 0, news_id="occ2"), "발생")
+    session.get(EventArticle, {"event_id": e.id, "news_id": "occ2"}).link_reason = "region+occ-window+p=0.90"
+    for n in ("ok2", "occ2"):
+        session.add(Quotation(event_id=e.id, news_id=n, source="영도구청장", quotation="스쿨존에 방호울타리를 설치하겠다", is_public_actor=True))
+    session.commit()
+    session.refresh(e)
+    assert count_pending_quotations(e) == 1  # ok2 만 (occ2 는 추출 대상이 아니다)
+
+
 def test_gate_exclude_terms_drop_other_incident_in_same_area():
     """시드 제외어 — 옹진 어선 전복(2025-12-30) 사건에 붙던 백령도 모터보트 전복(2026-01-05) 기사를 뺀다."""
     ongjin = dict(
