@@ -1,5 +1,5 @@
 {
- "generated_at": "2026-10-29T03:05:10+09:00",
+ "generated_at": "2026-10-30T03:32:51+09:00",
  "as_of": "2026-10-22",
  "bigkinds_mode": "record",
  "seeds_file": "seeds/events.yaml",
@@ -91,16 +91,15 @@
   },
   {
    "org": "서울시",
-   "events": 6,
+   "events": 5,
    "with_followup": 4,
-   "rate": 0.667,
+   "rate": 0.8,
    "latest_followup_at": "2026-10-08",
    "event_ids": [
     168,
     302,
     296,
     262,
-    289,
     291
    ]
   },
@@ -182,18 +181,6 @@
     297,
     268,
     271
-   ]
-  },
-  {
-   "org": "인천시",
-   "events": 3,
-   "with_followup": 2,
-   "rate": 0.667,
-   "latest_followup_at": "2026-04-23",
-   "event_ids": [
-    164,
-    193,
-    219
    ]
   },
   {
@@ -324,6 +311,16 @@
    "latest_followup_at": "2024-03-16",
    "event_ids": [
     192
+   ]
+  },
+  {
+   "org": "동구",
+   "events": 1,
+   "with_followup": 1,
+   "rate": 1.0,
+   "latest_followup_at": "2025-02-19",
+   "event_ids": [
+    164
    ]
   },
   {
@@ -520,6 +517,17 @@
    ]
   },
   {
+   "org": "인천시",
+   "events": 2,
+   "with_followup": 1,
+   "rate": 0.5,
+   "latest_followup_at": "2026-04-23",
+   "event_ids": [
+    193,
+    219
+   ]
+  },
+  {
    "org": "충남",
    "events": 2,
    "with_followup": 1,
@@ -563,6 +571,16 @@
    "event_ids": [
     195,
     157
+   ]
+  },
+  {
+   "org": "강서구",
+   "events": 1,
+   "with_followup": 0,
+   "rate": 0.0,
+   "latest_followup_at": null,
+   "event_ids": [
+    289
    ]
   },
   {
@@ -842,7 +860,7 @@
   {
    "bucket": "2024-05",
    "occurred": 1,
-   "followup_articles": 25,
+   "followup_articles": 26,
    "dead": null,
    "injured": null
   },
@@ -863,7 +881,7 @@
   {
    "bucket": "2024-08",
    "occurred": 5,
-   "followup_articles": 27,
+   "followup_articles": 28,
    "dead": 7,
    "injured": 12
   },
@@ -996,7 +1014,7 @@
   {
    "bucket": "2026-03",
    "occurred": 0,
-   "followup_articles": 82,
+   "followup_articles": 83,
    "dead": null,
    "injured": null
   },
@@ -2374,7 +2392,7 @@
   {
    "date": "2024-05-16",
    "occurred": 0,
-   "followup_articles": 1
+   "followup_articles": 2
   },
   {
    "date": "2024-05-21",
@@ -2624,7 +2642,7 @@
   {
    "date": "2024-08-01",
    "occurred": 1,
-   "followup_articles": 1
+   "followup_articles": 2
   },
   {
    "date": "2024-08-05",
@@ -4839,7 +4857,7 @@
   {
    "date": "2026-03-10",
    "occurred": 0,
-   "followup_articles": 2
+   "followup_articles": 3
   },
   {
    "date": "2026-03-11",
@@ -5204,7 +5222,7 @@
   {
    "date": "2026-07-07",
    "occurred": 0,
-   "followup_articles": 9
+   "followup_articles": 10
   },
   {
    "date": "2026-07-08",
@@ -5224,7 +5242,7 @@
   {
    "date": "2026-07-16",
    "occurred": 0,
-   "followup_articles": 10
+   "followup_articles": 9
   },
   {
    "date": "2026-07-18",
@@ -5527,7 +5545,7 @@
   "followup_precision": 0.971,
   "followup_recall": 0.868,
   "cluster_precision": 0.871,
-  "org_accuracy": 0.837
+  "org_accuracy": 0.886
  },
  "cost": {
   "api_calls": {
@@ -5537,8 +5555,8 @@
    "time_line": 988,
    "word_cloud": 0
   },
-  "elapsed_sec": 8981.5,
-  "recordings": 12764
+  "elapsed_sec": 9099.3,
+  "recordings": 12948
  },
  "success": {
   "min_followup_events": 5,

@@ -6,8 +6,8 @@
     "followup_rate": 0.68,
     "overdue": 3,
     "with_org_notice": 7,
-    "followup_articles": 6271,
-    "orgs": 63,
+    "followup_articles": 6274,
+    "orgs": 65,
     "by_status": {
       "조치 완료 근거 확인": 42,
       "조치 진행 정황 확인": 17,
@@ -15,11 +15,11 @@
       "후속보도 부족": 32,
       "판단 불가": 2
     },
-    "last_run": "2026-10-29T03:04:59+09:00",
+    "last_run": "2026-10-30T03:28:15+09:00",
     "as_of": "2026-10-22",
     "bigkinds_mode": "record",
     "experiment": {
-      "generated_at": "2026-10-29T03:05:10+09:00",
+      "generated_at": "2026-10-30T03:32:51+09:00",
       "as_of": "2026-10-22",
       "bigkinds_mode": "record",
       "seeds_file": "seeds/events.yaml",
@@ -62,7 +62,7 @@
         "followup_precision": 0.971,
         "followup_recall": 0.868,
         "cluster_precision": 0.871,
-        "org_accuracy": 0.837
+        "org_accuracy": 0.886
       },
       "cost": {
         "api_calls": {
@@ -72,8 +72,8 @@
           "time_line": 988,
           "word_cloud": 0
         },
-        "elapsed_sec": 8981.5,
-        "recordings": 12764
+        "elapsed_sec": 9099.3,
+        "recordings": 12948
       },
       "success": {
         "min_followup_events": 5,
@@ -4968,7 +4968,7 @@
     {
       "bucket": "2024-05-16",
       "occurred": 0,
-      "followup_articles": 1,
+      "followup_articles": 2,
       "confirmed_followups": 1,
       "dead": null,
       "injured": null
@@ -5584,7 +5584,7 @@
     {
       "bucket": "2024-08-01",
       "occurred": 1,
-      "followup_articles": 1,
+      "followup_articles": 2,
       "confirmed_followups": 0,
       "dead": null,
       "injured": null
@@ -10272,7 +10272,7 @@
     {
       "bucket": "2026-03-10",
       "occurred": 0,
-      "followup_articles": 2,
+      "followup_articles": 3,
       "confirmed_followups": 0,
       "dead": null,
       "injured": null
@@ -11224,7 +11224,7 @@
     {
       "bucket": "2026-07-07",
       "occurred": 0,
-      "followup_articles": 9,
+      "followup_articles": 10,
       "confirmed_followups": 9,
       "dead": null,
       "injured": null
@@ -11296,7 +11296,7 @@
     {
       "bucket": "2026-07-16",
       "occurred": 0,
-      "followup_articles": 10,
+      "followup_articles": 9,
       "confirmed_followups": 6,
       "dead": null,
       "injured": null
@@ -12266,7 +12266,7 @@
     {
       "bucket": "2024-05",
       "occurred": 1,
-      "followup_articles": 25,
+      "followup_articles": 26,
       "confirmed_followups": 7,
       "dead": null,
       "injured": null
@@ -12290,7 +12290,7 @@
     {
       "bucket": "2024-08",
       "occurred": 5,
-      "followup_articles": 27,
+      "followup_articles": 28,
       "confirmed_followups": 6,
       "dead": 7,
       "injured": 12
@@ -12442,7 +12442,7 @@
     {
       "bucket": "2026-03",
       "occurred": 0,
-      "followup_articles": 82,
+      "followup_articles": 83,
       "confirmed_followups": 11,
       "dead": null,
       "injured": null
@@ -12580,22 +12580,20 @@
     },
     {
       "org": "서울시",
-      "events": 6,
+      "events": 5,
       "with_followup": 4,
-      "rate": 0.667,
+      "rate": 0.8,
       "latest_followup_at": "2026-10-08",
       "last_article_at": "2026-10-19",
       "confirmed_signals": 55,
       "event_ids": [
         168,
         262,
-        289,
         291,
         296,
         302
       ],
       "raw_names": [
-        "서울 강서구",
         "서울시"
       ]
     },
@@ -12712,24 +12710,6 @@
       ],
       "raw_names": [
         "국가유산청"
-      ]
-    },
-    {
-      "org": "인천시",
-      "events": 3,
-      "with_followup": 2,
-      "rate": 0.667,
-      "latest_followup_at": "2026-04-23",
-      "last_article_at": "2026-09-22",
-      "confirmed_signals": 33,
-      "event_ids": [
-        164,
-        193,
-        219
-      ],
-      "raw_names": [
-        "인천 동구",
-        "인천시"
       ]
     },
     {
@@ -12925,6 +12905,21 @@
       ],
       "raw_names": [
         "도봉소방서"
+      ]
+    },
+    {
+      "org": "동구",
+      "events": 1,
+      "with_followup": 1,
+      "rate": 1.0,
+      "latest_followup_at": "2025-02-19",
+      "last_article_at": "2026-06-16",
+      "confirmed_signals": 20,
+      "event_ids": [
+        164
+      ],
+      "raw_names": [
+        "인천 동구"
       ]
     },
     {
@@ -13217,6 +13212,22 @@
       ]
     },
     {
+      "org": "인천시",
+      "events": 2,
+      "with_followup": 1,
+      "rate": 0.5,
+      "latest_followup_at": "2026-04-23",
+      "last_article_at": "2026-09-22",
+      "confirmed_signals": 13,
+      "event_ids": [
+        193,
+        219
+      ],
+      "raw_names": [
+        "인천시"
+      ]
+    },
+    {
       "org": "충남",
       "events": 2,
       "with_followup": 1,
@@ -13281,6 +13292,21 @@
       "raw_names": [
         "남해지방해양경찰청",
         "해양경찰청"
+      ]
+    },
+    {
+      "org": "강서구",
+      "events": 1,
+      "with_followup": 0,
+      "rate": 0.0,
+      "latest_followup_at": null,
+      "last_article_at": "2025-10-13",
+      "confirmed_signals": 0,
+      "event_ids": [
+        289
+      ],
+      "raw_names": [
+        "서울 강서구"
       ]
     },
     {

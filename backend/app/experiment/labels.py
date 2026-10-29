@@ -18,6 +18,7 @@ from typing import Any
 from sqlalchemy.orm import Session
 
 from ..db.models import Article, EventArticle, Quotation
+from ..rules import actor_search
 from ..rules.actors import normalize_actor_org
 from ..rules.orgs import canonical_org
 from .metrics import EventFacts
@@ -44,12 +45,14 @@ def _read(path: Path, key_cols: list[str]) -> dict[tuple, dict[str, str]]:
         return {tuple(r.get(k, "") for k in key_cols): r for r in csv.DictReader(f)}
 
 
-def _write(path: Path, cols: list[str], rows: list[dict[str, Any]], human: list[str], key_cols: list[str]) -> int:
+def _write(path: Path, cols: list[str], rows: list[dict[str, Any]], human: list[str], key_cols: list[str], regrade=None) -> int:
     old = _read(path, key_cols)
     for r in rows:
         prev = old.get(tuple(str(r.get(k, "")) for k in key_cols))
         for h in human:
             r[h] = (prev or {}).get(h, "") if prev else r.get(h, "")
+        if prev and regrade is not None:
+            r.update(regrade(r, prev))
     path.parent.mkdir(parents=True, exist_ok=True)
     with path.open("w", encoding="utf-8-sig", newline="") as f:  # 엑셀에서 한글이 깨지지 않게 BOM
         w = csv.DictWriter(f, fieldnames=cols, extrasaction="ignore")
@@ -133,7 +136,11 @@ def org_pairs(session: Session, facts: list[EventFacts]) -> list[dict[str, Any]]
             raw = (q.source or "").strip()
             if not raw:
                 continue
-            canon = canonical_org(normalize_actor_org(raw, ev.responsible_org, ev.org_aliases or []) or raw)
+            org = normalize_actor_org(raw, ev.responsible_org, ev.org_aliases or [])
+            lexicon = [ev.region, ev.responsible_org, *(ev.org_aliases or [])]
+            if actor_search.wants(raw, org, lexicon):  # 이름+직함('김동연 지사')은 뉴스 검색 캐시로 (rules/actor_search.py)
+                org = actor_search.lookup(raw, q.published_at, ev.region, lexicon) or org
+            canon = canonical_org(org or raw)
             k = (raw, canon, "인용문 발언 주체")
             counter[k] += 1
             example.setdefault(k, ev.key)
@@ -150,8 +157,33 @@ def write_org_sample(session: Session, facts: list[EventFacts], path: Path) -> l
         for k, r in _read(path, ["원문", "출처"]).items()
         if k not in keys and any((r.get(h) or "").strip() for h in ORG_HUMAN)
     ]
-    _write(path, ORG_COLS, rows + kept, ORG_HUMAN, ["원문", "출처"])
+    # 같은 (원문, 출처) 가 정규화만 달리 두 줄일 수 있다('경찰 관계자' → 경찰 / 강원경찰청) — 정규화까지 같은 옛 줄이 있으면 그 라벨을 그대로 쓴다
+    exact = _read(path, ["원문", "출처", "정규화"])
+
+    def regrade(row: dict[str, Any], prev: dict[str, str]) -> dict[str, str]:
+        same = exact.get((str(row.get("원문", "")), str(row.get("출처", "")), str(row.get("정규화", ""))))
+        return {h: same.get(h, "") for h in ORG_HUMAN} if same else _regrade_org(row, prev)
+
+    _write(path, ORG_COLS, rows + kept, ORG_HUMAN, ["원문", "출처"], regrade=regrade)
     return rows
+
+
+def _regrade_org(row: dict[str, Any], prev: dict[str, str]) -> dict[str, str]:
+    """정규화 결과가 라벨을 붙일 때와 달라진 행은 라벨의 정답과 기계 대조로 O/X 를 다시 매긴다 (§15).
+    정답 = 사람_정답, 비어 있고 옛 라벨이 O 면 옛 정규화. 같은 기관인지는 canonical_org 로 본다 ('강원' = '강원도').
+    옛 라벨이 '원문 그대로 둠'(정규화 = 원문)을 O 로 본 것이면 새 기관의 맞고 틀림을 알 수 없어 라벨을 비운다(다시 붙일 대상)."""
+    ok = _ox(prev.get("사람_OK(O/X)"))
+    old_norm, new_norm = (prev.get("정규화") or "").strip(), str(row.get("정규화") or "").strip()
+    if ok is None or old_norm == new_norm:
+        return {}
+    answer = (prev.get("사람_정답") or "").strip()
+    if not answer and ok and old_norm == str(row.get("원문") or "").strip():
+        return {"사람_OK(O/X)": "", "사람_정답": ""}  # '원문 그대로 둠' 을 O 로 본 라벨 — 새 기관은 다시 봐야 한다 (분모에서 빠짐)
+    answer = answer or (old_norm if ok else "")
+    if not answer:
+        return {}
+    same = canonical_org(answer) == canonical_org(new_norm)
+    return {"사람_OK(O/X)": "O" if same else "X", "사람_정답": answer}
 
 
 def _ox(v: str | None) -> bool | None:

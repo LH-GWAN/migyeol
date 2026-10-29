@@ -174,7 +174,7 @@ def check_event(
     if not trig.triggered:
         check.outcome = "not_triggered"
     else:
-        targets = sites_for_org(org, sites)
+        targets = sites_for_org(event.responsible_org, sites)
         if not targets:
             check.outcome = "no_site"
             check.reason = f"{trig.reason} · '{org or '기관 미상'}' 에 등록된 게시판 없음"
@@ -311,7 +311,7 @@ def notices_out(session: Session, event: Event, settings: Settings, today: date 
     today = today or settings.today()
     trig = trigger_for(session, event, settings, today)
     org = canonical_org(event.responsible_org)
-    targets = sites_for_org(org, load_sites())
+    targets = sites_for_org(event.responsible_org, load_sites())
     last = session.query(NoticeCheck).filter_by(event_id=event.id).order_by(NoticeCheck.id.desc()).first()
     rows = session.query(OrgNotice).filter_by(event_id=event.id).order_by(OrgNotice.published_at.desc(), OrgNotice.id.desc()).all()
     if rows:

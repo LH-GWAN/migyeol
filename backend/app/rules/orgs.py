@@ -176,6 +176,10 @@ def canonical_org(name: str | None) -> str:
                 joined = _lookup(tok + toks[i + 1])
                 if joined and joined != hit:
                     return joined
+                # 광역 + 기초를 함께 적은 경우는 기초가 기관이다 ('부산 영도구청' → 영도구, '김찬진 인천 동구청장' → 동구)
+                basic = _lookup(toks[i + 1])
+                if basic and _is_basic(basic):
+                    return basic
             return hit
         if i + 1 < len(toks):
             joined = _lookup(tok + toks[i + 1])
@@ -191,6 +195,34 @@ def canonical_org(name: str | None) -> str:
             if hit and (hit not in _WIDE_CANON.values() or cut == 3):  # 광역은 앞이 세 글자(사람 이름)일 때만 — '하병필인천시'
                 return hit
     return n
+
+
+def _is_basic(key: str) -> bool:
+    """기초 지자체 정규 키인가 ('영도구'·'청주시'·'담양군'). 광역('부산시'·'경기도')은 아니다."""
+    return key in ADMIN_NAMES and key not in _WIDE_STEMS and key not in _WIDE_CANON and key[-1] in "시군구"
+
+
+def wide_alias(name: str | None) -> str | None:
+    """광역 + 기초를 함께 적은 이름의 광역 키 ('인천 동구' → '인천시', '부산 영도구청' → '부산시'). 기초가 기관 키이고 광역은 별칭이다.
+    정규화 결과가 기초 지자체가 아니면 None."""
+    n = re.sub(r"\s+", " ", (name or "").strip())
+    if not n or not _is_basic(canonical_org(n)):
+        return None
+    for tok in _SPLIT_RE.split(n):
+        hit = _lookup(tok) if tok else None
+        if hit and hit in _WIDE_CANON.values():
+            return hit
+    return None
+
+
+def is_known_org(key: str) -> bool:
+    """정규 키가 사전·행정구역·지역 기관 규칙으로 아는 기관인가 (모르는 이름을 그대로 돌려준 canonical_org 결과는 False)."""
+    k = (key or "").strip()
+    if not k:
+        return False
+    if k in _ORG_CANON.values() or k in _WIDE_CANON.values() or _is_basic(k):
+        return True
+    return bool(_REGION_HAEGYEONG_RE.match(k) or _REGION_FIRE_RE.match(k)) and _direct(k) == k
 
 
 def is_department_only(name: str) -> bool:
