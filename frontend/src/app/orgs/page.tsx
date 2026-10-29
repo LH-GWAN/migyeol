@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import ErrorBox from "@/components/ErrorBox";
 import OrgTable from "@/components/dashboard/OrgTable";
+import OrgTabs from "@/components/dashboard/OrgTabs";
 import Panel from "@/components/dashboard/Panel";
 import { safe } from "@/lib/api";
 import { getByOrg, getDashboardSummary, type OrgSort } from "@/lib/dashboard";
@@ -28,6 +29,10 @@ export default async function OrgsPage({ searchParams }: { searchParams: Promise
             <Link href="/" className="hover:underline">
               대시보드
             </Link>{" "}
+            ›{" "}
+            <Link href="/orgs" className="hover:underline">
+              기관
+            </Link>{" "}
             › 기관별 후속보도 현황
           </p>
           <h1 className="mt-1 text-2xl font-bold text-gray-900">기관별 후속보도 현황</h1>
@@ -38,6 +43,7 @@ export default async function OrgsPage({ searchParams }: { searchParams: Promise
           </p>
         )}
       </div>
+      <OrgTabs current="/orgs" />
       <Panel
         title="책임 기관별로 묶은 사건과 후속보도"
         subtitle="후속보도가 확인된 기관이 위에 옵니다. 기관명을 누르면 그 기관의 사건만 봅니다."

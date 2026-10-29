@@ -23,10 +23,10 @@ import {
 
 export const dynamic = "force-dynamic";
 
-/** 대시보드 요약에 보여 주는 줄 수 — 나머지는 /orgs, /followups 에서 (2026-10-27 피드백: 대시보드가 너무 길다) */
+/** 대시보드 요약에 보여 주는 줄 수 — 나머지는 /orgs, /followups, /events 에서 (10-27 피드백: 대시보드가 너무 길다 · 10-29: 최근 후속보도·확인 필요는 3건) */
 const ORG_ROWS = 5;
-const RECENT_ROWS = 5;
-const NEEDS_CHECK_ROWS = 5;
+const RECENT_ROWS = 3;
+const NEEDS_CHECK_ROWS = 3;
 
 function sumOrNull(rows: TimeseriesRow[], key: "dead" | "injured"): number | null {
   const vals = rows.map((r) => r[key]).filter((v): v is number => typeof v === "number");
@@ -118,7 +118,7 @@ export default async function DashboardPage() {
         <Panel
           className="lg:col-span-2"
           title="지금 확인이 필요한 사건"
-          subtitle="후속보도 공백이 길거나 발표 기한이 지난 사건부터"
+          subtitle={`후속보도 공백이 길거나 발표 기한이 지난 사건부터 ${NEEDS_CHECK_ROWS}건`}
           disclaimer={s.disclaimer}
           action={
             <Link href="/events" className="text-xs font-semibold text-blue-700 hover:underline">

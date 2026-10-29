@@ -5,6 +5,7 @@ import { ArticleLink, ArticleMeta } from "@/components/ArticleItem";
 import Disclaimer from "@/components/Disclaimer";
 import ErrorBox from "@/components/ErrorBox";
 import ReportForm from "@/components/ReportForm";
+import { ShowMoreList, ShowMoreTable } from "@/components/ShowMore";
 import OrgNoticePanel from "@/components/notices/OrgNoticePanel";
 import SupportPanel from "@/components/support/SupportPanel";
 import StatusBadge from "@/components/StatusBadge";
@@ -72,6 +73,8 @@ export async function generateMetadata({ params }: { params: Params }): Promise<
 }
 
 const UNJUDGED_TEXT = "아직 판정 전(수집·연결 단계)";
+/** 긴 목록·표는 처음 이만큼만 보이고 「더보기」로 펼친다 (2026-10-29 피드백) */
+const SHOW_ROWS = 3;
 
 export default async function EvidencePage({ params }: { params: Params }) {
   const { id } = await params;
@@ -246,9 +249,13 @@ export default async function EvidencePage({ params }: { params: Params }) {
             분류된 후속 신호가 없습니다.
           </p>
         ) : (
-          <div className="mt-3 overflow-x-auto">
-            <table className="w-full min-w-[760px] border-collapse text-sm">
-              <thead>
+          <div className="mt-3">
+            <ShowMoreTable
+              initial={SHOW_ROWS}
+              moreLabel="후속 신호 더보기"
+              tableClassName="w-full min-w-[760px] border-collapse text-sm"
+              head={
+                <thead>
                 <tr className="border-b border-gray-200 text-left text-xs text-gray-500">
                   <th className="py-2 pr-3 font-semibold">신호</th>
                   <th className="py-2 pr-3 font-semibold">발췌 문장</th>
@@ -258,8 +265,8 @@ export default async function EvidencePage({ params }: { params: Params }) {
                   <th className="py-2 font-semibold">반영</th>
                 </tr>
               </thead>
-              <tbody>
-                {ev.signals.map((s) => {
+              }
+              rows={ev.signals.map((s) => {
                   const inactive = s.active === false;
                   const muted = inactive ? "opacity-40" : s.counted ? "" : "opacity-60";
                   return (
@@ -318,8 +325,7 @@ export default async function EvidencePage({ params }: { params: Params }) {
                   </tr>
                   );
                 })}
-              </tbody>
-            </table>
+            />
           </div>
         )}
       </section>
@@ -341,8 +347,11 @@ export default async function EvidencePage({ params }: { params: Params }) {
             저신뢰 연결이 없습니다.
           </p>
         ) : (
-          <ul className="mt-3 divide-y divide-gray-100">
-            {ev.low_confidence_links.map((l) => (
+          <div className="mt-3">
+            <ShowMoreList
+              initial={SHOW_ROWS}
+              moreLabel="저신뢰 연결 더보기"
+              items={ev.low_confidence_links.map((l) => (
               <li key={l.article.news_id} className="flex flex-wrap items-start justify-between gap-3 py-3">
                 <div className="min-w-0 flex-1">
                   <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
@@ -365,7 +374,8 @@ export default async function EvidencePage({ params }: { params: Params }) {
                 />
               </li>
             ))}
-          </ul>
+            />
+          </div>
         )}
       </section>
 

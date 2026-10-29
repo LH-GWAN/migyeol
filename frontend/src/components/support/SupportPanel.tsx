@@ -1,3 +1,4 @@
+import { ShowMoreList } from "@/components/ShowMore";
 import type { Result } from "@/lib/api";
 import { cleanSnippet, formatDate } from "@/lib/format";
 import type { EventSupportOut, SupportActorKind, SupportItem } from "@/lib/support";
@@ -15,7 +16,8 @@ const KIND_STYLE: Record<SupportActorKind, string> = {
   개인: "border-gray-200 bg-gray-50 text-gray-700",
 };
 
-const SHOW_FIRST = 8;
+/** 처음 보이는 건수 — 나머지는 「더보기」 (2026-10-29: 근거 화면 목록은 3건) */
+const SHOW_FIRST = 3;
 
 function SupportRow({ item }: { item: SupportItem }) {
   const evidence = cleanSnippet(item.evidence_span);
@@ -57,8 +59,6 @@ function SupportRow({ item }: { item: SupportItem }) {
 
 export default function SupportPanel({ result }: { result: Result<EventSupportOut> }) {
   const items = result.ok ? result.data.items : [];
-  const head = items.slice(0, SHOW_FIRST);
-  const rest = items.slice(SHOW_FIRST);
   return (
     <section className="rounded-lg border border-gray-200 bg-white p-5" aria-labelledby="support-heading">
       <div className="flex flex-wrap items-start justify-between gap-2">
@@ -85,23 +85,15 @@ export default function SupportPanel({ result }: { result: Result<EventSupportOu
       ) : items.length === 0 ? (
         <p className="mt-3 rounded-md bg-gray-50 px-4 py-3 text-sm text-gray-700">연결 기사에서 확인된 민간 지원 언급이 없습니다</p>
       ) : (
-        <>
-          <ul className="mt-2 divide-y divide-gray-100">
-            {head.map((it) => (
+        <div className="mt-2">
+          <ShowMoreList
+            initial={SHOW_FIRST}
+            moreLabel="지원 소식 더보기"
+            items={items.map((it) => (
               <SupportRow key={`${it.news_id}:${it.actor}`} item={it} />
             ))}
-          </ul>
-          {rest.length > 0 && (
-            <details className="mt-1">
-              <summary className="cursor-pointer text-xs font-semibold text-blue-700 hover:underline">나머지 {rest.length}건 보기</summary>
-              <ul className="divide-y divide-gray-100">
-                {rest.map((it) => (
-                  <SupportRow key={`${it.news_id}:${it.actor}`} item={it} />
-                ))}
-              </ul>
-            </details>
-          )}
-        </>
+          />
+        </div>
       )}
 
       {result.ok && <p className="mt-3 text-[11px] text-gray-400">{result.data.disclaimer}</p>}

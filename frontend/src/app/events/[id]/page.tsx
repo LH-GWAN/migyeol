@@ -5,6 +5,7 @@ import ArticleItem from "@/components/ArticleItem";
 import Disclaimer from "@/components/Disclaimer";
 import ErrorBox from "@/components/ErrorBox";
 import PromiseCard from "@/components/PromiseCard";
+import { ShowMoreList } from "@/components/ShowMore";
 import StatusBadge from "@/components/StatusBadge";
 import Stepper, { STEP_PHASES } from "@/components/Stepper";
 import TrendChart from "@/components/TrendChart";
@@ -25,6 +26,8 @@ export const dynamic = "force-dynamic";
 type Params = Promise<{ id: string }>;
 
 const UNJUDGED_TEXT = "아직 판정 전(수집·연결 단계)";
+/** 단계마다 처음 보이는 기사 수 — 나머지는 「더보기」로 펼친다 (2026-10-29 피드백) */
+const PHASE_ROWS = 3;
 
 export async function generateMetadata({ params }: { params: Params }): Promise<Metadata> {
   const { id } = await params;
@@ -219,11 +222,15 @@ export default async function EventPage({ params }: { params: Params }) {
                   이 단계의 보도를 찾지 못함
                 </p>
               ) : (
-                <ul className={`${isResponse ? "mt-4" : "mt-3"} divide-y divide-gray-100`}>
-                  {articles.map((a) => (
-                    <ArticleItem key={a.news_id} article={a} />
-                  ))}
-                </ul>
+                <div className={isResponse ? "mt-4" : "mt-3"}>
+                  <ShowMoreList
+                    initial={PHASE_ROWS}
+                    moreLabel={`${PHASE_LABELS[phase]} 기사 더보기`}
+                    items={articles.map((a) => (
+                      <ArticleItem key={a.news_id} article={a} />
+                    ))}
+                  />
+                </div>
               )}
             </section>
           );
@@ -239,11 +246,15 @@ export default async function EventPage({ params }: { params: Params }) {
           {others.length === 0 ? (
             <p className="mt-3 text-sm text-gray-400">단계로 분류되지 않은 관련 기사가 없습니다.</p>
           ) : (
-            <ul className="mt-3 divide-y divide-gray-100">
-              {others.map((a) => (
-                <ArticleItem key={a.news_id} article={a} />
-              ))}
-            </ul>
+            <div className="mt-3">
+              <ShowMoreList
+                initial={PHASE_ROWS}
+                moreLabel="기사 더보기"
+                items={others.map((a) => (
+                  <ArticleItem key={a.news_id} article={a} />
+                ))}
+              />
+            </div>
           )}
         </details>
       </div>

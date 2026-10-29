@@ -21,6 +21,7 @@ function modeBadge(mode: BigKindsMode | string): { label: string; className: str
 const NAV: ReadonlyArray<{ href: string; label: string }> = [
   { href: "/", label: "대시보드" },
   { href: "/events", label: "사건 목록" },
+  { href: "/orgs", label: "기관" }, // 기관별 후속보도 현황 · 기관 발표로 확인된 사례 (/orgs 상단 탭, 2026-10-29)
   { href: "/press", label: "보도자료 초안" },
   { href: "/about", label: "소개" },
   { href: "/admin", label: "관리자" },

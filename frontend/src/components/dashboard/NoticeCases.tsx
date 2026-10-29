@@ -81,7 +81,7 @@ export default function NoticeCases({ items }: { items: NoticeCase[] }) {
               <a href={c.notice.site_url} target="_blank" rel="noopener noreferrer" className="font-semibold text-gray-700 hover:text-blue-700 hover:underline">
                 기관 게시판으로 ↗
               </a>
-              <Link href={`/events/${c.event_id}#org-notice-heading`} className="font-semibold text-blue-700 hover:underline">
+              <Link href={`/events/${c.event_id}/evidence#org-notice-heading`} className="font-semibold text-blue-700 hover:underline">
                 사건 근거 보기 →
               </Link>
             </div>

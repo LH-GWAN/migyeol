@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { ShowMoreList } from "@/components/ShowMore";
 import type { Result } from "@/lib/api";
 import { cleanSnippet, formatDate, formatDateTime } from "@/lib/format";
 import type { EventNoticesOut, NoticeState } from "@/lib/notices";
@@ -64,8 +65,11 @@ export default function OrgNoticePanel({ eventId, result }: { eventId: number; r
           <p className="mt-3 text-sm text-emerald-900">
             뉴스에는 확인되지 않았지만 책임기관 게시판에서 관련 발표 {result.data.items.length}건이 확인됐습니다.
           </p>
-          <ul className="mt-2 divide-y divide-gray-100">
-            {result.data.items.map((it) => (
+          <div className="mt-2">
+            <ShowMoreList
+              initial={3}
+              moreLabel="발표 더보기"
+              items={result.data.items.map((it) => (
               <li key={it.url} className="py-3">
                 <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
                   <a href={it.url} target="_blank" rel="noopener noreferrer" className="text-sm font-semibold text-blue-700 hover:underline">
@@ -86,7 +90,8 @@ export default function OrgNoticePanel({ eventId, result }: { eventId: number; r
                 </p>
               </li>
             ))}
-          </ul>
+            />
+          </div>
         </>
       ) : (
         <p className="mt-3 rounded-md bg-gray-50 px-4 py-3 text-sm text-gray-700">
