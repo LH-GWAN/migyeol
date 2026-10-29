@@ -339,6 +339,33 @@ def _analyze4(source: str, aliases: tuple[str, ...] | list[str]) -> tuple[list[s
     return orgs, titles, privates, gov_title
 
 
+# 기관명 없이 '이름 + 직함' 만 있는 발언 주체의 직함 (rules/actor_search.py 가 뉴스 검색으로 기관을 찾는다)
+PERSON_TITLES = (
+    "도지사", "지사", "부지사", "행정부지사", "행정1부지사", "행정2부지사", "경제부지사",
+    "시장", "부시장", "행정부시장", "경제부시장", "군수", "부군수", "구청장", "부구청장",
+    "장관", "차관", "제1차관", "제2차관", "본부장", "대변인", "청장", "차장", "처장", "총리", "국무총리",
+)
+
+
+def person_title(source: str, lexicon: tuple[str, ...] | list[str] = ()) -> tuple[str, str] | None:
+    """'김동연 지사' → ('김동연', '지사'). 사람 이름 토큰 + 직함 토큰 두 개뿐이고 기관 토큰이 없을 때만.
+    '김 지사'(성만)·'경기 지사'(지역명)·'경기도 김동연 지사'(기관 있음)·'김찬진 동구청장'(직함에 기관 포함)은 None."""
+    from .orgs import _direct, _region_key
+    from .regions import SURNAMES
+
+    toks = _tokens((source or "").strip())
+    if len(toks) != 2:
+        return None
+    name, title = toks
+    if title not in PERSON_TITLES or not re.fullmatch(r"[가-힣]{3}", name) or name[0] not in SURNAMES:
+        return None  # 두 글자·네 글자 이름은 지역명·부서명('경북'·'안전총괄')과 구분이 어려워 쓰지 않는다
+    if _direct(name) or _region_key(name) or any(_alias_hit(a, name) for a in lexicon if a):
+        return None
+    if not looks_like_person(name, lexicon):
+        return None
+    return name, title
+
+
 def is_public_actor(source: str, aliases: list[str] | tuple[str, ...] = ()) -> bool:
     s = (source or "").strip()
     if not s:

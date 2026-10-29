@@ -134,7 +134,7 @@
   - 비교만 하고 끈 스위치: `FOLLOWUP_ACTION_MATCH`(약속 대상어 겹침만 — 시설·지역 이름 겹침은 같은 종류 행동어가 있을 때, `FollowupInput.identity_terms`), `FOLLOWUP_SKIP_COMMITMENT`(다짐·요구 문장의 진행 표현 제외), `FOLLOWUP_KW_ALONE=false`(고유어 경로 끔). 세부 판정은 `RulesLLM.classify_followup_detail` 이 돌려준다(`scripts/train_followup.py`).
 - `evidence_span` 은 코드가 검증한다: 완료·진행·새로운문제는 발췌(≤100자)가 입력의 부분 문자열이어야 하고(없으면 `불명확`), 발췌가 '예정·목표' 표현이면 완료→진행으로 낮춘다.
 - 실패(한도 초과·서버 오류·파싱 실패·stub 미스)는 `LLMFailure` 로 올리고 **저장하지 않는다** — 다음 실행에서 재시도. 캐시는 (news_id, prompt_version) 에 더해 model 과 분류 당시 추적 약속 집합 해시가 같을 때만 재사용한다. LLM 호출은 DB 쓰기 트랜잭션 밖에서 하고, 실행당 호출 상한(`LLM_MAX_CALLS_PER_RUN`)을 둔다.
-- 공공 주체 판별(`rules/actors.py`)은 규칙이 먼저 걸러 민간인·피의자 발언은 LLM 에 보내지 않는다. 주체는 기관 단위로 정규화한다.
+- 공공 주체 판별(`rules/actors.py`)은 규칙이 먼저 걸러 민간인·피의자 발언은 LLM 에 보내지 않는다. 주체는 기관 단위로 정규화한다. 기관명 없이 '이름 + 직함' 만 있는 주체('김○○ 지사')는 발언일 분기 ± 45일 뉴스 검색의 '이름 + 기관 + 직함' 표기를 세어 기관을 찾는다(`rules/actor_search.py`, 근거 ≥ 3·1위 ≥ 2위 × 2, 캐시 `fixtures/actor_orgs.json`, `docs/EXPERIMENT.md` §15). 개인명은 기관을 찾는 데만 쓰고 추적 키·화면에는 기관만 쓴다.
 - `LLM_MODE=stub` 은 `fixtures/llm/stub_answers.json` 정답을 재생한다(키 불필요). `live` 는 Anthropic API(`LLM_MODEL`, 기본 `claude-opus-5`), 시스템 프롬프트에 `cache_control` 을 걸어 프롬프트 캐시를 쓴다.
 - 모든 LLM 산출물에 `model`, `prompt_version` 을 남겨 재현·비교가 가능하다.
 
@@ -215,7 +215,7 @@ migyeol/
 - **실험**(`app/experiment/`, `scripts/experiment.py`): 인용문 검색(월별 × 계열, `_score` 상위 표본, 공공 주체 + 확약·계획 발언) + 이슈 랭킹(재난 어휘 토픽만)으로 원천 기사를 모아 유니크화(지역·시설·±14일·기관) → 자동 시드 → 기존 collect/link/extract/judge → §4.6 지표 → `reports/experiment_latest.json`(대시보드·보도자료가 읽는다). 자세한 방법·호출 수·한계는 `docs/EXPERIMENT.md`.
 - **LLM 없이**: `LLM_MODE=rules`(`app/llm/rules_adapter.py`, model `rules-v2`, 2단계 보강을 켜면 `rules-v3`, 10-29 제목형 표현·약속 없는 사건 경로를 켜면 `rules-v4`, 구절 오독 고침·발생 직후 새로운문제 내림(§14.6) 중 하나라도 켜면 `rules-v5` — 지금 기본값)가 약속 추출·후속 신호를 규칙으로 낸다. 프로토콜·프롬프트 파일·스키마는 그대로라 키가 오면 `live` 로만 바꾼다. 보도자료는 `app/press/writer.py` 의 `TemplateWriter`(기본) / `LLMWriter`(live 일 때 문장 다듬기만, 숫자·근거 번호 검증 실패 시 템플릿 유지).
 - **공공기관 게시판 확인**(`app/notices/`): 트리거(후속보도 부족·판단 불가 + `NOTICE_TRIGGER_DAYS` 경과) → 등록부 `sites.yaml`(광역 11 + 정책브리핑) → guard(뉴스 도메인 거부·허용 접미) → robots.txt(RFC 9309) → 호스트별 2초 간격 → 목록 제목·날짜·URL, 매칭 항목만 본문 300자 → `org_notices`·`notice_checks`, `Event.org_notice_found`. 상태 5종은 바꾸지 않는 **보조 근거**. 스케줄러 05:30 KST. 등록부와 확인 기록은 `docs/NOTICES.md`.
-- **기관 정규화**: `rules/orgs.canonical_org()` — 광역·기초 지자체(청·장·지사 꼬리), 중앙부처 약칭, 공사·공단 — 대시보드 기관별 집계·목록 `org` 필터·보도자료·게시판 등록부가 같은 키를 쓴다.
+- **기관 정규화**: `rules/orgs.canonical_org()` — 광역·기초 지자체(청·장·지사 꼬리, 광역 + 기초를 함께 적으면 기초 — 광역은 `wide_alias()` 별칭), 중앙부처 약칭, 공사·공단 — 대시보드 기관별 집계·목록 `org` 필터·보도자료·게시판 등록부가 같은 키를 쓴다.
 
 ## 지침서와 실제 응답 차이 — 2026-10-22 실험(원천 기사 수집, 사건 150건 수집)
 

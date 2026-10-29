@@ -12,7 +12,7 @@ from pathlib import Path
 
 import yaml
 
-from ..rules.orgs import canonical_org
+from ..rules.orgs import canonical_org, wide_alias
 from .guard import is_news_host
 
 SITES_FILE = Path(__file__).resolve().parent / "sites.yaml"
@@ -118,4 +118,8 @@ def sites_for_org(org: str | None, sites: list[Site] | None = None) -> list[Site
     key = notice_org(org)
     if not key:
         return []
-    return [s for s in (sites if sites is not None else load_sites()) if key in s.orgs]
+    pool = sites if sites is not None else load_sites()
+    found = [s for s in pool if key in s.orgs]
+    if not found and (wide := wide_alias(org)):
+        found = [s for s in pool if wide in s.orgs]  # '인천 동구' → 동구 게시판이 없으면 인천시 게시판 (광역은 별칭)
+    return found

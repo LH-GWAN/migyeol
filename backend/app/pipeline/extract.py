@@ -23,7 +23,9 @@ from ..config import Settings
 from ..db.models import Article, Event, Promise, Quotation
 from ..llm.client import PROMPT_VERSIONS, LLMClient, LLMFailure
 from ..llm.schemas import PromiseInput
+from ..rules import actor_search
 from ..rules.actors import is_public_actor, looks_like_person, normalize_actor_org
+from ..rules.orgs import canonical_org
 from .judge import clear_llm_failure, note_llm_failure, occurrence_gate_link
 from .embeddings import EmbeddingBackend
 from .seeds import _quote, seed_from_event
@@ -181,6 +183,15 @@ def count_pending_quotations(event: Event) -> int:
     return sum(1 for q in event.quotations if q.is_public_actor and not q.promises and q.news_id in active)
 
 
+def resolve_person_title(event: Event, source: str, published: date | None, lexicon: list[str]) -> str | None:
+    """'김동연 지사' 처럼 기관명 없는 이름+직함 주체 → 뉴스 검색 캐시로 찾은 기관 (rules/actor_search.py). 없거나 보류면 None.
+    찾은 기관이 사건 책임기관과 같은 기관이면 책임기관 표기를 쓴다 (병합 키 일관성)."""
+    org = actor_search.lookup(source, published, event.region, lexicon)
+    if org and event.responsible_org and canonical_org(event.responsible_org) == org:
+        return event.responsible_org
+    return org
+
+
 def store_promise(event: Event, q: Quotation, res, llm: LLMClient, lexicon: list[str], stats: dict | None = None) -> Promise:
     """추출 결과 하나를 Promise 로 저장한다 (extract_event 와 실험의 원천 발언 추출이 같이 쓴다)."""
     # 주체 기관: 규칙 결과가 있으면 그것을 쓴다 (LLM 값이 '충청북도'·'청주시청 도로과' 처럼 달라도 덮어쓰지 않는다 — 병합 키 일관성).
@@ -188,6 +199,8 @@ def store_promise(event: Event, q: Quotation, res, llm: LLMClient, lexicon: list
     actor = normalize_actor_org(q.source, event.responsible_org, lexicon)
     if actor and looks_like_person(actor, lexicon):
         actor = None
+    if actor_search.wants(q.source, actor, lexicon):
+        actor = resolve_person_title(event, q.source, q.published_at, lexicon) or actor
     if not actor:
         cand = (res.actor_org or "").strip()
         actor = cand if cand and not looks_like_person(cand, lexicon) else ""
@@ -267,6 +280,11 @@ def extract_event(
             if not q.promises:
                 pending.append(q)
     session.commit()
+
+    # 1-1) 이름+직함 주체의 기관 검색 (캐시에 없는 (이름, 직함, 분기) 만 — record 모드는 녹화 재생)
+    if settings.actor_search and getattr(client, "mode", "mock") != "mock":
+        wanted = [q for q in pending if actor_search.wants(q.source, normalize_actor_org(q.source, event.responsible_org, lexicon), lexicon)]
+        stats["actor_search"] = actor_search.ensure_cache(client, [(q.source, q.published_at, lexicon) for q in wanted])
 
     # 2) LLM 호출 (DB 쓰기 없음). 같은 (주체, 발언) 은 한 번만.
     memo: dict[tuple[str, str], object] = {}

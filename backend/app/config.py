@@ -125,6 +125,7 @@ class Settings(BaseSettings):
     collect_month_cap: int = 80  # 이후 구간: 조치 상태 질의의 월별 상한 (큰 달은 상·중·하순 분할)
     collect_tail_sample: int = 40  # 이후 구간: 조치 상태 질의 밖의 일반 후속 보도 표본 (분기별, 0 이면 생략 — 추이는 time_line 이 제공)
     quotation_window_days: int = 90
+    actor_search: bool = True  # 기관명 없는 '이름 + 직함' 발언 주체의 기관을 뉴스 검색으로 찾는다 (record/live 만, 캐시에 없는 것만). 캐시(fixtures/actor_orgs.json)의 해석은 끄더라도 쓴다 (rules/actor_search.py, docs/EXPERIMENT.md §15)
     followup_grace_days: int = 7
 
     # App
