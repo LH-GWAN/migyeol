@@ -110,9 +110,12 @@ def test_priority_deadline_passed_ranks_above_stale():
     b = priority.score(STATUS_NO_FOLLOWUP, deadline_passed_days=None, days_since_last_followup=83, drop_ratio=0.9, has_firm_promise=True)
     c = priority.score(STATUS_DONE, deadline_passed_days=100, days_since_last_followup=10, drop_ratio=0.9, has_firm_promise=True)
     assert a > b > c
-    assert priority.needs_check(STATUS_IN_PROGRESS, 164) is True
-    assert priority.needs_check(STATUS_DONE, 100) is False
-    assert priority.needs_check(STATUS_IN_PROGRESS, None) is False
+    # 확인 필요 = 후속보도 부족·판단 불가만 — 기한 경과는 우선순위 점수로만 올린다 (2026-10-30, 두 탭이 겹치지 않게)
+    assert priority.needs_check(STATUS_NO_FOLLOWUP) is True
+    assert priority.needs_check(STATUS_UNDETERMINED) is True
+    assert priority.needs_check(STATUS_IN_PROGRESS) is False
+    assert priority.needs_check(STATUS_NEW_PROBLEM) is False
+    assert priority.needs_check(STATUS_DONE) is False
 
 
 # ------------------------------------------------------------------ actors

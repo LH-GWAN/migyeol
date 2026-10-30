@@ -168,7 +168,7 @@ def event_card(session: Session, event: Event, today: date) -> dict:
         "status_confidence": event.status_confidence if j else None,
         "judged": j is not None,
         "priority_score": live_priority(session, event, today) if j else 0.0,
-        "needs_check": needs_check(event.status, passed) if j else False,
+        "needs_check": needs_check(event.status) if j else False,
         "needs_review": bool(event.needs_review),
         "pending_followups": int(event.pending_followups or 0),  # LLM 분류를 아직 못 받은 후속 기사 수 (0 이 아니면 잠정 판정)
         "pending_quotations": int(event.pending_quotations or 0),  # 약속 추출을 아직 못 받은 공공 인용문 수

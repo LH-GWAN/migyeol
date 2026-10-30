@@ -64,7 +64,7 @@ def test_api_contract_and_no_forbidden_words(e2e_db):
         r = c.get("/api/events?needs_check=true&sort=priority")
         assert r.status_code == 200
         body = r.json()
-        assert body["total"] >= 4
+        assert body["total"] == 3  # 확인 필요 = 후속보도 부족 2 + 판단 불가 1 (2026-10-30 — 새로운 문제·기한 경과만으로는 넣지 않음)
         card = body["items"][0]
         for k in ("id", "title", "status", "priority_score", "needs_check", "primary_promise", "trend_sparkline", "disclaimer"):
             assert k in card

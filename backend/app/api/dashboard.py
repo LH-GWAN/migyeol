@@ -5,8 +5,8 @@
 - 후속 기사 = judge.followup_articles (활성 연결, 해제·검토 대기·삭제 제외, FOLLOWUP_CUTOFF 기준일 뒤, 재순위 확률 바닥) — 카드의 followup_count 와 같다.
 - 유효 신호 = 현재 prompt_version · 현재 추적 약속 집합 해시로 분류된 후속 기사 신호 중 rules.status.is_valid
   (일치 + 신뢰도 ≥ SIGNAL_MIN_CONF + 완료·진행·새로운문제) — rejudge_event 가 판정에 쓰는 집합과 같다.
-- "후속보도 확인" 사건 = 유효 신호 ≥ 1 (v2 §4.4). 상태 5종과는 별개의 집계다.
-- 기한 경과 = 카드의 deadline_passed_days 가 있고 상태가 '조치 완료 근거 확인' 이 아님 (needs_check 와 같은 기준).
+- "후속보도 확인" 사건 = 상태가 FOLLOWUP_STATUSES(완료·진행·새로운 문제)이고 유효 신호 ≥ 1 (2026-10-30 — 상태 분포와 합이 맞게).
+- 기한 경과 = 카드의 deadline_passed_days 가 있고 상태가 '조치 완료 근거 확인' 이 아님.
 - 기관 키 = rules.orgs.canonical_org(event.responsible_org), 비면 "기관 미상".
 - 실험 리포트(reports/experiment_latest.json, §4.6)는 있으면 그대로 내려 주고, 없으면 404 / summary.experiment=null.
 """

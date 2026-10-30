@@ -115,7 +115,7 @@ def test_summary_matches_event_list(client):
     for st in STATUSES:
         assert s["by_status"][st] == sum(1 for c in cards if c["status"] == st)
     assert s["followup_articles"] == sum(c["followup_count"] for c in cards)
-    # 기한 경과 = 카드의 기한 경과 일수가 있고 완료가 아닌 사건 (needs_check 기준과 같음)
+    # 기한 경과 = 카드의 기한 경과 일수가 있고 완료가 아닌 사건
     assert s["overdue"] == sum(1 for c in cards if c["deadline_passed_days"] is not None and c["status"] != STATUS_DONE)
     # R1~R3(완료·진행·새로운 문제) 사건은 판정이 유효 신호를 채택했으므로 반드시 '후속보도 확인' 이다
     r1_to_r3 = {c["id"] for c in cards if c["status"] in ("조치 완료 근거 확인", "조치 진행 정황 확인", "새로운 문제 발생")}

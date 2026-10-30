@@ -36,5 +36,6 @@ def score(
     return round(s, 1)
 
 
-def needs_check(status: str, deadline_passed_days: int | None) -> bool:
-    return status in NEEDS_CHECK_STATUSES or (deadline_passed_days is not None and deadline_passed_days >= 0 and status != STATUS_DONE)
+def needs_check(status: str) -> bool:
+    """「확인 필요」 탭 = 후속보도 부족·판단 불가. 「후속보도 확인됨」(FOLLOWUP_STATUSES)과 겹치지 않는다."""
+    return status in NEEDS_CHECK_STATUSES

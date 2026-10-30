@@ -48,7 +48,8 @@ export default function EventFilters({ statuses, regions, incidentTypes, current
     "rounded-md border border-gray-300 bg-white px-2.5 py-1.5 text-sm text-gray-800 focus:border-blue-500 focus:outline-none";
   const statusOptions = statuses.length > 0 ? statuses : STATUSES;
   const isDefault = filterKey(local) === "";
-  const completedHiddenByToggle = local.needs_check && local.status === "조치 완료 근거 확인";
+  const completedHiddenByToggle =
+    local.needs_check && (local.status === "조치 완료 근거 확인" || local.status === "조치 진행 정황 확인" || local.status === "새로운 문제 발생");
 
   return (
     <div
@@ -134,7 +135,7 @@ export default function EventFilters({ statuses, regions, incidentTypes, current
 
       {completedHiddenByToggle && (
         <p className="flex flex-wrap items-center gap-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900" role="status">
-          확인 필요 토글이 켜져 있어 완료 사건은 표시되지 않습니다
+          확인 필요 토글이 켜져 있어 후속보도가 확인된 사건(완료·진행·새로운 문제)은 표시되지 않습니다
           <button
             type="button"
             onClick={() => apply({ needs_check: false })}

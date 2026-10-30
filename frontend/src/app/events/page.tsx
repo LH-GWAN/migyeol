@@ -131,7 +131,7 @@ export default async function EventsPage({ searchParams }: { searchParams: Promi
           ))}
         </div>
         <p className="text-sm text-gray-600">
-          후속 기사에서 조치 완료·진행 근거나 새로운 문제가 확인된 사건입니다. 새로운 문제가 확인된 사건은 「확인 필요」 탭에도 함께 보입니다. 확인된 근거는 사건을 눌러 볼 수 있습니다.
+          후속 기사에서 조치 완료·진행 근거나 새로운 문제가 확인된 사건입니다. 확인된 근거는 사건을 눌러 볼 수 있습니다.
         </p>
         {FOLLOWUP_STATUSES.map((status, i) => {
           const r = results[i];
