@@ -158,7 +158,7 @@ export interface EventListParams {
   needs_check?: boolean;
   /** v2: 정규화 기관 키 */
   org?: string;
-  /** v2: true = 후속보도 확인됨(완료·진행) */
+  /** v2: true = 후속보도 확인됨(완료·진행·새로운 문제) */
   followup?: boolean;
   sort?: SortKey;
   page?: number;

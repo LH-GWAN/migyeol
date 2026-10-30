@@ -10,7 +10,7 @@ import os
 import pytest
 from fastapi.testclient import TestClient
 
-from app.config import STATUS_DONE, STATUS_IN_PROGRESS, get_settings
+from app.config import FOLLOWUP_STATUSES, get_settings
 from app.db.session import init_db, reset_engine, session_factory
 from app.rules.orgs import canonical_org
 
@@ -62,8 +62,10 @@ def test_followup_filter_splits_by_status(client):
     no = client.get("/api/events?size=100&followup=false").json()
     assert yes["total"] + no["total"] == 8
     assert yes["total"] >= 1
-    assert all(c["status"] in (STATUS_DONE, STATUS_IN_PROGRESS) for c in yes["items"])
-    assert all(c["status"] not in (STATUS_DONE, STATUS_IN_PROGRESS) for c in no["items"])
+    # 대시보드 '후속보도 확인' 과 같은 세 상태 (2026-10-30)
+    assert all(c["status"] in FOLLOWUP_STATUSES for c in yes["items"])
+    assert all(c["status"] not in FOLLOWUP_STATUSES for c in no["items"])
+    assert yes["total"] == client.get("/api/dashboard/summary").json()["with_followup"]
 
 
 def test_scheduler_has_notice_job():

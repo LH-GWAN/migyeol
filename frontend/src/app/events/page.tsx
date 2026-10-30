@@ -14,8 +14,8 @@ type SearchParams = Record<string, string | string[] | undefined>;
 type Tab = "check" | "followup";
 
 const PAGE_SIZE = 20;
-/** `후속보도 확인됨` 탭 = 이 두 상태 (v2 §6 화면 1) */
-const FOLLOWUP_STATUSES: readonly EventStatus[] = ["조치 완료 근거 확인", "조치 진행 정황 확인"];
+/** `후속보도 확인됨` 탭 = 이 세 상태 — 대시보드 '후속보도 확인' 과 같은 기준 (2026-10-30, 백엔드 config.FOLLOWUP_STATUSES) */
+const FOLLOWUP_STATUSES: readonly EventStatus[] = ["조치 완료 근거 확인", "조치 진행 정황 확인", "새로운 문제 발생"];
 const SORT_LABELS: Array<{ value: SortKey; label: string }> = [
   { value: "priority", label: "우선순위순" },
   { value: "recent", label: "최근 후속 기사순" },
@@ -131,7 +131,7 @@ export default async function EventsPage({ searchParams }: { searchParams: Promi
           ))}
         </div>
         <p className="text-sm text-gray-600">
-          후속 기사에서 조치 완료 또는 진행 근거가 확인된 사건입니다. 확인된 근거는 사건을 눌러 볼 수 있습니다.
+          후속 기사에서 조치 완료·진행 근거나 새로운 문제가 확인된 사건입니다. 새로운 문제가 확인된 사건은 「확인 필요」 탭에도 함께 보입니다. 확인된 근거는 사건을 눌러 볼 수 있습니다.
         </p>
         {FOLLOWUP_STATUSES.map((status, i) => {
           const r = results[i];

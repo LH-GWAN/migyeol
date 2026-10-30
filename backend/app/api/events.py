@@ -8,7 +8,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field, field_validator
 from sqlalchemy.orm import Session
 
-from ..config import STATUSES, get_settings
+from ..config import FOLLOWUP_STATUSES, STATUSES, get_settings
 from ..db.models import Event, Report
 from ..db.session import get_session
 from ..pipeline.review import recompute_needs_review
@@ -29,7 +29,7 @@ def list_events(
     incident_type: str | None = None,
     needs_check_q: bool | None = Query(default=None, alias="needs_check"),
     org: str | None = Query(default=None, max_length=100),  # v2: 정규화 기관 키 (대시보드 기관 링크)
-    followup: bool | None = Query(default=None),  # v2: true = 후속보도 확인됨(완료·진행), false = 그 밖
+    followup: bool | None = Query(default=None),  # v2: true = 후속보도 확인됨(완료·진행·새로운 문제 — 대시보드와 같은 기준), false = 그 밖
     sort: Literal["priority", "recent", "occurred"] = "priority",
     page: int = Query(default=1, ge=1),
     size: int = Query(default=20, ge=1, le=100),
@@ -42,7 +42,7 @@ def list_events(
     events = session.query(Event).filter(Event.active.is_(True)).all()
     cards = {ev.id: ser.event_card(session, ev, today) for ev in events}
     org_key = (org or "").strip()
-    followup_statuses = {STATUSES[0], STATUSES[1]}  # 조치 완료 근거 확인 · 조치 진행 정황 확인
+    followup_statuses = FOLLOWUP_STATUSES
     rows = []
     for ev in events:
         card = cards[ev.id]
