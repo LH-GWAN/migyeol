@@ -15,7 +15,7 @@ from pathlib import Path
 import pytest
 from fastapi.testclient import TestClient
 
-from app.config import DISCLAIMER, STATUS_DONE, STATUSES, get_settings
+from app.config import DISCLAIMER, FOLLOWUP_STATUSES, STATUS_DONE, STATUSES, get_settings
 from app.db.models import EventArticle
 from app.db.session import init_db, reset_engine, session_factory
 
@@ -121,6 +121,9 @@ def test_summary_matches_event_list(client):
     r1_to_r3 = {c["id"] for c in cards if c["status"] in ("조치 완료 근거 확인", "조치 진행 정황 확인", "새로운 문제 발생")}
     confirmed = {r["event_id"] for r in client.get("/api/dashboard/recent-followups?limit=50").json()}
     assert r1_to_r3 <= confirmed and len(confirmed) == s["with_followup"]
+    # 거꾸로도 같다 — '후속보도 확인' 은 상태 분포의 세 상태를 더한 값 (판단 불가·후속보도 부족은 신호가 있어도 빠진다)
+    assert confirmed == r1_to_r3
+    assert s["with_followup"] == sum(s["by_status"][st] for st in FOLLOWUP_STATUSES)
 
 
 def test_summary_with_experiment_example(client):

@@ -15,7 +15,7 @@ from typing import Any
 
 from sqlalchemy.orm import Session
 
-from ..config import STATUSES, Settings
+from ..config import FOLLOWUP_STATUSES, STATUSES, Settings
 from ..db.models import Article, Event, FollowupSignal
 from ..llm.client import PROMPT_VERSIONS
 from ..pipeline.judge import followup_articles, promise_set_hash, trackable_promises
@@ -37,7 +37,8 @@ class EventFacts:
 
     @property
     def has_followup(self) -> bool:
-        return bool(self.valid)
+        # 상태 분포와 같은 기준 — 유효 신호가 있어도 판단 불가·후속보도 부족이면 세지 않는다 (신호 수 집계는 valid 그대로)
+        return self.event.status in FOLLOWUP_STATUSES and bool(self.valid)
 
     @property
     def first_valid(self) -> tuple[FollowupSignal, Article] | None:

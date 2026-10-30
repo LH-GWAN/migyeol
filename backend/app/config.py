@@ -31,6 +31,8 @@ STATUSES: tuple[str, ...] = (
     STATUS_UNDETERMINED,
 )
 NEEDS_CHECK_STATUSES = frozenset({STATUS_NO_FOLLOWUP, STATUS_UNDETERMINED, STATUS_NEW_PROBLEM})
+# '후속보도 확인' 사건 = 이 세 상태. 상태 분포와 더해서 맞도록 상태로 센다 (2026-10-30 — 신호만 있고 판단 불가·후속보도 부족인 사건은 빼기)
+FOLLOWUP_STATUSES = frozenset({STATUS_DONE, STATUS_IN_PROGRESS, STATUS_NEW_PROBLEM})
 
 PHASES: tuple[str, ...] = ("발생", "원인조사", "대응발표", "조치진행", "결과확인", "기타")
 

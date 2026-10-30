@@ -1,5 +1,5 @@
 {
- "generated_at": "2026-10-30T04:23:25+09:00",
+ "generated_at": "2026-10-30T12:55:58+09:00",
  "as_of": "2026-10-22",
  "bigkinds_mode": "record",
  "seeds_file": "seeds/events.yaml",
@@ -11,8 +11,8 @@
  },
  "events": {
   "total": 100,
-  "with_followup": 68,
-  "followup_rate": 0.68,
+  "with_followup": 66,
+  "followup_rate": 0.66,
   "by_status": {
    "조치 완료 근거 확인": 42,
    "조치 진행 정황 확인": 17,
@@ -27,10 +27,10 @@
   }
  },
  "windows_days": {
-  "30": 50,
-  "90": 58,
-  "180": 60,
-  "365": 63
+  "30": 49,
+  "90": 56,
+  "180": 58,
+  "365": 61
  },
  "signals": {
   "완료": 280,
@@ -41,8 +41,8 @@
   {
    "incident_type": "사고>산업사고",
    "events": 44,
-   "with_followup": 35,
-   "rate": 0.795
+   "with_followup": 33,
+   "rate": 0.75
   },
   {
    "incident_type": "사고>교통사고",
@@ -116,18 +116,6 @@
    ]
   },
   {
-   "org": "한국철도공사",
-   "events": 3,
-   "with_followup": 3,
-   "rate": 1.0,
-   "latest_followup_at": "2026-07-07",
-   "event_ids": [
-    212,
-    278,
-    152
-   ]
-  },
-  {
    "org": "광명시",
    "events": 2,
    "with_followup": 2,
@@ -181,6 +169,18 @@
     297,
     268,
     271
+   ]
+  },
+  {
+   "org": "한국철도공사",
+   "events": 3,
+   "with_followup": 2,
+   "rate": 0.667,
+   "latest_followup_at": "2026-07-07",
+   "event_ids": [
+    212,
+    278,
+    152
    ]
   },
   {
@@ -464,16 +464,6 @@
    ]
   },
   {
-   "org": "파주시",
-   "events": 1,
-   "with_followup": 1,
-   "rate": 1.0,
-   "latest_followup_at": "2024-09-11",
-   "event_ids": [
-    213
-   ]
-  },
-  {
    "org": "해군",
    "events": 1,
    "with_followup": 1,
@@ -721,6 +711,16 @@
    "latest_followup_at": null,
    "event_ids": [
     204
+   ]
+  },
+  {
+   "org": "파주시",
+   "events": 1,
+   "with_followup": 0,
+   "rate": 0.0,
+   "latest_followup_at": null,
+   "event_ids": [
+    213
    ]
   },
   {
@@ -5547,8 +5547,8 @@
  ],
  "labels": {
   "labeled": 100,
-  "followup_precision": 0.971,
-  "followup_recall": 0.868,
+  "followup_precision": 0.97,
+  "followup_recall": 0.842,
   "cluster_precision": 0.871,
   "org_accuracy": 0.886
  },
@@ -5560,7 +5560,7 @@
    "time_line": 996,
    "word_cloud": 0
   },
-  "elapsed_sec": 9008.1,
+  "elapsed_sec": 9007.7,
   "recordings": 12959
  },
  "success": {

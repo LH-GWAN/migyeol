@@ -17,11 +17,11 @@ export default function KpiTiles({ s, casualties }: { s: DashboardSummary; casua
       label: "후속보도 확인",
       value: String(s.with_followup),
       unit: "건",
-      note: `전체의 ${formatPercent(s.followup_rate, 1)} · 사건 이후 연결 기사 ${s.followup_articles}건`,
+      note: `${s.events_total}건 중 · 완료·진행·새로운 문제 상태 · 전체의 ${formatPercent(s.followup_rate, 1)}`,
       accent: "bg-[#2a78d6]",
     },
-    { label: "발표 기한이 지난 사건", value: String(s.overdue), unit: "건", note: "조치 완료가 확인된 사건 제외", accent: "bg-red-500" },
-    { label: "기관 발표 확인", value: String(s.with_org_notice), unit: "건", note: "기관 공식 게시판에서 찾은 사건", accent: "bg-violet-500" },
+    { label: "발표 기한이 지난 사건", value: String(s.overdue), unit: "건", note: `${s.events_total}건 중 · 조치 완료가 확인된 사건 제외`, accent: "bg-red-500" },
+    { label: "기관 발표 확인", value: String(s.with_org_notice), unit: "건", note: `${s.events_total}건 중 · 기관 공식 게시판에서 찾은 사건`, accent: "bg-violet-500" },
   ];
   if (casualties.dead !== null || casualties.injured !== null) {
     tiles.push({
@@ -40,21 +40,26 @@ export default function KpiTiles({ s, casualties }: { s: DashboardSummary; casua
   });
 
   return (
-    <ul className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-5">
-      {tiles.map((t) => (
-        <li
-          key={t.label}
-          className={`relative overflow-hidden rounded-xl border border-gray-200 bg-white p-4 shadow-sm ${t.unit ? "" : "col-span-2 md:col-span-1"}`}
-        >
-          <span className={`absolute inset-y-0 left-0 w-1 ${t.accent ?? "bg-gray-200"}`} aria-hidden />
-          <p className="text-xs font-medium text-gray-500">{t.label}</p>
-          <p className="mt-1 text-gray-900">
-            <span className={`font-bold tabular-nums ${t.unit ? "text-3xl" : "text-lg leading-9"}`}>{t.value}</span>
-            {t.unit && <span className="ml-1 text-sm font-medium text-gray-500">{t.unit}</span>}
-          </p>
-          {t.note && <p className="mt-1 text-[11px] leading-snug text-gray-500">{t.note}</p>}
-        </li>
-      ))}
-    </ul>
+    <div className="flex flex-col gap-2">
+      <ul className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-5">
+        {tiles.map((t) => (
+          <li
+            key={t.label}
+            className={`relative overflow-hidden rounded-xl border border-gray-200 bg-white p-4 shadow-sm ${t.unit ? "" : "col-span-2 md:col-span-1"}`}
+          >
+            <span className={`absolute inset-y-0 left-0 w-1 ${t.accent ?? "bg-gray-200"}`} aria-hidden />
+            <p className="text-xs font-medium text-gray-500">{t.label}</p>
+            <p className="mt-1 text-gray-900">
+              <span className={`font-bold tabular-nums ${t.unit ? "text-3xl" : "text-lg leading-9"}`}>{t.value}</span>
+              {t.unit && <span className="ml-1 text-sm font-medium text-gray-500">{t.unit}</span>}
+            </p>
+            {t.note && <p className="mt-1 text-[11px] leading-snug text-gray-500">{t.note}</p>}
+          </li>
+        ))}
+      </ul>
+      <p className="text-[11px] leading-snug text-gray-500">
+        후속보도 확인·기한 경과·기관 발표 확인은 추적 사건 {s.events_total}건 안에서 따로 센 숫자라 한 사건이 여러 칸에 들어갈 수 있습니다(더해도 {s.events_total}이 되지 않음). 상태별로 나눈 수는 아래 「사건 상태」에 있습니다.
+      </p>
+    </div>
   );
 }

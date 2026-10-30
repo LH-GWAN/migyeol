@@ -23,7 +23,7 @@ from typing import Literal
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
-from ..config import DISCLAIMER, STATUS_DONE, STATUSES, Settings, get_settings
+from ..config import DISCLAIMER, FOLLOWUP_STATUSES, STATUS_DONE, STATUSES, Settings, get_settings
 from ..db.models import Article, Event, EventArticle, FollowupSignal, PipelineRun, Promise, Report
 from ..db.session import get_session, session_factory
 from ..llm.client import PROMPT_VERSIONS
@@ -50,7 +50,7 @@ class EventFacts:
     event: Event
     org: str
     followups: list[Article]
-    confirmed: list[tuple[FollowupSignal, Article]] = field(default_factory=list)  # 유효 신호와 그 기사
+    confirmed: list[tuple[FollowupSignal, Article]] = field(default_factory=list)  # 유효 신호와 그 기사 — 후속보도 확인 상태인 사건만
     overdue: bool = False
 
     @property
@@ -156,7 +156,8 @@ def _collect_facts(session: Session, settings: Settings, today: date) -> list[Ev
                 event=ev,
                 org=event_org(ev),
                 followups=fups,
-                confirmed=confirmed_signals(session, ev, settings, fups),
+                # 상태가 완료·진행·새로운 문제가 아니면 신호가 있어도 '후속보도 확인'으로 세지 않는다 — 집계·최근 피드·사례가 상태 분포와 맞게
+                confirmed=confirmed_signals(session, ev, settings, fups) if ev.status in FOLLOWUP_STATUSES else [],
                 overdue=overdue_promise(ev, today) is not None and ev.status != STATUS_DONE,
             )
         )

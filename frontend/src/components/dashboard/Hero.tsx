@@ -4,7 +4,7 @@ import type { DashboardSummary } from "@/lib/dashboard";
 
 /**
  * 첫 화면 머리: "추적 중인 사건 N건 중 M건에서 후속보도가 확인됐습니다" + 비율 링 하나(화면의 유일한 큰 숫자).
- * 실험 리포트가 있으면 "기관 대응 발언 기사 X건 → 사건 Y건 → 후속보도 확인 Z건" 흐름을 한 줄로 덧붙인다.
+ * 실험 리포트가 있으면 "기관 대응 발언 기사 X건(인용문 검색 수집) → 사건 Y건 → 후속보도 확인 Z건" 흐름을 한 줄로 덧붙인다.
  */
 export default function Hero({ s }: { s: DashboardSummary }) {
   const rate = Math.max(0, Math.min(1, s.followup_rate));
@@ -36,7 +36,7 @@ export default function Hero({ s }: { s: DashboardSummary }) {
           {exp && (
             <p className="mt-3 inline-flex flex-wrap items-center gap-x-2 gap-y-1 rounded-lg bg-white/5 px-3 py-2 text-xs text-slate-300 ring-1 ring-white/10">
               <span>
-                기관 대응 발언 기사 <b className="text-white">{exp.source_articles.unique}건</b>
+                기관 대응 발언 기사 <b className="text-white">{exp.source_articles.collected.toLocaleString("ko-KR")}건</b>
               </span>
               <span aria-hidden>→</span>
               <span>

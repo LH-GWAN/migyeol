@@ -17,7 +17,7 @@ from pathlib import Path
 
 from sqlalchemy.orm import Session
 
-from ..config import STATUS_NO_FOLLOWUP, STATUSES, Settings
+from ..config import FOLLOWUP_STATUSES, STATUS_NO_FOLLOWUP, STATUSES, Settings
 from ..db.models import Article, Event, StatusJudgment
 from ..llm.client import PROMPT_VERSIONS
 from ..notices.service import notices_out
@@ -170,7 +170,8 @@ def event_facts(session: Session, event: Event, settings: Settings, today: date)
         last_followup_at=event.last_followup_at,
         followup_count=event.followup_count or 0,
         promises=promises,
-        signals=valid_signals(session, event, settings),
+        # 대시보드와 같은 기준 — 후속보도 확인 상태(완료·진행·새로운 문제)인 사건만 신호를 근거로 쓴다
+        signals=valid_signals(session, event, settings) if event.status in FOLLOWUP_STATUSES else [],
         notices=notices_out(session, event, settings, today),
     )
 
