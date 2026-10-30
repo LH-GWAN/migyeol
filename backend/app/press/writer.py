@@ -39,7 +39,7 @@ T = {
         "이 가운데 ${followup}건(${rate})에서 발표 이후 조치를 다룬 후속보도가 확인됐다고 밝혔다. "
         "나머지 ${rest}건은 ${as_of} 기준으로 후속보도가 확인되지 않았다."
     ),
-    "lead_exp": Template("원천 기사는 인용문 검색으로 ${collected}건을 모은 뒤 같은 사건의 중복을 제거해 ${unique}건을 남겼다. (실험 리포트 ${generated} 기준)"),
+    "lead_exp": Template("원천 기사는 빅카인즈 인용문 검색으로 모았고, 같은 사건을 다룬 기사끼리 묶어 사건 ${events}건으로 정리했다. (실험 리포트 ${generated} 기준)"),
     "orgs_intro": Template("후속보도가 확인된 기관은 ${count}곳이다. ${names}."),
     "orgs_none": Template("${as_of} 기준으로 후속보도가 확인된 기관은 없다."),
     "case_followup": Template("${org_josa} ${spoken} “${action}”라고 밝혔고${pref}, ${pub} ${provider} 보도 「${title}」에서 ‘${span}’ 내용이 확인됐다(${signal}) [${ref}]."),
@@ -55,7 +55,7 @@ T = {
     "method": Template(
         "분석에는 빅카인즈 OpenAPI의 뉴스 검색·인용문 검색·키워드 트렌드·연관어 분석·뉴스 변경이력을 사용했다. "
         "사건 발생 후 공공기관이 대응을 밝힌 인용문을 원천 기사로 삼아 같은 사건 기사를 규칙과 문장 유사도로 묶고, "
-        "발표 이후 기사에서 약속 행동과 겹치는 완료·진행·새로운 문제 표현(신뢰도 ${min_conf} 이상)을 찾으면 ‘후속보도 확인’으로 셌다. "
+        "발표 이후 기사에서 약속 행동과 겹치는 완료·진행·새로운 문제 표현(신뢰도 ${min_conf} 이상)을 찾아 사건 상태를 정하고, 상태가 조치 완료 근거 확인·조치 진행 정황 확인·새로운 문제 발생인 사건을 ‘후속보도 확인’으로 셌다. "
         "분석 기간은 ${period}, 기준일은 ${as_of}이며, 사건 상태는 조치 완료 근거 확인·조치 진행 정황 확인·새로운 문제 발생·후속보도 부족·판단 불가 5가지로만 표시한다. "
         "후속보도가 확인되지 않은 채 ${days}일 이상 지난 사건은 책임기관 공식 게시판의 목록 제목만 확인했고, 언론사 원문은 수집하지 않았다."
     ),
@@ -157,6 +157,12 @@ def pct(rate: float) -> str:
     return f"{rate * 100:.1f}%"
 
 
+def source_article_count(exp: dict, ov: D.Overview) -> int:
+    """원천 기사 수 = 인용문 검색으로 모은 기사 수(collected). 'unique' 는 사건마다 대표 원천 기사 1건이라 사건 수와 같다 — 대시보드 흐름줄과 같은 숫자를 쓴다."""
+    sa = (exp or {}).get("source_articles") or {}
+    return int(sa.get("collected") or sa.get("unique") or 0) if exp else ov.source_articles
+
+
 def clip(text: str, n: int) -> str:
     t = " ".join((text or "").split())
     return t if len(t) <= n else t[: n - 1].rstrip() + "…"
@@ -233,13 +239,13 @@ class TemplateWriter:
         total = int(exp_events.get("total") or 0) if exp else ov.total
         followup = int(exp_events.get("with_followup") or 0) if exp else len(ov.with_followup)
         rate = (followup / total) if total else 0.0
-        sources_n = int((exp.get("source_articles") or {}).get("unique") or 0) if exp else ov.source_articles
+        sources_n = source_article_count(exp, ov)
         as_of = kdate(date.fromisoformat(exp["as_of"])) if exp.get("as_of") else kdate(ov.as_of)
 
         sections: list[dict] = []
-        lead = T["lead"].substitute(period=_period(ov), sources=sources_n, events=total, followup=followup, rate=pct(rate), rest=total - followup, as_of=as_of)
+        lead = T["lead"].substitute(period=_period(ov), sources=f"{sources_n:,}", events=total, followup=followup, rate=pct(rate), rest=total - followup, as_of=as_of)
         if exp and (exp.get("source_articles") or {}).get("collected"):
-            lead += " " + T["lead_exp"].substitute(collected=exp["source_articles"]["collected"], unique=sources_n, generated=exp.get("generated_at", "")[:10])
+            lead += " " + T["lead_exp"].substitute(events=total, generated=exp.get("generated_at", "")[:10])
         sections.append({"heading": "요약", "body": lead})
 
         inc = D.by_incident(ov)
@@ -425,7 +431,7 @@ A = {
         "나머지 ${rest}건은 같은 날짜 기준으로 후속보도가 확인되지 않았다."
     ),
     "lead_all_sources": Template("분석 대상은 사건 발생 뒤 공공기관의 대응 발언이 담긴 원천 기사 ${sources}건이다."),
-    "lead_all_exp": Template("인용문 검색으로 모은 ${collected}건 가운데 같은 사건의 중복을 제거한 수치다(실험 리포트 ${generated} 기준)."),
+    "lead_all_exp": Template("빅카인즈 인용문 검색으로 모은 이 기사들을 같은 사건끼리 묶어 사건 ${events}건으로 정리했다(실험 리포트 ${generated} 기준)."),
     "incident": Template("재난 유형별로는 ${items}에서 후속보도가 확인됐다."),
     "incident_item": Template("‘${incident_type}’ 사건 ${events}건 가운데 ${with_followup}건(${rate})"),
     "orgs": Template("기관별로 보면 후속보도가 확인된 기관은 모두 ${count}곳으로, ${names}${etc}이다."),
@@ -485,7 +491,7 @@ A = {
     "event_notice_state": Template("책임기관 공식 게시판 확인 결과는 ‘${label}’이다. ${reason}"),
     "background_event": Template(
         "미결은 사건 발생 후 공공기관이 대응을 밝힌 인용문을 원천 기사로 삼아 같은 사건 기사를 규칙과 문장 유사도로 묶고, "
-        "발표 이후 기사에서 약속 행동과 겹치는 완료·진행·새로운 문제 표현(신뢰도 ${min_conf} 이상)을 찾으면 ‘후속보도 확인’으로 센다. "
+        "발표 이후 기사에서 약속 행동과 겹치는 완료·진행·새로운 문제 표현(신뢰도 ${min_conf} 이상)을 찾아 사건 상태를 정하고, 상태가 조치 완료 근거 확인·조치 진행 정황 확인·새로운 문제 발생인 사건을 ‘후속보도 확인’으로 센다. "
         "사건 상태는 조치 완료 근거 확인·조치 진행 정황 확인·새로운 문제 발생·후속보도 부족·판단 불가 5가지로만 표시하며, 이 사건의 현재 표시 상태는 ‘${status}’이다. "
         "대응 발언은 표현의 강도에 따라 ‘확약’과 ‘계획’으로 나눠 추적했다. "
         "후속보도가 확인되지 않은 채 ${days}일 이상 지난 사건은 책임기관 공식 게시판의 목록 제목만 확인하고 언론사 원문은 수집하지 않는다."
@@ -544,14 +550,14 @@ class ArticleWriter:
         total = int(exp_events.get("total") or 0) if exp else ov.total
         followup = int(exp_events.get("with_followup") or 0) if exp else len(ov.with_followup)
         rate = (followup / total) if total else 0.0
-        sources_n = int((exp.get("source_articles") or {}).get("unique") or 0) if exp else ov.source_articles
+        sources_n = source_article_count(exp, ov)
         as_of = kdate(date.fromisoformat(exp["as_of"])) if exp.get("as_of") else kdate(ov.as_of)
         rest = total - followup
 
         # 리드
-        lead_src = A["lead_all_sources"].substitute(sources=sources_n)
+        lead_src = A["lead_all_sources"].substitute(sources=f"{sources_n:,}")
         if exp and (exp.get("source_articles") or {}).get("collected"):
-            lead_src = _sentences(lead_src, A["lead_all_exp"].substitute(collected=exp["source_articles"]["collected"], generated=exp.get("generated_at", "")[:10]))
+            lead_src = _sentences(lead_src, A["lead_all_exp"].substitute(events=total, generated=exp.get("generated_at", "")[:10]))
         lead = _paragraphs(
             A["lead_all"].substitute(period=_period(ov), events=total, as_of=as_of, followup=followup, rate=pct(rate), rest=rest),
             lead_src,

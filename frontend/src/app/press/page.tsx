@@ -47,7 +47,7 @@ function StatTiles({ draft }: { draft: PressDraft }) {
       {tiles.map((t) => (
         <div key={t.label} className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2">
           <dt className="text-xs text-gray-500">{t.label}</dt>
-          <dd className="text-xl font-bold tabular-nums text-gray-900">{t.value ?? "-"}</dd>
+          <dd className="text-xl font-bold tabular-nums text-gray-900">{typeof t.value === "number" ? t.value.toLocaleString("ko-KR") : (t.value ?? "-")}</dd>
         </div>
       ))}
     </dl>

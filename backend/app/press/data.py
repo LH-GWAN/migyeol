@@ -117,10 +117,8 @@ def _article_ref(a: Article | None) -> ArticleRef | None:
 
 
 def valid_signals(session: Session, event: Event, settings: Settings) -> list[SignalRef]:
-    promises = trackable_promises(event)
-    if not promises:
-        return []
-    pset = promise_set_hash(promises)
+    # 추적 약속이 없는 사건도 사건 경로 신호(promise_id NULL, rules-v4)가 있다 — 대시보드·실험 지표와 같은 집합을 센다
+    pset = promise_set_hash(trackable_promises(event))
     version = PROMPT_VERSIONS["followup"]
     by_news = {a.news_id: a for a in followup_articles(session, event, settings)}  # 활성 연결·삭제 제외·후속 기간
     out = []

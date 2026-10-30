@@ -109,7 +109,7 @@ def test_article_overall_uses_experiment_numbers(client):
     assert body["data_source"] == "experiment" and body["title"] == "재난·안전 사건 61건 중 23건, 기관 발표 뒤 후속보도 확인됐다"
     assert "38건은 2026년 10월 25일 기준" in body["subtitle"]
     lead = body["sections"][0]["body"]
-    assert "사건 61건을 추적한 결과" in lead and "23건(37.7%)" in lead and "원천 기사 103건" in lead and "1559" not in lead and "412건" in lead
+    assert "사건 61건을 추적한 결과" in lead and "23건(37.7%)" in lead and "원천 기사 412건" in lead and "1559" not in lead and "103건" not in lead and "사건 61건으로 정리" in lead
     text = body["sections"][1]["body"]
     assert "‘재해>자연재해’ 사건 30건 가운데 12건(40.0%)" in text and "서울시(사건 6건 중 4건)" in text and "부산시" not in text
 

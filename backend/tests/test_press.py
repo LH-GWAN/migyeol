@@ -165,7 +165,7 @@ def test_overall_draft_uses_experiment_report_when_present(client):
     _assert_clean(body)
     assert body["data_source"] == "experiment" and body["experiment_generated_at"] == EXPERIMENT["generated_at"]
     lead = body["sections"][0]["body"]
-    assert "원천 기사 103건에서 사건 61건" in lead and "23건(37.7%)" in lead and "412건" in lead and "2026년 10월 25일 기준" in lead
+    assert "원천 기사 412건에서 사건 61건" in lead and "23건(37.7%)" in lead and "103건" not in lead and "2026년 10월 25일 기준" in lead
     inc = next(s["body"] for s in body["sections"] if s["heading"] == "재난 유형별 현황")
     assert "재해>자연재해: 사건 30건, 후속보도 확인 12건(40.0%)" in inc
     orgs = next(s["body"] for s in body["sections"] if s["heading"] == "후속보도가 확인된 기관과 사례")

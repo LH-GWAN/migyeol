@@ -124,6 +124,10 @@ def test_summary_matches_event_list(client):
     # 거꾸로도 같다 — '후속보도 확인' 은 상태 분포의 세 상태를 더한 값 (판단 불가·후속보도 부족은 신호가 있어도 빠진다)
     assert confirmed == r1_to_r3
     assert s["with_followup"] == sum(s["by_status"][st] for st in FOLLOWUP_STATUSES)
+    # 보도자료 사건 목록도 같은 사건을 '후속보도 확인' 으로 센다 (추적 약속 없는 사건 경로 신호 포함)
+    press = client.get("/api/press/events").json()
+    press = press if isinstance(press, list) else press["items"]
+    assert {e["id"] for e in press if e["has_followup"]} == confirmed
 
 
 def test_summary_with_experiment_example(client):
