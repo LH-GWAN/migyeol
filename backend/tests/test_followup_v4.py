@@ -194,3 +194,11 @@ def test_headline_completion_next_to_future_word_is_progress():
     assert [s for s, _ in R._expressions("장마 앞두고 복구 완료", True, True)] == ["완료"]  # '앞두고' 는 앞날이 아니다
     assert "완료" not in [s for s, _ in R._expressions("청과동 지붕 복구 공사 연내 마무리 목표", True, True)]
 
+
+
+def test_headline_completion_with_future_tail_is_progress():
+    # '8월까지 설치 끝낸다' — 제목의 '-ㄴ다' 꼬리는 앞날의 완료 (영도구 스쿨존 2024-05-16 기사)
+    assert [s for s, _ in R._expressions("부산 스쿨존 44곳 미완의 ‘방호펜스’ 8월까지 설치 끝낸다", True, True)] == ["진행", "진행"]
+    assert [s for s, _ in R._expressions("교체 완료한다", True, True)] == ["진행"]
+    assert [s for s, _ in R._expressions("청동초에 방호울타리 설치 완료", True, True)] == ["완료"]
+    assert "완료" in [s for s, _ in R._expressions("제방 복구 끝났다", True, True)]

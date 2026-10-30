@@ -27,7 +27,7 @@ function gapText(c: NoticeCase): string {
   if (c.gap_days === null) return "";
   if (c.kind === "notice_without_followup") {
     const when = c.gap_days === 0 ? "발생 당일" : `발생 ${c.gap_days}일 뒤`;
-    return `${when} 기관 발표 · 그 뒤 확인된 후속보도 없음 (사건 이후 연결 기사 ${c.articles_after}건)`;
+    return `${when} 기관 발표 · 그 뒤 확인된 후속보도 없음 (기관 발언 이후 연결 기사 ${c.articles_after}건)`;
   }
   return `기관 발표 ${c.gap_days}일 뒤에야 다음 후속보도 확인`;
 }

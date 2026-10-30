@@ -399,7 +399,7 @@ def build_recent_followups(facts: list[EventFacts], limit: int) -> list[dict]:
 
 CASE_KINDS = {
     "notice_without_followup": "후속보도는 없지만 기관 발표가 있는 사건",
-    "notice_before_followup": "기관 발표는 일찍, 후속보도는 한참 뒤에 나온 사건",
+    "notice_before_followup": "기관 발표 뒤 다음 후속보도까지 한참 걸린 사건",
 }
 CASE_MIN_GAP_DAYS = 30  # 기관 발표 → 후속보도 사이가 이 이상 벌어져야 '한참 뒤'로 센다
 

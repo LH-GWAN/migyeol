@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import type { TimeseriesRow } from "@/lib/dashboard";
 
 /**
- * 월별/일별 시계열 — 발생 사건 수(막대) + 사건 이후 연결 기사 수(선; 후속보도로 확인된 기사만이 아님). 두 값 모두 '건' 이라 축은 하나다.
+ * 월별/일별 시계열 — 발생 사건 수(막대) + 기관 발언 이후 연결 기사 수(선; 후속보도로 확인된 기사만이 아님). 두 값 모두 '건' 이라 축은 하나다.
  * 범위 토글: 전체 / 2023~2025 / 최근 12개월(기준일 as_of 기준, 브라우저 시계와 무관).
  * 숫자는 전부 /api/dashboard/timeseries 에서 온다. 범위 밖 빈 구간만 0 으로 채운다.
  */
@@ -19,7 +19,7 @@ interface Props {
 }
 
 const BAR = "#2a78d6"; // 발생 사건 (categorical slot 1)
-const LINE = "#eb6834"; // 사건 이후 연결 기사 (categorical slot 2)
+const LINE = "#eb6834"; // 기관 발언 이후 연결 기사 (categorical slot 2)
 const GRID = "#e5e7eb";
 const H = 260;
 const PAD = { top: 16, right: 12, bottom: 28, left: 34 };
@@ -183,13 +183,13 @@ export default function TimeseriesChart({ month, day, asOf }: Props) {
           </span>
           <span className="flex items-center gap-1.5">
             <span className={`inline-block ${isDay ? "h-3 w-1" : "h-0.5 w-4 rounded"}`} style={{ background: LINE }} aria-hidden />
-            사건 이후 연결 기사 <b className="text-gray-900">{totals.followups}</b>
+            기관 발언 이후 연결 기사 <b className="text-gray-900">{totals.followups}</b>
           </span>
         </div>
       </div>
 
       <div ref={boxRef} className="relative w-full overflow-hidden" onMouseLeave={() => setHover(null)}>
-        <svg width={width} height={H} role="img" aria-label={`${interval === "month" ? "월별" : "일별"} 발생 사건 수와 사건 이후 연결 기사 수`} className="block">
+        <svg width={width} height={H} role="img" aria-label={`${interval === "month" ? "월별" : "일별"} 발생 사건 수와 기관 발언 이후 연결 기사 수`} className="block">
           {ticks.map((t) => (
             <g key={t}>
               <line x1={PAD.left} x2={width - PAD.right} y1={y(t)} y2={y(t)} stroke={GRID} strokeWidth={1} />
@@ -201,7 +201,7 @@ export default function TimeseriesChart({ month, day, asOf }: Props) {
           {hover !== null && <rect x={PAD.left + slot * hover} y={PAD.top} width={slot} height={innerH} fill="#f3f4f6" />}
           {isDay ? (
             <>
-              {/* 일별: 사건 이후 연결 기사는 가는 막대, 발생 사건은 점 (수백 개 구간에서 선은 읽히지 않는다) */}
+              {/* 일별: 기관 발언 이후 연결 기사는 가는 막대, 발생 사건은 점 (수백 개 구간에서 선은 읽히지 않는다) */}
               {rows.map((r, i) =>
                 r.followup_articles > 0 ? (
                   <rect key={r.bucket} x={cx(i) - dayBarW / 2} y={y(r.followup_articles)} width={dayBarW} height={y(0) - y(r.followup_articles)} fill={LINE} />
@@ -263,7 +263,7 @@ export default function TimeseriesChart({ month, day, asOf }: Props) {
             <p className="flex items-center justify-between gap-3 text-gray-600">
               <span className="flex items-center gap-1.5">
                 <span className="inline-block h-0.5 w-2.5" style={{ background: LINE }} />
-                사건 이후 연결 기사
+                기관 발언 이후 연결 기사
               </span>
               <b className="text-gray-900">{hv.followup_articles}건</b>
             </p>
@@ -288,7 +288,7 @@ export default function TimeseriesChart({ month, day, asOf }: Props) {
               <tr>
                 <th className="px-2 py-1 font-medium">{interval === "month" ? "월" : "일"}</th>
                 <th className="px-2 py-1 text-right font-medium">발생 사건</th>
-                <th className="px-2 py-1 text-right font-medium">사건 이후 연결 기사</th>
+                <th className="px-2 py-1 text-right font-medium">기관 발언 이후 연결 기사</th>
                 <th className="px-2 py-1 text-right font-medium">조치 확인 보도</th>
               </tr>
             </thead>

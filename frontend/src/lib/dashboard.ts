@@ -155,7 +155,7 @@ export interface NoticeCase {
   occurred_at: string | null;
   /** 마지막 연결 기사일 */
   last_article_at: string | null;
-  /** 사건 이후 연결 기사 수 (후속보도로 확인된 것만이 아니라 전체) */
+  /** 기관 발언 이후 연결 기사 수 (후속보도로 확인된 것만이 아니라 전체) */
   articles_after: number;
   latest_confirmed_at: string | null;
   notices_count: number;
