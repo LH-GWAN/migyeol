@@ -173,7 +173,7 @@ migyeol/
 ├── backend/scripts/{make_fixtures,run_pipeline,evaluate,smoke_live}.py
 ├── backend/tests/                                      규칙·클라이언트·E2E·API
 ├── frontend/                                           Next.js 3화면 + 관리자
-└── docs/{ARCHITECTURE,API_CONTRACT,CHANGELOG,DEMO_SCRIPT}.md
+└── docs/{ARCHITECTURE,API_CONTRACT,CHANGELOG}.md
 ```
 
 ## 2026-10-12 수정 검증 반영 메모

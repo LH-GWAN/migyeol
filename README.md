@@ -85,7 +85,7 @@ backend/app/press      v2 보도자료 초안 작성기(템플릿 / LLM)
 backend/app/support    민간(기업·단체·개인) 지원 소식 — 연결 기사 메타데이터에서 규칙으로 추출, 상태와 무관한 보조 근거 (docs/SUPPORT.md)
 backend/app/api        /api/events, /api/dashboard, /api/press, /api/notices, /api/admin, /api/pipeline, /api/meta
 frontend/src/app       /  대시보드 · /orgs 기관별 전체(상단 탭) · /orgs/notices 기관 발표로 확인된 사례 · /followups 최근 후속보도 전체 · /events 목록 · /events/[id] 타임라인 · /events/[id]/evidence 근거(+기관 발표 확인 +민간 지원 소식) · /press 보도자료 초안 · /about · /admin
-docs/                  ARCHITECTURE · API_CONTRACT · CHANGELOG · DEMO_SCRIPT · EXPERIMENT · NOTICES · SUPPORT · screenshots/
+docs/                  ARCHITECTURE · API_CONTRACT · CHANGELOG · EXPERIMENT · NOTICES · SUPPORT · screenshots/
 ```
 
 자세한 설계는 [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md), API 응답 형식은 [docs/API_CONTRACT.md](docs/API_CONTRACT.md), 예선/본선 개발 범위 구분은 [docs/CHANGELOG.md](docs/CHANGELOG.md).
