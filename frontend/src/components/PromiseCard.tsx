@@ -44,9 +44,6 @@ export default function PromiseCard({ promise, eventStatus }: Props) {
         <dt className="text-gray-500">주체</dt>
         <dd className="text-gray-900">
           <span className="font-semibold">{promise.actor_org}</span>
-          {promise.actor_raw && promise.actor_raw !== promise.actor_org && (
-            <span className="ml-1 text-gray-500">({promise.actor_raw})</span>
-          )}
         </dd>
         <dt className="text-gray-500">행동</dt>
         <dd className="text-gray-900">{promise.action}</dd>

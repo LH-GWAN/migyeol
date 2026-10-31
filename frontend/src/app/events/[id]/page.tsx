@@ -34,6 +34,21 @@ export async function generateMetadata({ params }: { params: Params }): Promise<
   return { title: `사건 #${id} 타임라인` };
 }
 
+const STRENGTH_ORDER: Record<string, number> = { 확약: 0, 계획: 1, 의사표명: 2 };
+
+/** 추적 가능한 확약 → 계획 → 의사표명 순, 같은 묶음은 발언일 순 (10-30 fe-9·docs-9 — 첫 카드가 비판 문장이 되지 않게). */
+function sortPromises<T extends { is_trackable: boolean; strength: string; quotation: { published_at: string | null } | null }>(items: T[]): T[] {
+  return [...items].sort((a, b) => {
+    const ta = a.is_trackable ? 0 : 1;
+    const tb = b.is_trackable ? 0 : 1;
+    if (ta !== tb) return ta - tb;
+    const sa = STRENGTH_ORDER[a.strength] ?? 9;
+    const sb = STRENGTH_ORDER[b.strength] ?? 9;
+    if (sa !== sb) return sa - sb;
+    return (a.quotation?.published_at ?? "").localeCompare(b.quotation?.published_at ?? "");
+  });
+}
+
 export default async function EventPage({ params }: { params: Params }) {
   const { id } = await params;
   const eventId = parseId(id);
@@ -82,7 +97,7 @@ export default async function EventPage({ params }: { params: Params }) {
                   기한 경과 {card.deadline_passed_days}일
                 </span>
               )}
-              {card.needs_review && (
+              {card.needs_review && (card.pending_followups + card.pending_quotations > 0 || card.llm_gave_up) && (
                 <span className="rounded-full border border-violet-200 bg-violet-50 px-2 py-0.5 text-xs font-semibold text-violet-700">
                   검토 필요
                 </span>
@@ -206,13 +221,15 @@ export default async function EventPage({ params }: { params: Params }) {
                   {promises.length === 0 ? (
                     <p className="mt-1 text-sm text-gray-400">이 사건에서 추출된 약속이 없습니다.</p>
                   ) : (
-                    <ul className="mt-2 flex flex-col gap-3">
-                      {promises.map((p) => (
-                        <li key={p.id}>
-                          <PromiseCard promise={p} eventStatus={card.status} />
-                        </li>
-                      ))}
-                    </ul>
+                    <div className="mt-2">
+                      <ShowMoreList
+                        initial={PHASE_ROWS}
+                        moreLabel="약속 더보기"
+                        items={sortPromises(promises).map((p) => (
+                          <PromiseCard key={p.id} promise={p} eventStatus={card.status} />
+                        ))}
+                      />
+                    </div>
                   )}
                 </div>
               )}

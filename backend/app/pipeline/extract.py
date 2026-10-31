@@ -151,8 +151,10 @@ def _merge_duplicates(event: Event, embedder: EmbeddingBackend | None) -> int:
     for p in promises:
         dup = None
         for k in kept:
-            if k.actor_org != p.actor_org or not p.actor_org:
-                continue  # 기관 미상("")은 서로 다른 기관일 수 있어 병합하지 않는다
+            if k.actor_org != p.actor_org:
+                continue
+            if not p.actor_org and not (k.actor_raw == p.actor_raw or k.action == p.action):
+                continue  # 기관 미상("")은 서로 다른 기관일 수 있다 — 같은 화자(원문)거나 같은 문구일 때만 병합 (10-30 R3)
             same = k.action == p.action
             if not same and vecs:
                 same = float(np.dot(vecs[k.id], vecs[p.id])) >= 0.85
@@ -193,18 +195,24 @@ def resolve_person_title(event: Event, source: str, published: date | None, lexi
     return org
 
 
-def store_promise(event: Event, q: Quotation, res, llm: LLMClient, lexicon: list[str], stats: dict | None = None) -> Promise:
-    """추출 결과 하나를 Promise 로 저장한다 (extract_event 와 실험의 원천 발언 추출이 같이 쓴다)."""
-    # 주체 기관: 규칙 결과가 있으면 그것을 쓴다 (LLM 값이 '충청북도'·'청주시청 도로과' 처럼 달라도 덮어쓰지 않는다 — 병합 키 일관성).
-    # 규칙이 못 찾으면 LLM 값을 쓰되, 사람 이름 형태('김민구')면 버린다. 둘 다 없으면 "" = 기관 미상 (병합·추적 키에서 제외).
-    actor = normalize_actor_org(q.source, event.responsible_org, lexicon)
+def resolve_actor_org(event: Event, q: Quotation, llm_actor: str | None, lexicon: list[str]) -> str:
+    """발언 주체 기관 — 저장(store_promise)과 재정규화(scripts/renormalize_actors.py)가 같은 규칙을 쓴다.
+    규칙 결과가 있으면 그것(LLM 값이 '충청북도'·'청주시청 도로과' 처럼 달라도 덮어쓰지 않는다 — 병합 키 일관성),
+    없으면 이름+직함 검색 캐시, 그다음 LLM(규칙 어댑터) 값 — 사람 이름 형태면 버린다. 모두 없으면 "" = 기관 미상 (병합·추적 키에서 제외)."""
+    actor = normalize_actor_org(q.source, event.responsible_org, event.org_aliases or [], lexicon=lexicon)  # 지역은 별칭이 아니다 (B1)
     if actor and looks_like_person(actor, lexicon):
         actor = None
     if actor_search.wants(q.source, actor, lexicon):
         actor = resolve_person_title(event, q.source, q.published_at, lexicon) or actor
     if not actor:
-        cand = (res.actor_org or "").strip()
+        cand = (llm_actor or "").strip()
         actor = cand if cand and not looks_like_person(cand, lexicon) else ""
+    return actor
+
+
+def store_promise(event: Event, q: Quotation, res, llm: LLMClient, lexicon: list[str], stats: dict | None = None) -> Promise:
+    """추출 결과 하나를 Promise 로 저장한다 (extract_event 와 실험의 원천 발언 추출이 같이 쓴다)."""
+    actor = resolve_actor_org(event, q, res.actor_org, lexicon)
     deadline, why = parse_deadline(res.deadline_date, q.published_at)
     if why:
         if stats is not None:
@@ -258,6 +266,7 @@ def extract_event(
 
     # 1) 인용문 저장 (짧은 트랜잭션)
     pending: list[Quotation] = []
+    seen_q: set[int] = set()
     for d in docs:
         if d.news_id not in linked_ids:
             continue
@@ -278,13 +287,26 @@ def extract_event(
             existing[key] = q
         if q.is_public_actor:
             stats["public"] += 1
-            if not q.promises:
+            if not q.promises and id(q) not in seen_q:
                 pending.append(q)
+                seen_q.add(id(q))
+    # 이전 실행에서 저장됐지만 아직 추출되지 않은 공공 인용문(relink 뒤 활성이 된 연결, 이월분)도 같이 추출한다 —
+    # 영구 '잠정 · 대기' 방지 (10-30 rules-9). 연결이 활성이 아닌 인용문은 대기로 세지 않는다.
+    # 저장된 공공 여부는 지금 규칙으로 다시 판정한다 — 규칙이 바뀐 뒤('국방부 대변인' 이 민간으로 떨어졌던 10-30 R2) 옛 판정이 남지 않게
+    for q in event.quotations:
+        flag = is_public_actor(q.source, lexicon)
+        if flag != bool(q.is_public_actor):
+            q.is_public_actor = flag
+            stats["reflagged"] = stats.get("reflagged", 0) + 1
+        if q.is_public_actor and not q.promises and q.news_id in linked_ids and id(q) not in seen_q:
+            pending.append(q)
+            seen_q.add(id(q))
+            stats["retried_quotes"] = stats.get("retried_quotes", 0) + 1
     session.commit()
 
     # 1-1) 이름+직함 주체의 기관 검색 (캐시에 없는 (이름, 직함, 분기) 만 — record 모드는 녹화 재생)
     if settings.actor_search and getattr(client, "mode", "mock") != "mock":
-        wanted = [q for q in pending if actor_search.wants(q.source, normalize_actor_org(q.source, event.responsible_org, lexicon), lexicon)]
+        wanted = [q for q in pending if actor_search.wants(q.source, normalize_actor_org(q.source, event.responsible_org, event.org_aliases or [], lexicon=lexicon), lexicon)]
         stats["actor_search"] = actor_search.ensure_cache(client, [(q.source, q.published_at, lexicon) for q in wanted])
 
     # 2) LLM 호출 (DB 쓰기 없음). 같은 (주체, 발언) 은 한 번만.

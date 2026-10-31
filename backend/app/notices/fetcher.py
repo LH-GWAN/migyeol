@@ -9,6 +9,7 @@
 from __future__ import annotations
 
 import logging
+import threading
 import time
 from collections.abc import Callable, Iterable
 from typing import Protocol
@@ -22,7 +23,11 @@ from .robots import RobotsRules, rules_for_status
 log = logging.getLogger("migyeol.notices")
 
 MAX_REDIRECTS = 3
+MIN_INTERVAL_SEC = 2.0  # 명세 §3 요청 간격 하한
 MAX_BYTES = 3_000_000  # 목록·상세 페이지 상한 (첨부파일을 받지 않는다)
+# 요청 간격 상태는 프로세스 전역(호스트별)이다 — 사건마다 Fetcher 를 새로 만들어도 같은 호스트(korea.kr)에 0초 간격으로 가지 않는다 (10-30 notice-2)
+_HOST_LAST: dict[str, float] = {}
+_HOST_LOCK = threading.Lock()
 
 
 class NoticeFetchError(RuntimeError):
@@ -55,7 +60,7 @@ class HttpFetcher:
         self.allowed_csv = allowed_csv
         self.extra_domains = tuple(extra_domains)
         self.user_agent = user_agent
-        self.interval = max(0.0, interval_sec)
+        self.interval = max(MIN_INTERVAL_SEC, interval_sec)  # §3: 2초 미만으로는 내리지 않는다
         self.requests = 0
         self._robots: dict[str, RobotsRules] = {}
         self._last: dict[str, float] = {}
@@ -81,12 +86,14 @@ class HttpFetcher:
         return check_url(url, self.allowed_csv, self.extra_domains)
 
     def _throttle(self, host: str) -> None:
-        last = self._last.get(host)
-        if last is not None:
-            wait = self.interval - (self._clock() - last)
-            if wait > 0:
-                self._sleep(wait)
-        self._last[host] = self._clock()
+        with _HOST_LOCK:
+            last = _HOST_LAST.get(host, self._last.get(host))
+            now = self._clock()
+            wait = self.interval - (now - last) if last is not None else 0.0
+            # 다음 요청 시각을 먼저 예약해 두면 같은 호스트의 다른 fetcher 도 그 뒤에 줄을 선다
+            _HOST_LAST[host] = self._last[host] = (now + wait) if wait > 0 else now
+        if wait > 0:
+            self._sleep(wait)
 
     def _raw_get(self, url: str) -> httpx.Response:
         host = self._check(url)

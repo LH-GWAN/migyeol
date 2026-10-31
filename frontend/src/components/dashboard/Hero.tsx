@@ -31,7 +31,7 @@ export default function Hero({ s }: { s: DashboardSummary }) {
           <p className="mt-3 text-sm leading-relaxed text-slate-300 sm:text-base">
             추적 중인 사건 <b className="text-white">{s.events_total}건</b> 중{" "}
             <b className="text-white">{s.with_followup}건</b>은 조치 완료·진행이나 새로운 문제를 전한 후속보도가 확인됐습니다. 나머지{" "}
-            <b className="text-white">{s.events_total - s.with_followup}건</b>은 아직 그런 보도를 찾지 못했습니다.
+            <b className="text-white">{s.events_total - s.with_followup}건</b>은 그런 보도가 아직 기준에 맞게 확인되지 않았습니다(신호는 있지만 기준에 못 미친 사건 포함).
           </p>
           {exp && (
             <p className="mt-3 inline-flex flex-wrap items-center gap-x-2 gap-y-1 rounded-lg bg-white/5 px-3 py-2 text-xs text-slate-300 ring-1 ring-white/10">

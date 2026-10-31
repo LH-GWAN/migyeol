@@ -274,15 +274,39 @@ def test_late_facility_title_links_are_kept_as_floor(mock_db, monkeypatch):
     _relink(session, settings, embedder)
     rows = RR.collect_pairs(session, settings, embedder)
     ids = {e.key: e.id for e in session.query(Event).all()}
-    floor = {(ids[r["event_key"]], r["news_id"]) for r in rows if r["in_domain"] and r["base_decision"] == "link" and r["late"] > 0 and r["t_fac"] > 0}
+    from types import SimpleNamespace
+
+    from app.db.models import Article
+
+    # 10-30 link-1: 바닥은 제목에 **구체 시설명 전체(또는 핵심 구간)** 가 있을 때만 — 시설 어절 하나('지하철'·회사명)만 겹치는 연결은 아니다
+    floor = {
+        (ids[r["event_key"]], r["news_id"])
+        for r in rows
+        if r["in_domain"] and r["base_decision"] == "link" and r["late"] > 0 and r["t_fac"] > 0
+        and RR.keep_late_facility(SimpleNamespace(base_decision="link"), {"late": 1.0, "t_fac": 1.0}, settings, session.get(Event, ids[r["event_key"]]), session.get(Article, r["news_id"]))
+    }
     assert floor, "가상 픽스처에 창 뒤·제목 시설명 자동 연결이 있어야 한다"
-    monkeypatch.setattr(RR, "load_reranker", lambda s, name=None: StubReranker(0.05))
+    # 확률이 검토 기준(0.2) 이상이면 자동 연결로 남고, 그 미만이면 검토 큐로 남는다
+    monkeypatch.setattr(RR, "load_reranker", lambda s, name=None: StubReranker(0.25))
     stats = _relink(session, settings.model_copy(update={"rerank_auto": 0.5, "rerank_review": 0.2, "rerank_keep_late_facility": True}), embedder)
     after = _snapshot(session)
-    kept = {k for k, v in after.items() if not v[5]}
+    kept = {k for k, v in after.items() if not v[5] and v[4] == "link"}  # p 0.25 는 검토 큐라 자동 연결(link)로 남는 것은 바닥뿐
     assert kept == floor
     assert all("keep-late-facility" in after[k][3] and after[k][4] == "link" for k in kept)
     assert sum(s["reranked"]["kept_late_facility"] for s in stats) == len(floor)
+    # 10-31 R5: 바닥 연결의 검토 기준은 FOLLOWUP_KEPT_LATE_MIN_PROB(0.1) — 판정이 근거로 쓰는 값과 같다. 같은 시설의 새 사고 기사(recurrence_article)는 확률과 무관하게 연결
+    from app.pipeline.judge import recurrence_article
+
+    monkeypatch.setattr(RR, "load_reranker", lambda s, name=None: StubReranker(0.15))
+    _relink(session, settings.model_copy(update={"rerank_auto": 0.5, "rerank_review": 0.2, "rerank_keep_late_facility": True}), embedder)
+    after = _snapshot(session)
+    assert all(after[k][4] == "link" for k in floor if k in after)  # 0.1 ≤ p 0.15 < 0.2 → 그래도 자동 연결
+    monkeypatch.setattr(RR, "load_reranker", lambda s, name=None: StubReranker(0.05))
+    _relink(session, settings.model_copy(update={"rerank_auto": 0.5, "rerank_review": 0.2, "rerank_keep_late_facility": True}), embedder)
+    after = _snapshot(session)
+    recur = {k for k in floor if recurrence_article(session.get(Event, k[0]), session.get(Article, k[1]))}
+    assert all(after[k][4] == ("link" if k in recur else "review") for k in floor if k in after)  # p 0.05 < 0.1 → 검토 큐 (재발 기사만 연결)
+    assert any(k not in recur for k in floor)
 
 
 def test_bundle_trained_on_other_embedding_is_not_used(tmp_path):

@@ -45,7 +45,7 @@ export default function EventCardView({ card }: Props) {
                 기한 경과 {card.deadline_passed_days}일
               </span>
             )}
-            {card.needs_review && (
+            {card.needs_review && (card.pending_followups + card.pending_quotations > 0 || card.llm_gave_up) && (
               <span className="rounded-full border border-violet-200 bg-violet-50 px-2 py-0.5 text-xs font-semibold text-violet-700">
                 검토 필요
               </span>

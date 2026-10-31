@@ -19,6 +19,7 @@ from sqlalchemy.orm import Session
 
 from ..config import STATUS_NO_FOLLOWUP, STATUS_UNDETERMINED, Settings
 from ..db.models import Article, Event, StatusJudgment, _now
+from ..experiment.text import scrub
 from ..rules.orgs import canonical_org
 from .fetcher import Fetcher, HttpFetcher, NoticeFetchError
 from .guard import BlockedURL
@@ -31,6 +32,7 @@ log = logging.getLogger("migyeol.notices")
 
 TRIGGER_STATUSES = (STATUS_NO_FOLLOWUP, STATUS_UNDETERMINED)
 DATE_SLACK_DAYS = 1  # 발생 전날 글까지 본다 (발생일 기준 보도자료가 전날 밤에 올라오는 경우)
+SAME_ANNOUNCEMENT_DAYS = 1  # 원천 기사 발행일 ±1일의 게시판 글은 같은 발표로 본다 ('뉴스에는 없었지만' 아님)
 
 OUTCOME_LABELS = {
     "not_triggered": "트리거 조건 미충족",
@@ -69,6 +71,72 @@ def latest_promise_date(session: Session, event: Event) -> date | None:
     return max(dates) if dates else None
 
 
+def source_article_date(session: Session, event: Event) -> date | None:
+    """원천 기사(source_news_id)의 발행일. 같은 날 같은 발표를 옮긴 게시판 글은 '뉴스에는 없었지만' 의 근거가 아니다 (10-30 exp-1·notice-3)."""
+    if event.source_news_id:
+        a = session.get(Article, event.source_news_id)
+        if a is not None and a.published_at is not None:
+            return a.published_at
+    return None
+
+
+def first_statement_date(session: Session, event: Event) -> date:
+    """가장 이른 공공 대응 발언일(추적 약속 인용문 날짜), 없으면 발생일 — 기관 발표가 이 뒤에 나와야 '발표 이후' 다."""
+    dates: list[date] = []
+    for p in event.promises:
+        if not p.is_trackable or p.merged_into_id is not None:
+            continue
+        d = p.quotation.published_at if p.quotation is not None else None
+        if d is not None:
+            dates.append(d)
+    first = min(dates) if dates else None
+    return max(d for d in (first, event.occurred_at) if d is not None)
+
+
+def notice_specific(event: Event, org: str | None, notice) -> bool:
+    """발표가 이 사건을 가리키는가 — 매칭 용어가 사건 시설명과 겹치고, 시설명이 일반어('하천 제방')면 지역명도 제목·용어에 있어야 한다
+    (대시보드 사례와 같은 조건 — 195 거문도·283 다른 호우 같은 무관한 발표를 '뉴스엔 없었지만' 으로 쓰지 않는다)."""
+    from .matcher import is_generic, own_regions
+
+    def _norm(t: str) -> str:
+        return "".join(str(t or "").split())
+
+    fac = _norm(event.facility)
+    terms = list(notice.matched_terms or [])
+    if len(fac) >= 2:
+        hit = False
+        for raw in terms:
+            t = str(raw)
+            if t.startswith("+요약:"):
+                t = t.split(":", 1)[1]
+            elif t.startswith("+"):
+                continue
+            tn = _norm(t)
+            if len(tn) >= 2 and (tn in fac or fac in tn):
+                hit = True
+                break
+        if not hit:
+            return False
+    if not event.facility or is_generic(event.facility):
+        own = own_regions(event.region, org)
+        if own:
+            blob = _norm(" ".join(str(t) for t in terms) + " " + (notice.title or ""))
+            if not any(_norm(o) in blob for o in own):
+                return False
+    return True
+
+
+def is_news_gap_notice(session: Session, event: Event, published_at: date | None) -> bool:
+    """이 게시판 글을 '뉴스에는 없었지만 기관은 발표했다' 사례로 쓸 수 있는가 —
+    발생·첫 대응 발언 뒤에 나왔고, 원천 기사와 같은 발표(발행일 ±1일)가 아니어야 한다."""
+    if published_at is None:
+        return False
+    if published_at <= first_statement_date(session, event):
+        return False
+    src = source_article_date(session, event)
+    return src is None or abs((published_at - src).days) > SAME_ANNOUNCEMENT_DAYS
+
+
 def trigger_for(session: Session, event: Event, settings: Settings, today: date) -> Trigger:
     if not _is_judged(session, event):
         return Trigger(False, "아직 상태 판정 전인 사건", None, None)
@@ -101,10 +169,20 @@ def _own_regions(event: Event) -> set[str]:
     return own_regions(event.region, canonical_org(event.responsible_org))
 
 
+def _own_notice(site: Site, event: Event, item_org: str) -> bool:
+    """여러 기관이 함께 쓰는 게시판(정책브리핑)에서 발표 주체가 사건 책임기관(또는 별칭)이 아닌 글은 거른다 (10-30 notice-4).
+    발표 주체를 읽지 못했거나 기관 하나짜리 게시판이면 통과."""
+    if not item_org or len(site.orgs) <= 1:
+        return True
+    cand = canonical_org(item_org)
+    mine = {canonical_org(x) for x in (event.responsible_org, *(event.org_aliases or [])) if x}
+    return bool(cand) and cand in mine  # 부분 문자열 비교는 안 한다 — '경찰청' 글이 '해양경찰청' 사건을 통과하면 안 된다
+
+
 def _scan_site(site: Site, event: Event, settings: Settings, fetcher: Fetcher, cutoff: date) -> tuple[list[dict], dict]:
     """한 게시판의 목록을 최대 notice_max_pages 쪽 읽고 매칭 항목을 돌려준다."""
     terms = _event_terms(event)
-    info = {"key": site.key, "org": site.orgs[0], "name": site.name, "url": site.first_page_url, "pages": 0, "items": 0, "error": None}
+    info = {"key": site.key, "org": site.orgs[0], "name": site.name, "url": site.first_page_url, "pages": 0, "items": 0, "error": None, "other_org": 0}
     found: list[dict] = []
     seen: set[str] = set()
     queries: list[str | None] = _search_queries(event) if site.search_url else [None]
@@ -125,6 +203,9 @@ def _scan_site(site: Site, event: Event, settings: Settings, fetcher: Fetcher, c
                     if it.url in seen or (it.published_at is not None and it.published_at < cutoff):
                         continue
                     seen.add(it.url)
+                    if not _own_notice(site, event, it.org):
+                        info["other_org"] += 1
+                        continue  # 다른 부처의 발표
                     # 요약 가점은 목록 페이지가 주는 요약에만 적용된다 (상세 본문은 매칭된 항목만 뒤에 가져온다)
                     m = score_title(it.title, terms, snippet=it.snippet, published_at=it.published_at, occurred_at=event.occurred_at, own=_own_regions(event))
                     if m.score >= settings.notice_match_threshold:
@@ -198,7 +279,7 @@ def check_event(
                     for f in found:
                         it = f["item"]
                         row = session.query(OrgNotice).filter_by(event_id=event.id, url=it.url).one_or_none() or OrgNotice(event_id=event.id, url=it.url)
-                        row.org = org
+                        row.org = it.org or org  # 발표 주체를 읽었으면 그 이름 (정책브리핑 글을 책임기관 게시판 글로 표기하지 않는다)
                         row.site_key = site.key
                         row.site_url = site.first_page_url
                         row.title = it.title
@@ -227,8 +308,40 @@ def check_event(
     return summary
 
 
+class NoticesBusy(RuntimeError):
+    """다른 프로세스(CLI·API·스케줄러)가 게시판 확인을 실행 중이다."""
+
+
+def _run_lock_path():
+    from ..config import BACKEND_DIR
+    from ..db.session import db_path
+
+    p = db_path()
+    base = p.parent if p is not None and p.name != ":memory:" else BACKEND_DIR / "data"
+    base.mkdir(parents=True, exist_ok=True)
+    return base / "notices.lock"
+
+
 def run_checks(session: Session, settings: Settings, event_id: int | None = None, today: date | None = None, fetcher: Fetcher | None = None) -> dict:
-    """트리거된 사건에 대해 확인을 실행한다 (CLI·관리자 API 공용). event_id 가 없으면 활성 사건 전체."""
+    """트리거된 사건에 대해 확인을 실행한다 (CLI·관리자 API 공용). event_id 가 없으면 활성 사건 전체.
+    파일 잠금으로 CLI·API·스케줄러가 겹쳐 돌지 않게 한다 (겹치면 NoticesBusy — 10-30 notice-2)."""
+    import fcntl
+
+    fh = open(_run_lock_path(), "a+")
+    try:
+        try:
+            fcntl.flock(fh.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError as exc:
+            raise NoticesBusy("기관 게시판 확인이 다른 프로세스에서 실행 중이다") from exc
+        return _run_checks(session, settings, event_id, today, fetcher)
+    finally:
+        try:
+            fcntl.flock(fh.fileno(), fcntl.LOCK_UN)
+        finally:
+            fh.close()
+
+
+def _run_checks(session: Session, settings: Settings, event_id: int | None, today: date | None, fetcher: Fetcher | None) -> dict:
     q = session.query(Event).filter(Event.active.is_(True))
     if event_id is not None:
         q = q.filter(Event.id == event_id)
@@ -324,10 +437,16 @@ def notices_out(session: Session, event: Event, settings: Settings, today: date 
         state = "not_checked"
     else:
         state = last.outcome if last.outcome in ("not_found", "error") else "not_found"
+    # '뉴스에는 없었지만 기관 발표' 라고 말할 수 있는 사건 = 상태가 후속보도 부족·판단 불가이고, 발표가 원천 발언(마지막 약속 발언일) 뒤에 나온 것
+    # (10-30 fe-3·notice-3). 그렇지 않은 사건(완료 상태, 같은 날 같은 발표)에는 중립 문구를 쓴다
+    gap_items = [r for r in rows if is_news_gap_notice(session, event, r.published_at) and notice_specific(event, org, r)]
+    news_gap = bool(gap_items) and event.status in TRIGGER_STATUSES
     return {
         "event_id": event.id,
         "org": org or None,
         "triggered": trig.triggered,
+        "news_gap": news_gap,
+        "news_gap_items": len(gap_items),
         "reason": trig.reason,
         "basis_date": _iso(trig.basis_date),
         "trigger_days": settings.notice_trigger_days,
@@ -337,10 +456,10 @@ def notices_out(session: Session, event: Event, settings: Settings, today: date 
         "sites": [{"org": s.orgs[0], "name": s.name, "url": s.first_page_url} for s in targets],
         "items": [
             {
-                "title": r.title,
+                "title": scrub(r.title),
                 "published_at": _iso(r.published_at),
                 "url": r.url,
-                "snippet": r.snippet,
+                "snippet": scrub(r.snippet),  # 기관 글 제목·요약도 단정 표현은 가린다 (10-30 A1)
                 "match_score": r.match_score,
                 "matched_terms": list(r.matched_terms or []),
                 "site_name": next((s.name for s in targets if s.key == r.site_key), r.site_key),

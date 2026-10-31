@@ -87,7 +87,7 @@ def test_rule_org_beats_llm_variant_and_llm_person_name_is_rejected(fresh, monke
     link = next(l for l in ev.links if l.is_active)
     docs = [
         QuotationDocument(news_id=link.news_id, source="가온시 관계자", quotation="배수펌프를 증설하겠다", published_at="2025-08-01", provider="P"),
-        QuotationDocument(news_id=link.news_id, source="담당 과장", quotation="차단시설을 설치하겠다", published_at="2025-08-02", provider="P"),
+        QuotationDocument(news_id=link.news_id, source="홍길동 장관", quotation="차단시설을 설치하겠다", published_at="2025-08-02", provider="P"),  # 정부 직함이라 공공이지만 기관은 못 찾는다
     ]
 
     class _LLM:
@@ -112,17 +112,22 @@ def test_rule_org_beats_llm_variant_and_llm_person_name_is_rejected(fresh, monke
     assert any(p["actor_org"] == "기관 미상" for p in out["promises"])
 
 
-def test_unknown_orgs_are_not_merged_together(fresh):
+def test_unknown_orgs_merge_only_when_same_speaker_or_wording(fresh):
+    """기관 미상("") 약속: 화자(원문)와 문구가 모두 다르면 병합하지 않는다. 같은 화자나 같은 문구면 병합한다 (10-30 R3 — 275 ×10 중복)."""
     from app.db.models import Promise
     from app.pipeline.extract import _merge_duplicates
 
     session, pipe, settings = fresh
     ev = session.query(Event).filter_by(key="nuri-landslide").one()
     link = next(l for l in ev.links if l.is_active)
-    for i in range(2):
-        ev.promises.append(Promise(event_id=ev.id, actor_org="", actor_raw="미상", action="사방댐을 설치한다", strength="확약", is_trackable=True, evidence_news_id=link.news_id, confidence=0.9))
+    ev.promises.append(Promise(event_id=ev.id, actor_org="", actor_raw="주민 대표", action="사방댐을 설치해 달라고 한다", strength="확약", is_trackable=True, evidence_news_id=link.news_id, confidence=0.9))
+    ev.promises.append(Promise(event_id=ev.id, actor_org="", actor_raw="시공사 관계자", action="사방댐을 설치할 계획이다", strength="확약", is_trackable=True, evidence_news_id=link.news_id, confidence=0.9))
     session.flush()
     assert _merge_duplicates(ev, pipe.embedder) == 0
+    for i in range(3):
+        ev.promises.append(Promise(event_id=ev.id, actor_org="", actor_raw="미상", action="사방댐을 설치한다", strength="확약", is_trackable=True, evidence_news_id=link.news_id, confidence=0.9))
+    session.flush()
+    assert _merge_duplicates(ev, pipe.embedder) == 2
 
 
 # ----------------------------------------------------------------------------- 1-3 action_terms

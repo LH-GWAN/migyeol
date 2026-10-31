@@ -13,7 +13,7 @@ from sqlalchemy.orm import Session
 from ..config import DISCLAIMER, get_settings
 from ..db.models import Event
 from ..db.session import get_session
-from ..notices.service import notices_out, run_checks
+from ..notices.service import NoticesBusy, notices_out, run_checks
 from .deps import MAX_ID, event_or_404, require_admin
 
 router = APIRouter(prefix="/api/notices", tags=["notices"])
@@ -40,7 +40,10 @@ def run_notices(body: NoticeRunIn | None = None, session: Session = Depends(get_
         ev = session.get(Event, event_id)
         if ev is None or not ev.active:
             raise HTTPException(status_code=404, detail=f"event {event_id} not found")
-    out = run_checks(session, get_settings(), event_id=event_id)
+    try:
+        out = run_checks(session, get_settings(), event_id=event_id)
+    except NoticesBusy as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
     out["results"] = [
         {k: r[k] for k in ("event_id", "title", "org", "triggered", "reason", "outcome", "items_found", "requests")} for r in out["results"]
     ]

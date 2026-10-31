@@ -20,6 +20,9 @@ export interface EventNoticesOut {
   event_id: number;
   org: string | null;
   triggered: boolean;
+  /** true only when the event is still 후속보도 부족·판단 불가 AND a notice was posted after the latest source statement — then "뉴스에는 없었지만" wording applies */
+  news_gap: boolean;
+  news_gap_items: number;
   reason: string;
   basis_date: string | null;
   trigger_days: number;

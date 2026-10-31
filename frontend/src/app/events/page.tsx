@@ -11,7 +11,7 @@ import { isEventStatus, isSortKey, STATUSES, type EventCard, type EventStatus, t
 export const dynamic = "force-dynamic";
 
 type SearchParams = Record<string, string | string[] | undefined>;
-type Tab = "check" | "followup";
+type Tab = "check" | "followup" | "all";
 
 const PAGE_SIZE = 20;
 /** `후속보도 확인됨` 탭 = 이 세 상태 — 대시보드 '후속보도 확인' 과 같은 기준 (2026-10-30, 백엔드 config.FOLLOWUP_STATUSES) */
@@ -29,6 +29,7 @@ function first(value: string | string[] | undefined): string | undefined {
 function tabHref(tab: Tab, org: string, sort?: SortKey): string {
   const qs = new URLSearchParams();
   if (tab === "followup") qs.set("tab", "followup");
+  if (tab === "all") qs.set("tab", "all");
   if (org) qs.set("org", org);
   if (sort && sort !== "priority") qs.set("sort", sort);
   const s = qs.toString();
@@ -62,6 +63,7 @@ function Tabs({ tab, org, counts }: { tab: Tab; org: string; counts: Partial<Rec
     <nav className="flex border-b border-gray-200" aria-label="목록 보기">
       {item("check", "확인 필요")}
       {item("followup", "후속보도 확인됨")}
+      {item("all", "전체")}
     </nav>
   );
 }
@@ -91,8 +93,10 @@ function OrgChip({ org, tab, rawNames, cards }: { org: string; tab: Tab; rawName
 
 export default async function EventsPage({ searchParams }: { searchParams: Promise<SearchParams> }) {
   const sp = await searchParams;
-  const tab: Tab = first(sp.tab) === "followup" ? "followup" : "check";
   const org = (first(sp.org) ?? "").trim();
+  const rawTab = first(sp.tab);
+  // 대시보드의 기관·상태 링크(tab 없음)는 '확인 필요' 탭이 아니라 전체 보기로 연다 (10-30 dash-7)
+  const tab: Tab = rawTab === "followup" ? "followup" : rawTab === "all" || (!rawTab && (org || first(sp.status) || first(sp.needs_check) === "false")) ? "all" : "check";
   const rawSort = first(sp.sort);
   const sort: SortKey = isSortKey(rawSort) ? rawSort : "priority";
   const orgRows = org ? await safe(getByOrg()) : null;
@@ -178,7 +182,7 @@ export default async function EventsPage({ searchParams }: { searchParams: Promi
     status: status ?? "",
     region: first(sp.region) ?? "",
     incident_type: first(sp.incident_type) ?? "",
-    needs_check: first(sp.needs_check) !== "false", // default ON
+    needs_check: tab === "all" ? false : first(sp.needs_check) !== "false", // 전체 탭은 OFF, 확인 필요 탭은 기본 ON
     sort,
   };
   const page = Math.max(1, Number.parseInt(first(sp.page) ?? "1", 10) || 1);
@@ -207,7 +211,7 @@ export default async function EventsPage({ searchParams }: { searchParams: Promi
   return (
     <div className="flex flex-col gap-5">
       {header}
-      <Tabs tab={tab} org={org} counts={result.ok && filters.needs_check && !status ? { check: result.data.total } : {}} />
+      <Tabs tab={tab} org={org} counts={result.ok && !status ? { [tab === "all" ? "all" : "check"]: result.data.total } : {}} />
       {org && <OrgChip org={org} tab={tab} rawNames={rawNames} cards={result.ok ? result.data.items : []} />}
 
       <EventFilters statuses={options.statuses} regions={options.regions} incidentTypes={options.incident_types} current={filters} />

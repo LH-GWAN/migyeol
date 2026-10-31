@@ -18,7 +18,6 @@ import {
   getNoticeCases,
   getRecentFollowups,
   getTimeseries,
-  type TimeseriesRow,
 } from "@/lib/dashboard";
 
 export const dynamic = "force-dynamic";
@@ -28,10 +27,6 @@ const ORG_ROWS = 5;
 const RECENT_ROWS = 3;
 const NEEDS_CHECK_ROWS = 3;
 
-function sumOrNull(rows: TimeseriesRow[], key: "dead" | "injured"): number | null {
-  const vals = rows.map((r) => r[key]).filter((v): v is number => typeof v === "number");
-  return vals.length ? vals.reduce((a, b) => a + b, 0) : null;
-}
 
 /** v2 화면 0 — 시민용 대시보드. 숫자는 전부 /api/dashboard/* 와 /api/events 에서 온다. */
 export default async function DashboardPage() {
@@ -58,13 +53,12 @@ export default async function DashboardPage() {
     );
   }
   const s = summary.data;
-  const casualties = month.ok ? { dead: sumOrNull(month.data, "dead"), injured: sumOrNull(month.data, "injured") } : { dead: null, injured: null };
 
   return (
     <div className="flex flex-col gap-6">
       <Hero s={s} />
 
-      <KpiTiles s={s} casualties={casualties} />
+      <KpiTiles s={s} />
 
       <Panel
         title="언제 일어났고, 언제 다시 보도됐나"

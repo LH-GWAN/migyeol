@@ -26,7 +26,7 @@ from app.db.session import init_db, session_factory  # noqa: E402
 from app.notices.fetcher import HttpFetcher, NoticeFetchError  # noqa: E402
 from app.notices.guard import BlockedURL  # noqa: E402
 from app.notices.parser import parse_body, parse_list  # noqa: E402
-from app.notices.service import rescore_all, run_checks  # noqa: E402
+from app.notices.service import NoticesBusy, rescore_all, run_checks  # noqa: E402
 from app.notices.sites import load_sites  # noqa: E402
 
 
@@ -105,7 +105,11 @@ def main() -> int:
             print_rescore(out)
             return 0
         today = date.fromisoformat(args.today) if args.today else None
-        out = run_checks(session, settings, event_id=args.event_id, today=today)
+        try:
+            out = run_checks(session, settings, event_id=args.event_id, today=today)
+        except NoticesBusy as exc:
+            print(f"중단: {exc} (다른 CLI·API·스케줄러 실행이 끝난 뒤 다시)")
+            return 2
     finally:
         session.close()
     print(json.dumps(out, ensure_ascii=False, indent=2, default=str))

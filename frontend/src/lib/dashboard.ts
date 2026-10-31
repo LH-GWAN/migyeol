@@ -70,6 +70,8 @@ export interface DashboardSummary {
   followup_articles: number;
   orgs: number;
   by_status: Record<EventStatus, number>;
+  /** 기사 제목·발췌에서 피해 숫자가 뽑힌 사건만의 합 — events 가 분모 */
+  casualties: { dead: number | null; injured: number | null; events: number; events_total: number };
   /** 마지막으로 성공한 전체 갱신 시각 (없으면 null) */
   last_run: string | null;
   as_of: string;

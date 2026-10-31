@@ -15,7 +15,9 @@ from sqlalchemy.orm import Session
 
 from ..config import DISCLAIMER, PHASES, STATUSES, UNJUDGED_TEXT, get_settings
 from ..db.models import Article, Event, EventArticle, Promise, Quotation, StatusJudgment, TrendSnapshot
+from ..experiment.text import scrub
 from ..llm.client import PROMPT_VERSIONS
+from ..llm.rules_adapter import span_truncated_prefix
 from ..pipeline.judge import days_since_followup, overdue_promise, trackable_promises
 from ..pipeline.scheduler import next_scheduled_run
 from ..rules import priority as priority_rules
@@ -35,13 +37,14 @@ def _iso(d: date | datetime | None) -> str | None:
 def article_out(article: Article | None, link: EventArticle | None = None) -> dict | None:
     if article is None:
         return None
+    # 기사 원문(제목·하이라이트)의 단정 표현은 화면·초안 어디에도 내보내지 않는다 (§2.2, 10-30 rules-1) — scrub 이 ○ 로 가린다
     return {
         "news_id": article.news_id,
-        "title": article.title,
+        "title": scrub(article.title),
         "provider": article.provider,
         "published_at": _iso(article.published_at),
         "provider_link_page": article.provider_link_page,
-        "hilight": (article.hilight or article.content_200 or "")[:200],
+        "hilight": scrub((article.hilight or article.content_200 or "")[:200]),
         "byline": article.byline,
         "phase": link.phase if link else None,
         "link_method": link.link_method if link else None,
@@ -49,6 +52,13 @@ def article_out(article: Article | None, link: EventArticle | None = None) -> di
         "link_reason": link.link_reason if link else None,
         "change_status": article.change_status,
     }
+
+
+def _desc_key(iso: str | None) -> str:
+    """날짜 문자열을 최근 순으로 정렬하기 위한 키 (문자 반전 — 날짜 없음은 맨 뒤)."""
+    if not iso:
+        return "\uffff"
+    return "".join(chr(0x7F - ord(c)) if ord(c) < 0x7F else c for c in iso[:10])
 
 
 def active_links(event: Event) -> list[EventArticle]:
@@ -78,9 +88,9 @@ def promise_out(session: Session, p: Promise, event: Event, today: date) -> dict
     link = next((l for l in event.links if l.news_id == p.evidence_news_id), None)
     return {
         "id": p.id,
-        "actor_org": p.actor_org or "기관 미상",
-        "actor_raw": p.actor_raw,
-        "action": p.action,
+        "actor_org": scrub(p.actor_org) or "기관 미상",
+        "actor_raw": scrub(p.actor_raw),
+        "action": scrub(p.action),
         "deadline_raw": p.deadline_raw,
         "deadline_date": _iso(p.deadline_date),
         "deadline_precision": p.deadline_precision,
@@ -92,8 +102,8 @@ def promise_out(session: Session, p: Promise, event: Event, today: date) -> dict
         "quotation": (
             {
                 "news_id": q.news_id,
-                "source": q.source,
-                "quotation": q.quotation,
+                "source": scrub(q.source),
+                "quotation": scrub(q.quotation),
                 "provider": q.provider,
                 "published_at": _iso(q.published_at),
             }
@@ -184,8 +194,8 @@ def event_card(session: Session, event: Event, today: date) -> dict:
         "article_count": len(active_links(event)),
         "primary_promise": (
             {
-                "actor_org": pp.actor_org or "기관 미상",
-                "action": pp.action,
+                "actor_org": scrub(pp.actor_org) or "기관 미상",
+                "action": scrub(pp.action),
                 "deadline_date": _iso(pp.deadline_date),
                 "deadline_precision": pp.deadline_precision,
                 "strength": pp.strength,
@@ -216,7 +226,7 @@ def event_detail(session: Session, event: Event, today: date) -> dict:
     promises = [p for p in sorted(event.promises, key=lambda p: p.id) if p.strength != "해당없음" and p.merged_into_id is None]
     return {
         "card": event_card(session, event, today),
-        "summary": event.summary,
+        "summary": scrub(event.summary),
         "seed_query": event.seed_query,
         "status_reason": event.status_reason if j else None,
         "status_reason_text": j.reason_text if j else UNJUDGED_TEXT,
@@ -252,6 +262,8 @@ def evidence_out(session: Session, event: Event, today: date) -> dict:
         if link is None or link.rejected:
             continue  # 해제된 연결의 신호는 근거에서 뺀다
         is_active = s.news_id in active and (art is None or art.change_status != "cancelled")
+        # 발췌 앞이 잘렸으면 '…' 를 붙인다 (어절 경계 창 — 10-30 press-5). 원문 단정 표현은 가린다
+        prefix = span_truncated_prefix(s.evidence_span or "", art.title if art else "", art.hilight if art else "", art.content_200 if art else "")
         signals.append(
             {
                 "id": s.id,
@@ -259,8 +271,8 @@ def evidence_out(session: Session, event: Event, today: date) -> dict:
                 "promise_id": s.promise_id,
                 "matches_promise": s.matches_promise,
                 "confidence": s.confidence,
-                "evidence_span": s.evidence_span,
-                "rationale": s.rationale,
+                "evidence_span": (prefix + scrub(s.evidence_span)) if s.evidence_span else "",
+                "rationale": scrub(s.rationale),
                 "counted": s.id in counted_ids and is_active,
                 "considered": s.id in considered_ids,
                 "prior_done": s.id in prior_done_ids,
@@ -268,6 +280,8 @@ def evidence_out(session: Session, event: Event, today: date) -> dict:
                 "article": article_out(art, link),
             }
         )
+    # 판정에 반영된 신호를 먼저, 그다음 참고·이전 완료 근거, 그다음 활성, 최근 기사 순 (10-30 fe-6 — 반영 신호가 '더보기' 뒤에 숨지 않게)
+    signals.sort(key=lambda r: (not r["counted"], not (r["considered"] or r["prior_done"]), not r["active"], _desc_key((r["article"] or {}).get("published_at"))))
     low = [
         {"article": article_out(session.get(Article, l.news_id), l), "link_score": l.link_score, "link_reason": l.link_reason}
         for l in event.links

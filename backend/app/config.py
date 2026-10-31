@@ -150,8 +150,9 @@ class Settings(BaseSettings):
     # ---- v2 공공기관 게시판 확인 (§3) ----
     notice_trigger_days: int = 90  # 후속보도 부족·판단 불가 사건이 이 일수 이상 조용하면 책임기관 게시판 확인
     notice_max_pages: int = 5  # 사이트당 목록 페이지 상한
-    notice_request_interval_sec: float = 2.0
-    notice_user_agent: str = "migyeol/0.3 (news-aftercare hackathon prototype)"
+    notice_request_interval_sec: float = 2.0  # §3 하한 2초 — 더 작은 값은 2초로 올린다 (fetcher)
+    notice_user_agent: str = "migyeol/0.3 (news-aftercare hackathon prototype; +https://github.com/LH-GWAN/migyeol)"  # §3 서비스명·연락처 — 연락처(저장소 주소 또는 이메일)를 반드시 포함한다
+    followup_kept_late_min_prob: float = 0.1  # 바닥 규칙(keep-late-facility)으로 남은 늦은 연결을 후속 근거로 쓰는 최소 재순위 확률 (10-30 link-1·R5: 0.3 은 175 '옥룡제 보수 완료'(0.109)를 뺐다). 재발 기사(제목에 시설명+사고어)는 확률과 무관
     notice_allowed_domains: str = ".go.kr,.or.kr,korea.kr"  # 쉼표 구분 접미. sites.yaml 의 도메인은 추가 허용
     notice_match_threshold: float = 0.5
 

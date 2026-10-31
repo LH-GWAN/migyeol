@@ -47,12 +47,19 @@ def _read(path: Path, key_cols: list[str]) -> dict[tuple, dict[str, str]]:
 
 def _write(path: Path, cols: list[str], rows: list[dict[str, Any]], human: list[str], key_cols: list[str], regrade=None) -> int:
     old = _read(path, key_cols)
+    seen: set[tuple] = set()
     for r in rows:
-        prev = old.get(tuple(str(r.get(k, "")) for k in key_cols))
+        key = tuple(str(r.get(k, "")) for k in key_cols)
+        seen.add(key)
+        prev = old.get(key)
         for h in human:
             r[h] = (prev or {}).get(h, "") if prev else r.get(h, "")
         if prev and regrade is not None:
             r.update(regrade(r, prev))
+    # 사람 라벨이 붙었는데 이번 집계에 없는 행은 지우지 않고 뒤에 남긴다 (라벨 유실 방지 — 10-30 D2·exp-3)
+    for key, prev in old.items():
+        if key not in seen and any((prev.get(h) or "").strip() for h in human):
+            rows.append(dict(prev))
     path.parent.mkdir(parents=True, exist_ok=True)
     with path.open("w", encoding="utf-8-sig", newline="") as f:  # 엑셀에서 한글이 깨지지 않게 BOM
         w = csv.DictWriter(f, fieldnames=cols, extrasaction="ignore")

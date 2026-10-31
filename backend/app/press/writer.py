@@ -42,9 +42,9 @@ T = {
     "lead_exp": Template("원천 기사는 빅카인즈 인용문 검색으로 모았고, 같은 사건을 다룬 기사끼리 묶어 사건 ${events}건으로 정리했다. (실험 리포트 ${generated} 기준)"),
     "orgs_intro": Template("후속보도가 확인된 기관은 ${count}곳이다. ${names}."),
     "orgs_none": Template("${as_of} 기준으로 후속보도가 확인된 기관은 없다."),
-    "case_followup": Template("${org_josa} ${spoken} “${action}”라고 밝혔고${pref}, ${pub} ${provider} 보도 「${title}」에서 ‘${span}’ 내용이 확인됐다(${signal}) [${ref}]."),
+    "case_followup": Template("${org_josa} ${spoken} “${action}”${rago} 밝혔고${pref}, ${pub} ${provider} 보도 「${title}」에서 ‘${span}’ 내용이 확인됐다(${signal}) [${ref}]."),
     "gap_intro": Template("후속보도가 확인되지 않은 사건은 ${count}건이다. 이 사건들은 발표 이후의 조치를 다룬 보도가 ${as_of} 기준으로 확인되지 않았다는 뜻이며, 조치가 없었다는 뜻은 아니다."),
-    "case_gap": Template("${org_josa} ${spoken} “${action}”라고 밝혔으나 [${ref}], ${since} 이후 이 약속과 관련된 후속보도는 확인되지 않았다."),
+    "case_gap": Template("${org_josa} ${spoken} “${action}”${rago} 밝혔으나 [${ref}], ${since} 이후 이 약속과 관련된 후속보도는 확인되지 않았다."),
     "case_gap_nopromise": Template("${occurred} 발생 이후 공공기관의 구체적인 대응 발언과 후속보도가 확인되지 않았다."),
     "notice_none": Template("후속보도가 확인되지 않은 채 마지막 보도·약속 이후 ${days}일 이상 지난 사건이 없어, 기관 공식 게시판 확인 대상이 없었다."),
     "notice_intro": Template(
@@ -62,11 +62,13 @@ T = {
     "title_event": Template("[사건 브리프] ${title} — ${status}"),
     "event_summary": Template("${occurred} ${region}에서 발생한 사건이다(${incident}). 책임기관은 ${org}${facility}."),
     "event_followup_intro": Template("발표 이후 기사 가운데 약속 행동과 관련된 후속보도 ${count}건이 확인됐다."),
+    "event_followup_intro_nopromise": Template("사건 이후 기사 가운데 이 사건의 조치(복구·재개·처분)를 다룬 후속보도 ${count}건이 확인됐다."),
     "event_signal": Template("${pub} ${provider} 「${title}」: ‘${span}’ (${signal}, 신뢰도 ${conf}) [${ref}]"),
     "event_gap": Template("${as_of} 기준으로 발표 이후 조치를 다룬 후속보도는 확인되지 않았다. 이 사건에 연결된 마지막 기사는 ${last} 보도다."),
     "event_gap_none": Template("${as_of} 기준으로 발표 이후 조치를 다룬 후속보도는 확인되지 않았다."),
     "event_notice_found": Template("책임기관 공식 게시판에서 관련 발표 ${count}건이 확인됐다. 뉴스에는 확인되지 않았지만 기관은 발표한 내용일 수 있다."),
-    "event_notice_state": Template("기관 발표 확인: ${label}. ${reason}"),
+    "event_notice_found_neutral": Template("책임기관 공식 게시판에서도 관련 발표 ${count}건이 확인됐다(보조 근거)."),
+    "event_notice_state": Template("기관 발표 확인: ${label}. ${reason}"),  # label·reason 은 notice_state_text/notice_reason_text 로 읽는 말
     "event_status": Template("미결의 현재 표시 상태는 ‘${status}’이다."),
 }
 
@@ -275,17 +277,18 @@ class TemplateWriter:
                         org_josa=josa(p.actor_org if p.actor_org != "기관 미상" else ev.org, "은", "는"),
                         spoken=kdate(p.spoken_at),
                         action=clip(p.action, 60),
+                        rago=_rago(clip(p.action, 60)),
                         pub=kdate(s.article.published_at),
                         provider=s.article.provider,
                         title=clip(s.article.title, 60),
                         span=clip(s.span, 80),
-                        signal=SIGNAL_TEXT.get(s.signal, s.signal),
+                        signal=ev.status_signal_text,
                         ref=ref,
                         pref=pref,
                     )
                 else:
                     ref = src.ref(s.article)
-                    line = f"{kdate(s.article.published_at)} {s.article.provider} 보도 「{clip(s.article.title, 60)}」에서 ‘{clip(s.span, 80)}’ 내용이 확인됐다 [{ref}]."
+                    line = f"{kdate(s.article.published_at)} {s.article.provider} 보도 「{clip(s.article.title, 60)}」에서 ‘{clip(s.span, 80)}’ 내용이 확인됐다({ev.status_signal_text}) [{ref}]."
                 body += f"\n{i}. {ev.title}: {line}"
         sections.append({"heading": "후속보도가 확인된 기관과 사례", "body": body})
 
@@ -310,7 +313,7 @@ class TemplateWriter:
             body = T["notice_intro"].substitute(days=st.notice_trigger_days, triggered=ns["triggered"], breakdown=", ".join(parts) or "아직 없음")
             for ev in ns["found_events"]:
                 for it in ev.notices.get("items", [])[:2]:
-                    body += "\n- " + T["notice_item"].substitute(title=ev.title, org=ev.org, notice=clip(it["title"], 60), date=it["published_at"] or "날짜 미상", url=it["url"])
+                    body += "\n- " + T["notice_item"].substitute(title=ev.title, org=it.get("site_name") or ev.org, notice=clip(it["title"], 60), date=it["published_at"] or "날짜 미상", url=it["url"])
         sections.append({"heading": "기관 공식 게시판 확인 결과", "body": body})
 
         sections.append({"heading": "분석 방법", "body": T["method"].substitute(min_conf=st.signal_min_conf, period=_period(ov), as_of=as_of, days=st.notice_trigger_days)})
@@ -340,6 +343,7 @@ class TemplateWriter:
             org_josa=josa(p.actor_org if p.actor_org != "기관 미상" else ev.org, "은", "는"),
             spoken=kdate(p.spoken_at),
             action=clip(p.action, 60),
+            rago=_rago(clip(p.action, 60)),
             ref=src.ref(p.article),
             since=since,
         )
@@ -356,14 +360,14 @@ class TemplateWriter:
             facility=f"이고 관련 시설은 {ev.facility}이다" if ev.facility else "이다",
         )
         if ev.summary:
-            summary += f"\n\n{clip(ev.summary, 300)}"
+            summary += f"\n\n사건 개요(추적 시작 때 등록한 설명으로, 근거 기사 번호가 붙지 않는다): {clip(ev.summary, 300)}"
         sections.append({"heading": "사건 요약", "body": summary})
 
         if ev.promises:
             lines = []
             for p in ev.promises:
                 ref = f" [{src.ref(p.article)}]" if p.article else ""
-                who = p.source or p.actor_org
+                who = _promise_name(p, ev)  # 발언 주체는 기관 단위 (§2.4) — 원문 화자는 인용 출처(근거 기사)로만
                 deadline = f", 기한 표현 ‘{p.deadline_raw}’" if p.deadline_raw else ""
                 lines.append(f"- {kdate(p.spoken_at)} {who}: “{clip(p.action, 80)}” ({p.strength}{deadline}){ref}")
             body = "\n".join(lines)
@@ -372,7 +376,7 @@ class TemplateWriter:
         sections.append({"heading": "발표된 약속", "body": body})
 
         if ev.signals:
-            lines = [T["event_followup_intro"].substitute(count=len(ev.signals))]
+            lines = [(T["event_followup_intro"] if ev.promises else T["event_followup_intro_nopromise"]).substitute(count=len(ev.signals))]
             for s in sorted(ev.signals, key=lambda s: s.article.published_at or date.min):
                 lines.append(
                     "- "
@@ -394,12 +398,12 @@ class TemplateWriter:
 
         n = ev.notices or {}
         if n.get("items"):
-            lines = [T["event_notice_found"].substitute(count=len(n["items"]))]
+            lines = [(T["event_notice_found"] if n.get("news_gap") else T["event_notice_found_neutral"]).substitute(count=len(n["items"]))]
             for it in n["items"]:
                 lines.append(f"- 「{clip(it['title'], 80)}」 ({it['published_at'] or '날짜 미상'}, {it.get('site_name') or ev.org}) — {it['url']}")
             body = "\n".join(lines)
         else:
-            body = T["event_notice_state"].substitute(label=n.get("state_label", "아직 확인 전"), reason=n.get("reason", ""))
+            body = T["event_notice_state"].substitute(label=notice_state_text(n), reason=notice_reason_text(n))
         sections.append({"heading": "기관 발표 확인", "body": body})
 
         status = ev.status if ev.judged else "판정 전"
@@ -441,7 +445,7 @@ A = {
         Template("‘${title}’ 사건에서도 후속보도가 확인됐다."),
         Template("‘${title}’ 사건 역시 마찬가지다."),
     ),
-    "case_followup": Template("${org_josa} ${spoken} “${action}”${rago} 밝혔고${pref}, 이 발언은 ${pub} ${provider} 보도 「${title}」에서 ‘${span}’ 내용으로 확인됐다(${signal}) [${ref}]."),
+    "case_followup": Template("${org_josa} ${spoken} “${action}”${rago} 밝혔고${pref}, 이후 ${pub} ${provider} 보도 「${title}」에서 ‘${span}’ 내용이 확인됐다(${signal}) [${ref}]."),
     "case_followup_nopromise": Template("${pub} ${provider} 보도 「${title}」에서 ‘${span}’ 내용이 확인됐다(${signal}) [${ref}]."),
     "gap_intro": Template("반면 후속보도가 확인되지 않은 사건은 ${count}건이다. 이는 발표 이후의 조치를 다룬 보도가 ${as_of} 기준으로 확인되지 않았다는 뜻이며, 조치가 없었다는 뜻은 아니다."),
     "case_gap": Template("‘${title}’ 사건의 경우 ${org_josa} ${spoken} “${action}”${rago} 밝혔으나 [${ref}], ${since} 이후 이 약속과 관련된 후속보도는 확인되지 않았다."),
@@ -452,17 +456,20 @@ A = {
         "그 결과 ${breakdown}이었다."
     ),
     "notice_item": Template("‘${title}’ 사건은 ${org} 게시판에 ${date} 「${notice}」 제목의 발표가 올라와 있는 것이 확인됐다."),
-    "closing_all": Template("이번 분석의 기준일은 ${as_of}이다. ${disclaimer} ${not_judgment} 초안의 숫자와 사례는 모두 근거 기사 번호로 되돌아갈 수 있으며, 배포 전 사람이 검토한다."),
+    "closing_all": Template("이번 분석의 기준일은 ${as_of}이다. ${disclaimer} ${not_judgment} 사례 문장에는 근거 기사 번호를 달았고 집계 숫자는 실험 리포트와 데이터베이스 집계에서 가져왔으며, 배포 전 사람이 검토한다."),
     # ---- 사건별 ----
     "title_event_followup": Template("‘${title}’, 기관 발표 이후 후속보도 ${count}건 확인"),
+    "title_event_followup_nopromise": Template("‘${title}’, 사건 이후 조치를 다룬 후속보도 ${count}건 확인"),
     "title_event_gap": Template("‘${title}’, 기관 발표 이후 후속보도 확인되지 않아"),
     "title_event_gap_notice": Template("‘${title}’, 뉴스 후속보도는 확인되지 않았지만 기관 게시판 발표 ${count}건 확인"),
     "title_event_nopromise": Template("‘${title}’, 공공기관 대응 발언·후속보도 확인되지 않아"),
     "subtitle_event": Template("${occurred} ${region} 발생 · 책임기관 ${org} · 미결 표시 상태 ‘${status}’(${as_of} 기준)"),
     "lead_event_followup": Template(
-        "${occurred} ${region}에서 발생한 ‘${title}’(${incident}) 사건과 관련해 공공기관이 밝힌 대응 발언 ${promises}건 가운데, "
+        "${occurred} ${region}에서 발생한 ‘${title}’(${incident}) 사건과 관련해 ${promises_clause}"
         "${as_of} 기준으로 발표 이후 조치를 다룬 후속보도 ${count}건이 확인됐다고 뉴스 애프터케어 서비스 ‘미결’이 밝혔다."
     ),
+    "lead_promises_some": Template("공공기관의 대응 발언 ${promises}건이 확인됐고, "),
+    "lead_promises_none": "공공기관의 추적 가능한 대응 발언은 확인되지 않았으나, ",
     "lead_event_gap": Template(
         "${occurred} ${region}에서 발생한 ‘${title}’(${incident}) 사건과 관련해 공공기관의 대응 발언 ${promises}건이 확인됐으나, "
         "${as_of} 기준으로 발표 이후 조치를 다룬 후속보도는 확인되지 않았다고 뉴스 애프터케어 서비스 ‘미결’이 밝혔다."
@@ -482,13 +489,15 @@ A = {
     "promise_noref": Template("${who_josa} ${spoken} “${action}”${rago} 밝혔다${note}."),
     "promise_none": Template("${as_of} 기준으로 공공기관의 추적 가능한 대응 발언은 확인되지 않았다."),
     "signal_intro": Template("발표 이후 기사 가운데 약속 행동과 관련된 후속보도는 ${count}건이 확인됐다."),
+    "signal_intro_nopromise": Template("사건 이후 기사 가운데 이 사건의 조치(복구·재개·처분)를 다룬 후속보도는 ${count}건이 확인됐다."),
     "signal_item": Template("${pub} ${provider} 보도 「${title}」에서는 ‘${span}’ 내용이 확인됐다(${signal}, 신뢰도 ${conf}) [${ref}]."),
     "signal_gap": Template("${as_of} 기준으로 발표 이후 조치를 다룬 후속보도는 확인되지 않았다. 이 사건에 연결된 마지막 기사는 ${last} 보도다."),
     "signal_gap_none": Template("${as_of} 기준으로 발표 이후 조치를 다룬 후속보도는 확인되지 않았다."),
     "event_notice_intro": Template("한편 책임기관의 공식 게시판에서는 관련 발표 ${count}건이 확인됐다. 뉴스에는 확인되지 않았지만 기관이 발표한 내용일 수 있다."),
-    "event_notice_site": Template("${site} 게시판에는 ${items}${etc} 올라와 있다."),
+    "event_notice_intro_neutral": Template("한편 책임기관의 공식 게시판에서도 관련 발표 ${count}건이 확인됐다(보조 근거)."),
+    "event_notice_site": Template("${site} 게시판에는 ${items}${etc} 올라와 있다."),  # etc = ' 등이' | josa(마지막 제목, '이', '가')
     "event_notice_tail": "게시판 주소와 전체 목록은 사건 브리프에 있다.",
-    "event_notice_state": Template("책임기관 공식 게시판 확인 결과는 ‘${label}’이다. ${reason}"),
+    "event_notice_state": Template("책임기관 공식 게시판 확인 결과: ${label}. ${reason}"),
     "background_event": Template(
         "미결은 사건 발생 후 공공기관이 대응을 밝힌 인용문을 원천 기사로 삼아 같은 사건 기사를 규칙과 문장 유사도로 묶고, "
         "발표 이후 기사에서 약속 행동과 겹치는 완료·진행·새로운 문제 표현(신뢰도 ${min_conf} 이상)을 찾아 사건 상태를 정하고, 상태가 조치 완료 근거 확인·조치 진행 정황 확인·새로운 문제 발생인 사건을 ‘후속보도 확인’으로 센다. "
@@ -503,6 +512,33 @@ ARTICLE_LEAD = "리드"
 ARTICLE_BODY = "본문"
 ARTICLE_BACKGROUND = "배경"
 ARTICLE_CLOSING = "마무리"
+
+
+NOTICE_STATE_TEXT = {
+    "not_triggered": "확인 대상 아님",
+    "no_site": "책임기관의 게시판이 등록부에 없음",
+    "not_checked": "확인 대기",
+    "not_found": "게시판을 확인했으나 관련 글 없음",
+    "found": "기관 발표 확인",
+    "error": "게시판 접속 오류",
+}
+
+
+def notice_state_text(n: dict) -> str:
+    """내부 상태값을 독자가 읽는 말로 ('트리거 조건 미충족' 같은 내부 용어를 초안에 쓰지 않는다 — 10-30 press-10)."""
+    return NOTICE_STATE_TEXT.get(str(n.get("state") or ""), n.get("state_label") or "아직 확인 전")
+
+
+def notice_reason_text(n: dict) -> str:
+    """트리거 사유 문장을 초안용으로 — 상태가 후속보도 확인이면 '후속보도가 확인된 사건이라 게시판을 확인하지 않았다' 로, 기간 미달이면 경과일만."""
+    reason = str(n.get("reason") or "")
+    if n.get("state") == "not_triggered":
+        if "상태가" in reason:
+            return "후속보도가 확인됐거나 아직 판정 전인 사건은 기관 게시판을 확인하지 않는다."
+        if "경과" in reason:
+            return "마지막 보도·약속 이후 기준 기간이 지나지 않아 아직 확인하지 않았다."
+        return ""
+    return reason.replace("트리거", "확인 조건") if reason else ""
 
 
 def _paragraphs(*paras: str) -> str:
@@ -594,12 +630,12 @@ class ArticleWriter:
                     provider=s.article.provider,
                     title=clip(s.article.title, 60),
                     span=clip(s.span, 80),
-                    signal=SIGNAL_TEXT.get(s.signal, s.signal),
+                    signal=ev.status_signal_text,
                     ref=src.ref(s.article),
                 )
             else:
                 line = A["case_followup_nopromise"].substitute(
-                    pub=kdate(s.article.published_at), provider=s.article.provider, title=clip(s.article.title, 60), span=clip(s.span, 80), signal=SIGNAL_TEXT.get(s.signal, s.signal), ref=src.ref(s.article)
+                    pub=kdate(s.article.published_at), provider=s.article.provider, title=clip(s.article.title, 60), span=clip(s.span, 80), signal=ev.status_signal_text, ref=src.ref(s.article)
                 )
             body_paras.append(_sentences(opener, line))
 
@@ -665,23 +701,25 @@ class ArticleWriter:
         common = {"title": ev.title, "occurred": kdate(ev.occurred_at), "region": ev.region or "지역 미상", "incident": ev.incident_type or "분류 없음", "as_of": as_of_k}
 
         if ev.signals:
-            title = A["title_event_followup"].substitute(title=ev.title, count=len(ev.signals))
-            lead = A["lead_event_followup"].substitute(**common, promises=len(ev.promises), count=len(ev.signals))
+            title = (A["title_event_followup"] if ev.promises else A["title_event_followup_nopromise"]).substitute(title=ev.title, count=len(ev.signals))
+            promises_clause = A["lead_promises_some"].substitute(promises=len(ev.promises)) if ev.promises else A["lead_promises_none"]
+            lead = A["lead_event_followup"].substitute(**common, promises_clause=promises_clause, count=len(ev.signals))
         elif ev.promises:
-            title = A["title_event_gap_notice"].substitute(title=ev.title, count=len(items)) if items else A["title_event_gap"].substitute(title=ev.title)
+            # '뉴스 후속보도는 확인되지 않았지만 기관 발표' 는 news_gap(발표 이후·같은 발표 아님·관련성)일 때만 (10-30 A2)
+            title = A["title_event_gap_notice"].substitute(title=ev.title, count=n.get("news_gap_items") or len(items)) if items and n.get("news_gap") else A["title_event_gap"].substitute(title=ev.title)
             lead = A["lead_event_gap"].substitute(**common, promises=len(ev.promises))
         else:
             title = A["title_event_nopromise"].substitute(title=ev.title)
             lead = A["lead_event_nopromise"].substitute(**common)
         org_line = A["lead_event_facility"].substitute(org=ev.org or "미상", facility=ev.facility) if ev.facility else A["lead_event_org"].substitute(org=ev.org or "미상")
-        lead = _paragraphs(_sentences(lead, org_line), clip(ev.summary, 300) if ev.summary else "")
+        lead = _paragraphs(_sentences(lead, org_line), ("사건 개요(추적 시작 때 등록한 설명): " + clip(ev.summary, 300)) if ev.summary else "")
 
         body_paras: list[str] = []
         if ev.promises:
             lines = []
             prev_spoken: date | None = None
             for i, p in enumerate(ev.promises):
-                who = p.source or p.actor_org
+                who = _promise_name(p, ev)  # 기관 단위 (§2.4). 원문 화자는 근거 기사로만
                 action = clip(p.action, 80)
                 spoken = "같은 날" if (i > 0 and p.spoken_at is not None and p.spoken_at == prev_spoken) else kdate(p.spoken_at)
                 prev_spoken = p.spoken_at
@@ -698,7 +736,7 @@ class ArticleWriter:
             body_paras.append(A["promise_none"].substitute(as_of=as_of_k))
 
         if ev.signals:
-            lines = [A["signal_intro"].substitute(count=len(ev.signals))]
+            lines = [(A["signal_intro"] if ev.promises else A["signal_intro_nopromise"]).substitute(count=len(ev.signals))]
             for s in sorted(ev.signals, key=lambda s: s.article.published_at or date.min):
                 lines.append(
                     A["signal_item"].substitute(
@@ -717,17 +755,18 @@ class ArticleWriter:
             body_paras.append(_sentences(gap, DISCLAIMER))
 
         if items:
-            lines = [A["event_notice_intro"].substitute(count=len(items))]
+            lines = [(A["event_notice_intro"] if n.get("news_gap") else A["event_notice_intro_neutral"]).substitute(count=len(items))]
             by_site: dict[str, list[dict]] = {}
             for it in items:
                 by_site.setdefault(it.get("site_name") or ev.org, []).append(it)
             for site, its in by_site.items():
                 shown = its[:3]
-                lines.append(A["event_notice_site"].substitute(site=site, items=", ".join(f"{it['published_at'] or '날짜 미상'} 「{clip(it['title'], 60)}」" for it in shown), etc=" 등이" if len(its) > len(shown) else "이"))
+                last_title = clip(shown[-1]["title"], 60)
+                lines.append(A["event_notice_site"].substitute(site=site, items=", ".join(f"{it['published_at'] or '날짜 미상'} 「{clip(it['title'], 60)}」" for it in shown), etc=" 등이" if len(its) > len(shown) else ("이" if has_batchim(last_title) else "가")))
             lines.append(A["event_notice_tail"])
             body_paras.append(_sentences(*lines))
         else:
-            body_paras.append(A["event_notice_state"].substitute(label=n.get("state_label", "아직 확인 전"), reason=n.get("reason", "")))
+            body_paras.append(A["event_notice_state"].substitute(label=notice_state_text(n), reason=notice_reason_text(n)))
 
         sections = [
             {"heading": ARTICLE_LEAD, "body": lead},

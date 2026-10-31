@@ -70,6 +70,11 @@ _STANDALONE_TITLES = (
     "장관",
     "차관",
     "지사",
+    "부지사",
+    "부시장",
+    "부군수",
+    "부구청장",
+    "부총리",
     "청장",
     "대변인",
     "본부장",
@@ -132,6 +137,10 @@ _PUBLIC_WORDS = (
     "해양수산부",
     "해수부",
     "교육청",
+    "소방서",
+    "경찰서",
+    "소방본부",
+    "해양경찰서",
     "도로공사",
     "철도공사",
     "철도공단",
@@ -188,8 +197,12 @@ _PRIVATE_WORDS = (
 _ORG_HEAD_TITLES = ("사장", "대표", "이사장", "회장", "대표이사", "현장소장")
 # 직함 앞에 붙으면 민간·이해당사자 조직인 접두/접미 ('주민대책위원장', '유가족대책위', '민주노총 위원장', '감리단장')
 _PRIVATE_PREFIXES = ("주민", "유가족", "유족", "피해자", "상인", "입주민", "시공사", "감리", "노조", "노총", "민주노총", "한국노총", "입주자")
-_PRIVATE_ORG_TAILS = ("노총", "노조", "연구", "연구소", "연구원", "협회", "조합", "재단", "법인")
+_PRIVATE_ORG_TAILS = ("노총", "노조", "연구", "연구소", "연구원", "협회", "조합", "재단", "법인", "클럽", "로터리", "은행", "항공사", "보험", "증권", "카드", "그룹", "건설사", "시공사", "유니온", "적십자", "적십자사", "노동당", "민주당", "국민의힘", "정의당", "개혁신당", "선대위")
+# 기관 토큰 없이 직함만 있을 때 공공으로 보는 직함 — 정부·지자체에만 있는 직함. 본부장·실장·과장·팀장·위원장·대변인은 기업·정당에도 있어
+# 기관 토큰이 함께 있어야 한다 (10-30 rules-8: 정당 대변인·은행 본부장·항공사 본부장 발언이 공공 약속이 되던 문제)
+_GOV_ONLY_TITLES = ("장관", "차관", "지사", "부지사", "청장", "총리", "국무총리", "대통령", "군수", "부군수", "구청장", "부구청장", "서장", "부시장", "총리실장", "감독관")
 _PERSON_NAME_RE = re.compile(r"^[가-힣]{2,4}$")
+_DEPUTY_TITLES = ("부시장", "부군수", "부구청장", "부지사", "부총리", "부본부장", "부단장", "부위원장")  # '부시'·'부군' 오분해 방지 (10-30 rules-2)
 _REGION_SUFFIXES = ("시", "군", "구", "도")
 
 _COMPANY_RE = re.compile(r"^(?:[가-힣A-Za-z]+(?:건설|산업|물산|개발|엔지니어링|건업|종합건설)|㈜.*|주식회사|\(주\))$")
@@ -200,30 +213,76 @@ def _tokens(s: str) -> list[str]:
 
 
 def _alias_hit(alias: str, s: str) -> bool:
-    """별칭은 단어 경계에서만 인정한다: 뒤가 끝·공백·직함이어야 한다 ('가온시의회', '가온시민' 은 '가온시' 로 보지 않는다)."""
+    """별칭은 단어 경계에서만 인정한다: 앞이 시작·공백·구분자이고 뒤가 끝·공백·직함이어야 한다
+    ('가온시의회', '가온시민' 은 '가온시' 로 보지 않고, '군위군수' 는 '위군' 별칭에 걸리지 않는다 — 10-30 rules-3)."""
     if not alias:
         return False
-    pat = re.escape(alias) + r"(?=$|\s|" + "|".join(_TITLE_SUFFIXES) + r")"
+    pat = r"(?<![가-힣A-Za-z0-9])" + re.escape(alias) + r"(?=$|\s|" + "|".join(_TITLE_SUFFIXES) + r")"
     return re.search(pat, s, flags=re.IGNORECASE) is not None
+
+
+def _strip_person_prefix(tok: str, aliases: tuple[str, ...] | list[str]) -> str | None:
+    """'박종철부산시'·'윤호중행정안전부' 처럼 이름이 기관명에 붙은 토큰에서 기관명만 ('부산시'·'행정안전부'). 아니면 None (10-30 R1)."""
+    from .orgs import canonical_org, is_known_org
+    from .regions import SURNAMES, is_admin_region
+
+    if len(tok) < 5 or tok[0] not in SURNAMES:
+        return None
+    whole = re.sub("(?:" + "|".join(_TITLE_SUFFIXES) + r")$", "", tok)
+    c = canonical_org(whole)
+    if (is_known_org(c) and (c == whole or whole.startswith(c))) or is_admin_region(whole, aliases):
+        return None  # '한국철도공사' 는 통째로 기관명이다 ('박종철부산시'·'윤호중행정안전부' 의 정규 키는 뒤쪽 조각이라 해당 없음)
+    for cut in (3, 2):
+        rest = tok[cut:]
+        if len(rest) < 2:
+            continue
+        core = re.sub("(?:" + "|".join(_TITLE_SUFFIXES) + r")$", "", rest)
+        if any(_alias_hit(a, rest) for a in aliases) or is_admin_region(core, aliases) or is_known_org(canonical_org(core)):
+            return rest
+    return None
 
 
 def _org_token(tok: str, followed_by_title: bool, aliases: tuple[str, ...] | list[str]) -> str | None:
     """토큰이 기관명(+직함)이면 기관명을 돌려준다."""
+    from .orgs import canonical_org, is_known_org
+    from .regions import DEPT_NOUNS
+
     if any(_alias_hit(a, tok) for a in aliases):
         return tok
+    stripped = _strip_person_prefix(tok, aliases)
+    if stripped:
+        return _org_token(stripped, followed_by_title, aliases)
     for w in _PUBLIC_WORDS:
         if tok == w or (len(w) >= 2 and tok.endswith(w) and not any(tok.endswith(pw) for pw in _PRIVATE_WORDS)):
             return tok if len(w) >= 2 else w
+    if tok.endswith(_DEPUTY_TITLES):
+        # '행정부시장'·'부군수'·'부구청장' — '부시'·'부군'·'부구' 는 기관이 아니다. 앞말이 기관이면 그것만 ('경기도부지사' 는 드물다)
+        stem = next(tok[: -len(t)] for t in _DEPUTY_TITLES if tok.endswith(t))
+        return _org_token(stem, True, aliases) if len(stem) >= 2 and not stem.endswith(("행정", "경제", "정무")) else None
     m = _ORG_RE.match(tok)
     if not m:
         return None
     org = m.group(1)
-    suffix = next(sfx for sfx in _ORG_SUFFIXES if org.endswith(sfx))
-    if len(org) <= len(suffix):
-        return None  # '본부장' 의 '본부' 처럼 접미만 있는 것은 기관명이 아니다
+    # 접미는 기관명보다 짧은 것 가운데 가장 긴 것 ('소방본부' 의 접미는 '본부', 어간 '소방'). 접미만 있는 '본부'·'경찰서' 는 기관명이 아니다
+    cands = [sfx for sfx in _ORG_SUFFIXES if org.endswith(sfx) and len(sfx) < len(org)]
+    if not cands:
+        return None
+    suffix = max(cands, key=len)
     has_title = len(tok) > len(org)
+    c = canonical_org(org)
+    if is_known_org(c):
+        # 기관 사전이 아는 이름('국방부'·'고용부'·'금융위원회')은 모양 규칙보다 먼저. 정규 키가 뒤쪽 조각이고 앞이 성씨로 시작하면 이름이 붙은 것 ('윤호중행정안전부')
+        if c == org or org.startswith(c) or not org.endswith(c):
+            return org
+        from .regions import SURNAMES
+
+        return c if org[0] in SURNAMES and len(org) - len(c) >= 2 else org
     if suffix in _AMBIGUOUS_SUFFIXES:
         stem = org[: -len(suffix)]
+        if len(stem) < 2:
+            return None  # '당시'·'경시'·'부부' 같은 한 글자 어간은 기관이 아니다 (10-30 R1)
+        if suffix in ("부", "국", "과", "실") and len(stem) <= 2 and stem not in DEPT_NOUNS:
+            return None  # '군위부' 처럼 부서 명사도 아니고 사전에도 없는 두 글자 어간
         wide = any(stem == r or org == r + suffix for r in _WIDE_REGIONS)
         # 사람 이름('김민구', '이영도 장관', '최영실 실장')과 구분: 두 음절 어간 + 한 글자 접미는 광역명·별칭이거나
         # 뒤에 '관계자' 가 올 때만 기관으로 본다. 직함이 붙어도 이름일 수 있어 기관으로 쓰지 않는다 (LLM 기관명으로 대체).
@@ -236,7 +295,7 @@ def _org_token(tok: str, followed_by_title: bool, aliases: tuple[str, ...] | lis
         if suffix not in _REGION_SUFFIXES and len(stem) <= 2:
             if not (has_title or followed_by_title or wide):
                 return None  # '도로국'·'안전과' 처럼 부서 접미만 있는 짧은 토큰은 직함·관계자가 뒤따를 때만 기관
-            if _person_shaped_dept(org) and not has_title:
+            if _person_shaped_dept(org) and not has_title and stem not in DEPT_NOUNS:
                 return None  # '박정국 국장'·'최영실 실장': 성씨 + 2자이고 부서 명사가 아니면 사람 이름
     if any(org.endswith(pw) for pw in _PRIVATE_WORDS if pw not in ("당",)) or org.endswith(_PRIVATE_ORG_TAILS):
         return None
@@ -304,6 +363,7 @@ def _analyze4(source: str, aliases: tuple[str, ...] | list[str]) -> tuple[list[s
     toks = _tokens(source)
     orgs: list[str] = []
     titles: list[str] = []
+    weak_titles: list[str] = []
     privates: list[str] = []
     gov_title = False
     for i, tok in enumerate(toks):
@@ -326,7 +386,7 @@ def _analyze4(source: str, aliases: tuple[str, ...] | list[str]) -> tuple[list[s
                 privates.append(tok)
             continue
         # '당' 은 정당명(더불어민주당·개혁신당)처럼 4자 이상일 때만 민간 표시 — '담당'·'해당' 은 아니다
-        if any(tok == pw or (tok.endswith(pw) and tok != pw and not _TITLE_RE.match(tok) and (pw != "당" or len(tok) >= 4)) for pw in _PRIVATE_WORDS):
+        if any(tok == pw or (tok.endswith(pw) and tok != pw and not _TITLE_RE.match(tok) and (pw != "당" or len(tok) >= 3)) for pw in _PRIVATE_WORDS):
             if not _GOV_TITLE_RE.search(tok):
                 privates.append(tok)
                 continue
@@ -335,8 +395,42 @@ def _analyze4(source: str, aliases: tuple[str, ...] | list[str]) -> tuple[list[s
             orgs.append(org)
             continue
         if _TITLE_RE.match(tok) and len(tok) >= 2:
-            titles.append(tok)  # 직함 단독('안전총괄과장', '과장', '이상민 장관' 의 '장관') — 공공이지만 기관명은 아니다
+            prev = toks[i - 1] if i > 0 else ""
+            if _title_counts_as_public(tok, prev):
+                titles.append(tok)  # 직함 단독('안전총괄과장', '식량원예 과장', '이상민 장관' 의 '장관') — 공공이지만 기관명은 아니다
+            else:
+                weak_titles.append(tok)  # '김 본부장'·'박 팀장'·'라이온스클럽 위원장' 의 직함 — 기관 토큰 없이는 공공이 아니다 (10-30 rules-8)
     return orgs, titles, privates, gov_title
+
+
+def _title_counts_as_public(tok: str, prev: str) -> bool:
+    """직함 토큰이 기관 토큰 없이도 공공을 뜻하는가.
+    - 정부·지자체 고유 직함('장관'·'군수'): 그렇다
+    - 부서·역할이 붙은 직함('안전총괄과장'·'금융위원장'·'사고조사위원장'): 앞말이 사람 이름·민간 꼬리가 아니면 그렇다
+    - 맨 직함('과장'·'본부장'·'대변인'): 바로 앞 토큰이 부서 같은 말('식량원예 과장')이면 그렇다, 성씨·이름이면('김 본부장') 아니다"""
+    if tok.endswith(_GOV_ONLY_TITLES):
+        return True
+    title = next((t for t in sorted(_STANDALONE_TITLES, key=len, reverse=True) if tok.endswith(t)), "")
+    head = tok[: -len(title)] if title else ""
+    if head and head not in _TITLE_MODIFIERS:
+        return len(head) >= 2 and not _person_shaped(head) and not _private_token(head)
+    p = (prev or "").strip()
+    if not p or len(p) <= 1 or _person_shaped(p):
+        return False
+    return not _private_token(p)
+
+
+_NOT_ORGS = {"당국", "대처", "부처", "당시", "경시", "관계자", "관계", "측", "측은", "정부측"}  # 기관처럼 생겼지만 기관 이름이 아닌 말
+_TITLE_MODIFIERS = ("수석", "선임", "부", "대", "전", "현", "전임", "총", "상임", "비상임", "공동", "임시")  # '수석대변인'·'부위원장' 의 앞말은 부서가 아니다
+
+
+def _private_token(tok: str) -> bool:
+    """'아시아나항공'·'라이온스클럽'·'NH농협은행'·'선대' 처럼 민간·정당 쪽 토큰인가."""
+    if tok.endswith(_PRIVATE_ORG_TAILS) or any(tok == pw or tok.endswith(pw) for pw in _PRIVATE_WORDS) or _COMPANY_RE.match(tok):
+        return True
+    if tok.endswith("항공") and len(tok) > 2:
+        return True  # '아시아나항공'·'대한항공' (경찰 '항공 대장' 의 '항공' 은 아니다)
+    return tok in ("선대", "선거대책")
 
 
 # 기관명 없이 '이름 + 직함' 만 있는 발언 주체의 직함 (rules/actor_search.py 가 뉴스 검색으로 기관을 찾는다)
@@ -370,28 +464,54 @@ def is_public_actor(source: str, aliases: list[str] | tuple[str, ...] = ()) -> b
     s = (source or "").strip()
     if not s:
         return False
-    orgs, privates, gov_title = _analyze(s, aliases)
+    orgs, titles, privates, gov_title = _analyze4(s, aliases)
     if privates and not gov_title:
         return False
-    return bool(orgs) or gov_title
+    return bool(orgs) or gov_title or bool(titles)
 
 
-def normalize_actor_org(source: str, responsible_org: str = "", aliases: list[str] | tuple[str, ...] = ()) -> str | None:
-    """발언 주체 문자열 -> 기관명. 책임기관/별칭이 단어 경계로 포함되면 책임기관명으로 통일한다. 개인명은 기관으로 쓰지 않는다."""
+def normalize_actor_org(
+    source: str, responsible_org: str = "", aliases: list[str] | tuple[str, ...] = (), lexicon: list[str] | tuple[str, ...] | None = None
+) -> str | None:
+    """발언 주체 문자열 -> 기관명. 책임기관/별칭이 단어 경계로 포함되면 책임기관명으로 통일한다. 개인명은 기관으로 쓰지 않는다.
+    lexicon: 사람 이름 판정·지역 일치용 사전(사건 지역 포함). 지역명이 들어 있어도 별칭처럼 책임기관으로 바꾸지 않고 지역명 그대로 돌려준다
+    ('김진열 군위군수' 는 책임기관이 행정안전부여도 '군위군' — 10-30 B1)."""
     s = (source or "").strip()
     if not s:
         return None
+    lex = [x for x in (lexicon if lexicon is not None else [responsible_org, *aliases]) if x]
     if responsible_org and _alias_hit(responsible_org, s):
         return responsible_org
     for a in aliases:
-        if _alias_hit(a, s):
+        if a and _alias_hit(a, s):
             return responsible_org or a
-    orgs, titles, privates, gov_title = _analyze4(s, aliases)
+    for r in lex:
+        if r and r != responsible_org and r not in aliases and _alias_hit(r, s):
+            return r  # 사건 지역(또는 그 밖의 사전 항목)이 주체면 그 이름 그대로
+    orgs, titles, privates, gov_title = _analyze4(s, lex)
     if privates and not gov_title:
         return None
+    # '시 관계자'·'군 관계자'·'도 관계자' — 기사 지역의 지자체를 가리키는 생략 표기. 책임기관(또는 사건 지역·별칭)이 같은 종류면 그것으로 (10-30 rules-2)
+    if s in _NOT_ORGS or any(o in _NOT_ORGS for o in orgs):
+        return None  # '당국'·'대처'·'부처' 는 기관 이름이 아니다 (10-31)
+    orgs = [re.sub(r"^(시|군|구|도)청$", r"\1", o) for o in orgs]  # '구청 관계자' 는 '구 관계자' 와 같다
+    generic = [o for o in orgs if o in ("시", "군", "구", "도")]
+    if generic:
+        from .regions import is_admin_region
+
+        if responsible_org and responsible_org.endswith(tuple(generic)):
+            return responsible_org
+        for a in lex:
+            if a and a.endswith(tuple(generic)) and is_admin_region(a):
+                return a
     for org in orgs:  # 직함 단독 토큰(titles)은 기관을 특정하지 못하므로 쓰지 않는다 ('본부장' -> '본부' 금지)
         name = re.sub(r"(시|군|구|도)청$", r"\1", org)  # 가온시청 -> 가온시
-        if len(name) >= 2 and not looks_like_person(name, [responsible_org, *aliases]):
+        if len(name) >= 2 and not looks_like_person(name, lex):
+            from .orgs import canonical_org, is_known_org
+
+            whole = canonical_org(s)
+            if whole != name and is_known_org(whole) and whole.replace(" ", "").endswith(name.replace(" ", "")):
+                return whole  # '홍영근 전남 소방본부장' → 전남소방본부 (광역명 + 기관 종류, 10-31)
             return name
     for w in _PUBLIC_WORDS:
         if len(w) >= 2 and any(t == w or t.endswith(w) for t in _tokens(s)):

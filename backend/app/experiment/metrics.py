@@ -18,7 +18,7 @@ from sqlalchemy.orm import Session
 from ..config import FOLLOWUP_STATUSES, STATUSES, Settings
 from ..db.models import Article, Event, FollowupSignal
 from ..llm.client import PROMPT_VERSIONS
-from ..pipeline.judge import followup_articles, promise_set_hash, trackable_promises
+from ..pipeline.judge import followup_articles, promise_set_hash, trackable_promises, signal_in_scope
 from ..rules.orgs import canonical_org
 from ..rules.status import POSITIVE_SIGNALS
 
@@ -51,11 +51,12 @@ class EventFacts:
 
 def valid_signals(session: Session, event: Event, settings: Settings, followups: list[Article]) -> list[tuple[FollowupSignal, Article]]:
     by_news = {a.news_id: a for a in followups}
-    pset = promise_set_hash(trackable_promises(event))
+    promises = trackable_promises(event)
+    pset = promise_set_hash(promises)
     version = PROMPT_VERSIONS["followup"]
     out = []
     for s in sorted(event.signals, key=lambda s: s.id):
-        if s.prompt_version != version or s.news_id not in by_news or s.promise_set_hash != pset:
+        if s.prompt_version != version or s.news_id not in by_news or s.promise_set_hash != pset or not signal_in_scope(s, promises, settings):
             continue
         if s.matches_promise and s.confidence >= settings.signal_min_conf and s.signal in POSITIVE_SIGNALS:
             out.append((s, by_news[s.news_id]))

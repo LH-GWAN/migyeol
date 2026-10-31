@@ -15,7 +15,7 @@ from app.pipeline import judge as J
 
 
 def S(**kw) -> Settings:
-    base = dict(_env_file=None, followup_expression_fixes=False, followup_cutoff="grace", followup_min_link_prob=0.0)
+    base = dict(_env_file=None, followup_expression_fixes=False, followup_cutoff="grace", followup_min_link_prob=0.0, followup_kept_late_min_prob=0.0)
     base.update(kw)
     return Settings(**base)
 
@@ -190,7 +190,8 @@ def test_low_probability_late_link_counts_only_for_done_or_new_problem(pipeline_
         pytest.skip("후속 기사가 없다")
     target = arts[-1]
     link = next(l for l in ev.links if l.news_id == target.news_id)
-    link.link_reason, link.link_score, link.confirmed, link.link_method = "region+facility-title+p=0.20+keep-late-facility+w=0.60", 0.20, False, "embedding"
+    # 10-30 link-1: 바닥 연결도 재순위 확률이 FOLLOWUP_KEPT_LATE_MIN_PROB(0.3) 이상이어야 후속 근거다 — 0.35 (< min_link_prob 0.6 이지만 바닥 기준 이상)
+    link.link_reason, link.link_score, link.confirmed, link.link_method = "region+facility-title+p=0.35+keep-late-facility+w=0.60", 0.35, False, "embedding"
     session.commit()
     assert target.news_id in {a.news_id for a in J.followup_articles(session, ev, s)}  # 후보로는 남는다
     J.classify_followups(session, ev, FixedLLM("진행"), s)
@@ -203,7 +204,7 @@ def test_low_probability_late_link_counts_only_for_done_or_new_problem(pipeline_
     assert sig.signal == "새로운문제" and sig.matches_promise
     # 바닥 규칙이 아닌 낮은 확률 연결은 후속 기사에서 빠진다
     link = session.get(EventArticle, {"event_id": ev.id, "news_id": target.news_id})
-    link.link_reason = "region+p=0.20+w=0.60"
+    link.link_reason = "region+p=0.35+w=0.60"
     session.commit()
     assert target.news_id not in {a.news_id for a in J.followup_articles(session, ev, s)}
 

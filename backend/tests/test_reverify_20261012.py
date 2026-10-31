@@ -133,7 +133,9 @@ def test_private_titles_from_reverification(src):
 
 
 def test_title_only_token_is_public_but_not_an_org():
-    assert is_public_actor("본부장") and normalize_actor_org("본부장") is None
+    # 10-30 rules-8: 기업에도 있는 직함('본부장')만으로는 공공이 아니다. 정부 고유 직함('장관')은 공공이지만 기관명은 아니다
+    assert not is_public_actor("본부장") and normalize_actor_org("본부장") is None
+    assert is_public_actor("장관") and normalize_actor_org("장관") is None
     assert normalize_actor_org("청주시 관계자") == "청주시"
     assert normalize_actor_org("경기도 관계자") == "경기도"
 

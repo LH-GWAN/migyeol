@@ -26,8 +26,9 @@ from sqlalchemy.orm import Session
 from ..config import DISCLAIMER, FOLLOWUP_STATUSES, STATUS_DONE, STATUSES, Settings, get_settings
 from ..db.models import Article, Event, EventArticle, FollowupSignal, PipelineRun, Promise, Report
 from ..db.session import get_session, session_factory
+from ..experiment.text import scrub
 from ..llm.client import PROMPT_VERSIONS
-from ..pipeline.judge import followup_articles, overdue_promise, promise_set_hash, trackable_promises
+from ..pipeline.judge import followup_articles, overdue_promise, promise_set_hash, signal_in_scope, trackable_promises
 from ..rules.orgs import canonical_org
 from ..rules.status import SignalIn, Thresholds, is_valid
 from . import serializers as ser
@@ -76,8 +77,9 @@ def confirmed_signals(session: Session, event: Event, settings: Settings, follow
     version = PROMPT_VERSIONS["followup"]
     th = _thresholds(settings)
     out = []
+    promises = trackable_promises(event)
     for s in sorted(event.signals, key=lambda s: s.id):
-        if s.prompt_version != version or s.news_id not in by_news or s.promise_set_hash != pset:
+        if s.prompt_version != version or s.news_id not in by_news or s.promise_set_hash != pset or not signal_in_scope(s, promises, settings):
             continue
         a = by_news[s.news_id]
         sig_in = SignalIn(id=s.id, news_id=s.news_id, signal=s.signal, matches_promise=s.matches_promise, confidence=s.confidence, published_at=a.published_at, promise_id=s.promise_id, evidence_span=s.evidence_span)
@@ -231,12 +233,21 @@ def build_summary(session: Session, facts: list[EventFacts], settings: Settings,
         "followup_articles": sum(len(f.followups) for f in facts),
         "orgs": len({f.org for f in facts}),
         "by_status": by_status,
+        # 보도된 인명 피해: 기사 제목·발췌에서 숫자가 뽑힌 사건만의 합 — 분모(events)를 함께 내려 화면이 전체 합계로 읽히지 않게 (10-30 dash-1)
+        "casualties": _casualties(facts),
         "last_run": ser._iso(last.finished_at) if last else None,
         "as_of": today.isoformat(),
         "bigkinds_mode": settings.bigkinds_mode,
         "experiment": experiment_summary(experiment),
         "disclaimer": DISCLAIMER,
     }
+
+
+def _casualties(facts: list[EventFacts]) -> dict:
+    dead = [getattr(f.event, "dead", None) for f in facts]
+    injured = [getattr(f.event, "injured", None) for f in facts]
+    with_values = sum(1 for d, i in zip(dead, injured) if d is not None or i is not None)
+    return {"dead": _sum_or_none(dead), "injured": _sum_or_none(injured), "events": with_values, "events_total": len(facts)}
 
 
 def _bucket(d: date, interval: str) -> str:
@@ -382,9 +393,9 @@ def build_recent_followups(facts: list[EventFacts], limit: int) -> list[dict]:
             "org": f.org,
             "signal": s.signal,
             "confidence": s.confidence,
-            "evidence_span": s.evidence_span,
+            "evidence_span": scrub(s.evidence_span),
             "news_id": a.news_id,
-            "title": a.title,
+            "title": scrub(a.title),
             "provider": a.provider,
             "published_at": ser._iso(a.published_at),
             "link": a.provider_link_page,
@@ -451,13 +462,16 @@ def _facility_hit(facility: str | None, terms: list) -> bool:
 def build_notice_cases(session: Session, facts: list[EventFacts], per_kind: int = 1) -> list[dict]:
     """기관 공식 게시판에서 발표가 확인된 사건 가운데 두 종류의 사례를 고른다 (보조 근거, 상태는 그대로).
 
-    - notice_without_followup: 발생일 이후의 기관 발표가 있는데, 그 발표일 이후로 확인된 후속보도(유효 신호)가 없는 사건.
-      사건에 시설명이 있으면 발표 제목·요약이 시설명과 겹쳐야 한다(다른 곳의 같은 종류 사고 발표를 거른다).
+    - notice_without_followup: 상태가 후속보도 부족·판단 불가인 사건에서, 원천 발언(마지막 약속 발언일) 뒤에 나온 기관 발표가 있고
+      그 발표일 이후로 확인된 후속보도(유효 신호)가 없는 사건. 사건에 시설명이 있으면 발표 제목·요약이 시설명과 겹쳐야 하고,
+      시설명이 일반어('하천 제방')면 사건 지역명이 매칭 용어에 있어야 한다(전국 점검 보도자료를 거른다 — 10-30 dash-2·dash-3·notice-5).
       시설명 일치 → 매칭 점수 → 책임기관 자체 게시판 → 최근 발표 순.
-    - notice_before_followup: 발생일 이후의 기관 발표로부터 30일 이상 지나서야 다음 후속보도(유효 신호)가 확인된 사건.
-      발표→보도 간격이 긴 사건부터.
+    - notice_before_followup: 발생일 이후의 기관 발표(원천 발언 뒤, 시설명·지역 조건 같음)보다 **앞서 확인된 후속보도가 없고**,
+      그 발표로부터 30일 이상 지나서야 다음 후속보도(유효 신호)가 확인된 사건. 발표→보도 간격이 긴 사건부터.
     """
+    from ..config import STATUS_NO_FOLLOWUP, STATUS_UNDETERMINED
     from ..notices.models import OrgNotice
+    from ..notices.service import is_news_gap_notice, notice_specific
 
     site_names = _site_names()
     by_event: dict[int, list] = {}
@@ -468,7 +482,12 @@ def build_notice_cases(session: Session, facts: list[EventFacts], per_kind: int 
     before: list[tuple[tuple, dict]] = []
     for f in facts:
         ev = f.event
-        notices = [n for n in by_event.get(f.event.id, []) if n.published_at and (ev.occurred_at is None or n.published_at >= ev.occurred_at)]
+        def _specific(n) -> bool:
+            return notice_specific(ev, f.org, n)  # 시설명 일치 + (일반 시설어면) 지역명 — 패널의 news_gap 과 같은 조건
+
+        after_occurred = [n for n in by_event.get(f.event.id, []) if n.published_at and (ev.occurred_at is None or n.published_at >= ev.occurred_at)]
+        # 사례 후보 = 발생 뒤 + 원천 발언 뒤 + 시설명(일반어면 지역명도) 일치. notices_count 는 발생 뒤 발표 전체 수
+        notices = [n for n in after_occurred if is_news_gap_notice(session, ev, n.published_at) and _specific(n)]
         if not notices:
             continue
         confirmed_dates = sorted(a.published_at for _, a in f.confirmed if a.published_at)
@@ -482,10 +501,10 @@ def build_notice_cases(session: Session, facts: list[EventFacts], per_kind: int 
             "last_article_at": ser._iso(ev.last_followup_at),
             "articles_after": len(f.followups),
             "latest_confirmed_at": ser._iso(f.latest_confirmed_at),
-            "notices_count": len(notices),
+            "notices_count": len(after_occurred),
         }
-        # ① 발표 뒤 확인된 후속보도가 없는 사건
-        cands = [n for n in notices if not any(d >= n.published_at for d in confirmed_dates) and _facility_hit(ev.facility, n.matched_terms)]
+        # ① 발표 뒤 확인된 후속보도가 없는 사건 — 상태가 후속보도 부족·판단 불가일 때만 (완료 상태 사건을 '뉴스엔 없었지만' 으로 소개하지 않는다)
+        cands = [n for n in notices if ev.status in (STATUS_NO_FOLLOWUP, STATUS_UNDETERMINED) and not any(d >= n.published_at for d in confirmed_dates)]
         if cands:
             cands.sort(key=lambda n: (-n.match_score, 0 if n.site_key.startswith("korea-") else -1, -n.published_at.toordinal()))
             n = cands[0]
@@ -497,6 +516,8 @@ def build_notice_cases(session: Session, facts: list[EventFacts], per_kind: int 
         # ② 발표 → 한참 뒤에야 다음 후속보도
         best = None
         for n in sorted(notices, key=lambda n: n.published_at):
+            if any(d < n.published_at for d in confirmed_dates):
+                continue  # 발표보다 앞선 후속보도가 있으면 '발표 뒤에야 보도' 가 아니다
             nxt = next((d for d in confirmed_dates if d >= n.published_at), None)
             if nxt is None:
                 continue

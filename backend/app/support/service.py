@@ -7,6 +7,7 @@ import logging
 from sqlalchemy.orm import Session
 
 from ..db.models import Article, Event, EventArticle
+from ..experiment.text import scrub
 from .extractor import Mention, assign_roles, event_text, extract_article
 from .models import SupportMention
 
@@ -94,15 +95,15 @@ def support_out(session: Session, event: Event) -> dict:
     items = [
         {
             "news_id": m.news_id,
-            "title": a.title,
+            "title": scrub(a.title),
             "published_at": _iso(m.published_at),
             "provider": a.provider,
             "provider_link_page": a.provider_link_page,
-            "actor": m.actor,
+            "actor": scrub(m.actor),
             "actor_kind": m.actor_kind,
             "actor_role": m.actor_role,
             "support_terms": list(m.support_terms or []),
-            "evidence_span": m.evidence_span,
+            "evidence_span": scrub(m.evidence_span),  # 실기사 문장의 단정 표현은 화면에 내지 않는다 (10-30 A1)
         }
         for m, a in rows
     ]

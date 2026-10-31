@@ -152,3 +152,26 @@ export function cleanSnippet(text: string | null | undefined): string {
     .replace(/\s+/g, " ")
     .trim();
 }
+
+/** 게시판 요약에서 메타 문구(담당부서·문의·전화·첨부·조회수·'바로보기 바로듣기')를 지우고 길이를 제한한다 (10-30 fe-11). */
+export function cleanNoticeSnippet(text: string | null | undefined, maxChars = 240, title?: string | null): string {
+  let t = cleanSnippet(text).replace(/`+/g, "");
+  if (!t) return "";
+  const tt = cleanNoticeTitle(title);
+  if (tt && t.startsWith(tt)) t = t.slice(tt.length); // 요약이 제목으로 시작하면 제목 반복 제거
+  t = t
+    .replace(/(담당\s*부서|담당자|문의처?|연락처|전화번호|전화|팩스|작성일|등록일|조회\s*수?|첨부\s*파일?|다운로드\s*횟수?|다운로드|바로\s*보기|바로\s*듣기|미리\s*보기|파일\s*명)\s*[:：]?\s*[^\s]*(\s[^\s]*){0,3}/g, " ")
+    .replace(/\(?\d{2,4}-\d{3,4}-\d{4}\)?/g, " ")
+    .replace(/\S+\.(pdf|hwpx?|docx?|xlsx?|pptx?|zip|jpg|png)\b/gi, " ")
+    .replace(/\(?\s*\d+(?:[.,]\d+)?\s*(KB|MB|GB|Bytes?|바이트)\s*(Bytes?)?\s*\)?/gi, " ") // 첨부 크기 조각 "(93 KB Bytes"
+    .replace(/[(\[]\s*[)\]]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  return t.length > maxChars ? t.slice(0, maxChars - 1).trimEnd() + "…" : t;
+}
+
+/** 게시판 제목에 남은 백틱·HTML 찌꺼기를 지운다. */
+export function cleanNoticeTitle(text: string | null | undefined): string {
+  return cleanSnippet(text).replace(/`+/g, "").replace(/\s+/g, " ").trim();
+}
+

@@ -19,15 +19,20 @@ from sqlalchemy.orm import Session
 
 from ..config import FOLLOWUP_STATUSES, STATUS_NO_FOLLOWUP, STATUSES, Settings
 from ..db.models import Article, Event, StatusJudgment
+from ..experiment.text import scrub
 from ..llm.client import PROMPT_VERSIONS
+from ..llm.rules_adapter import span_truncated_prefix
 from ..notices.service import notices_out
-from ..pipeline.judge import followup_articles, promise_set_hash, trackable_promises
+from ..pipeline.judge import followup_articles, promise_set_hash, signal_in_scope, trackable_promises
 from ..rules.orgs import canonical_org
 
 log = logging.getLogger("migyeol.press")
 
 VALID_SIGNALS = ("완료", "진행", "새로운문제")
 SIGNAL_RANK = {"완료": 0, "진행": 1, "새로운문제": 2}
+# 사건 상태 ↔ 그 상태를 만든 신호 종류. 대표 사례·문장은 신호 등급이 아니라 **사건 상태**를 따른다 (10-30 press-4)
+STATUS_SIGNAL = {STATUSES[0]: "완료", STATUSES[1]: "진행", STATUSES[2]: "새로운문제"}
+STATUS_RANK = {STATUSES[0]: 0, STATUSES[1]: 1, STATUSES[2]: 2}
 
 
 @dataclass
@@ -83,9 +88,18 @@ class EventFacts:
 
     @property
     def best_signal(self) -> SignalRef | None:
+        """대표 신호 = 사건 상태와 같은 종류의 신호 중 가장 최근 것. 없으면 등급순."""
         if not self.signals:
             return None
-        return sorted(self.signals, key=lambda s: (SIGNAL_RANK.get(s.signal, 9), -(s.article.published_at or date.min).toordinal()))[0]
+        want = STATUS_SIGNAL.get(self.status)
+        same = [s for s in self.signals if s.signal == want] if want else []
+        pool = same or self.signals
+        return sorted(pool, key=lambda s: (SIGNAL_RANK.get(s.signal, 9), -(s.article.published_at or date.min).toordinal()))[0]
+
+    @property
+    def status_signal_text(self) -> str:
+        """상태 문자열에 맞는 짧은 표시 ('조치 완료'·'조치 진행'·'새로운 문제')."""
+        return {STATUSES[0]: "조치 완료", STATUSES[1]: "조치 진행", STATUSES[2]: "새로운 문제"}.get(self.status, self.status)
 
 
 @dataclass
@@ -113,23 +127,27 @@ class Overview:
 def _article_ref(a: Article | None) -> ArticleRef | None:
     if a is None:
         return None
-    return ArticleRef(news_id=a.news_id, title=a.title or "", provider=a.provider or "", published_at=a.published_at, link=a.provider_link_page)
+    return ArticleRef(news_id=a.news_id, title=scrub(a.title or ""), provider=a.provider or "", published_at=a.published_at, link=a.provider_link_page)
 
 
 def valid_signals(session: Session, event: Event, settings: Settings) -> list[SignalRef]:
     # 추적 약속이 없는 사건도 사건 경로 신호(promise_id NULL, rules-v4)가 있다 — 대시보드·실험 지표와 같은 집합을 센다
-    pset = promise_set_hash(trackable_promises(event))
+    promises = trackable_promises(event)
+    pset = promise_set_hash(promises)
     version = PROMPT_VERSIONS["followup"]
     by_news = {a.news_id: a for a in followup_articles(session, event, settings)}  # 활성 연결·삭제 제외·후속 기간
     out = []
     for s in event.signals:
-        if s.prompt_version != version or s.promise_set_hash != pset or s.news_id not in by_news:
+        if s.prompt_version != version or s.promise_set_hash != pset or s.news_id not in by_news or not signal_in_scope(s, promises, settings):
             continue
         if s.signal not in VALID_SIGNALS or not s.matches_promise or s.confidence < settings.signal_min_conf:
             continue
-        ref = _article_ref(by_news[s.news_id])
+        a = by_news[s.news_id]
+        ref = _article_ref(a)
         assert ref is not None
-        out.append(SignalRef(signal=s.signal, span=s.evidence_span or "", confidence=s.confidence, article=ref))
+        # 초안 어디에도 원문 단정 표현을 옮기지 않는다 (§2.2) · 앞이 잘린 발췌는 '…' 로 표시 (press-5)
+        prefix = span_truncated_prefix(s.evidence_span or "", a.title, a.hilight, a.content_200)
+        out.append(SignalRef(signal=s.signal, span=(prefix + scrub(s.evidence_span)) if s.evidence_span else "", confidence=s.confidence, article=ref))
     out.sort(key=lambda r: r.article.published_at or date.min)
     return out
 
@@ -144,19 +162,19 @@ def event_facts(session: Session, event: Event, settings: Settings, today: date)
         art = _article_ref(session.get(Article, p.evidence_news_id)) if p.evidence_news_id else None
         promises.append(
             PromiseRef(
-                actor_org=p.actor_org or "기관 미상",
-                action=p.action,
+                actor_org=scrub(p.actor_org) or "기관 미상",
+                action=scrub(p.action),
                 deadline_raw=p.deadline_raw,
                 strength=p.strength,
-                source=q.source if q else None,
-                quotation=q.quotation if q else None,
+                source=scrub(q.source) if q else None,
+                quotation=scrub(q.quotation) if q else None,
                 spoken_at=(q.published_at if q else None) or (art.published_at if art else None),
                 article=art,
             )
         )
     return EventFacts(
         id=event.id,
-        title=event.title,
+        title=scrub(event.title),
         incident_type=event.incident_type or "",
         region=event.region or "",
         facility=event.facility or "",
@@ -164,7 +182,7 @@ def event_facts(session: Session, event: Event, settings: Settings, today: date)
         occurred_at=event.occurred_at,
         status=event.status if event.status in STATUSES else STATUSES[-1],
         judged=judged,
-        summary=event.summary or "",
+        summary=scrub(event.summary or ""),
         last_followup_at=event.last_followup_at,
         followup_count=event.followup_count or 0,
         promises=promises,
@@ -243,8 +261,9 @@ def by_org(ov: Overview) -> list[dict]:
 
 
 def notice_summary(ov: Overview) -> dict:
+    """게시판 확인 요약 — found 는 **트리거된** 사건 중 발표가 확인된 사건만 센다 (합이 대상 수와 맞게, 10-30 press-6)."""
     triggered = [e for e in ov.events if e.notices.get("triggered")]
-    found = [e for e in ov.events if e.notices.get("items")]
+    found = [e for e in triggered if e.notices.get("items")]
     return {
         "triggered": len(triggered),
         "found": len(found),
@@ -262,7 +281,7 @@ def gap_cases(ov: Overview, n: int = 3) -> list[EventFacts]:
 
 
 def followup_cases(ov: Overview, n: int = 3) -> list[EventFacts]:
-    """후속보도가 확인된 대표 사례: 완료 > 진행 > 새로운문제, 같은 등급이면 최근 근거 기사 순."""
-    rows = ov.with_followup
-    return sorted(rows, key=lambda e: (SIGNAL_RANK.get(e.best_signal.signal, 9) if e.best_signal else 9, -((e.best_signal.article.published_at or date.min).toordinal() if e.best_signal else 0)))[:n]
+    """후속보도가 확인된 대표 사례: **사건 상태** 완료 > 진행 > 새로운 문제, 같은 상태면 최근 대표 신호 기사 순 (10-30 press-4)."""
+    rows = [e for e in ov.with_followup if e.best_signal is not None]
+    return sorted(rows, key=lambda e: (STATUS_RANK.get(e.status, 9), -((e.best_signal.article.published_at or date.min).toordinal() if e.best_signal else 0)))[:n]
 

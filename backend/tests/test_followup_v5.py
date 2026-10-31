@@ -76,5 +76,5 @@ def test_investigation_source():
 
 def test_rules_v5_model_name():
     assert R.RulesLLM(S()).model == "rules-v4"
-    assert R.RulesLLM(S(followup_phrase_fixes=True)).model == "rules-v5"
+    assert R.RulesLLM(S(followup_phrase_fixes=True)).model == "rules-v6"  # 10-30 D1: 구절 가드가 바뀌어 캐시 무효화
     assert R.RulesLLM(S(followup_early_problem_days=3)).model == "rules-v5"

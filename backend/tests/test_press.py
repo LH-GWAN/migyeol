@@ -209,7 +209,7 @@ def test_event_draft_gap_and_notice_state(client, session):
     fu = next(s["body"] for s in body["sections"] if s["heading"] == "후속보도")
     assert "확인되지 않았다" in fu and DISCLAIMER in fu
     notice = next(s["body"] for s in body["sections"] if s["heading"] == "기관 발표 확인")
-    assert "등록된 게시판 없음" in notice
+    assert "책임기관의 게시판이 등록부에 없음" in notice
     promises = next(s["body"] for s in body["sections"] if s["heading"] == "발표된 약속")
     assert "배수펌프" in promises and _refs(promises)
 

@@ -26,6 +26,15 @@ class NoticeItem:
     url: str
     published_at: date | None
     snippet: str = ""
+    org: str = ""  # 목록이 발표 주체를 함께 보여 주면(정책브리핑 '2026.10.22 행정안전부') 그 이름 — 여러 부처가 섞인 게시판에서 책임기관 글만 고른다
+
+
+def strip_date(text: str | None) -> str:
+    """날짜 표기를 뺀 나머지 ('2026.10.22 행정안전부' → '행정안전부')."""
+    t = text or ""
+    for rx in (_DATE_RE, _SHORT_DATE_RE):
+        t = rx.sub(" ", t)
+    return clean(re.sub(r"^[.\-/\s]+|[.\-/\s]+$", "", t))
 
 
 def clean(text: str | None) -> str:
@@ -76,13 +85,15 @@ def parse_list(html: str, site: Site, base_url: str) -> list[NoticeItem]:
         if not title or not url or url in seen:
             continue
         d_el = el.select_one(site.date) if site.date else None
-        published = parse_date(d_el.get_text(" ", strip=True) if d_el is not None else el.get_text(" ", strip=True))
+        d_text = d_el.get_text(" ", strip=True) if d_el is not None else ""
+        published = parse_date(d_text if d_el is not None else el.get_text(" ", strip=True))
+        org = strip_date(d_text)[:60] if d_el is not None else ""  # '2026.10.22 행정안전부' 의 '행정안전부' (정책브리핑처럼 여러 부처가 섞인 게시판)
         snippet = ""
         if site.snippet:
             s_el = el.select_one(site.snippet)
             snippet = clean(s_el.get_text(" ", strip=True) if s_el is not None else "")[:SNIPPET_CHARS]
         seen.add(url)
-        out.append(NoticeItem(title=title[:300], url=url, published_at=published, snippet=snippet))
+        out.append(NoticeItem(title=title[:300], url=url, published_at=published, snippet=snippet, org=org))
     return out
 
 

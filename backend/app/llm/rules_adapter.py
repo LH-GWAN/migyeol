@@ -37,8 +37,25 @@ RULES_MODEL = "rules-v2"  # v2: 문장 가중치 (2026-10-24). 모델명이 바�
 RULES_MODEL_V3 = "rules-v3"  # v3: 표현 고침 등 FOLLOWUP_* 보강을 켠 규칙 (2026-10-25, docs/EXPERIMENT.md §10) — 켠 상태로 분류한 신호는 v2 캐시와 섞이지 않는다
 RULES_MODEL_V4 = "rules-v4"  # v4: 제목형 표현·약속 없는 사건의 직접 후속 경로 (2026-10-29, docs/EXPERIMENT.md §14)
 RULES_MODEL_V5 = "rules-v5"  # v5: 구절 오독 고침·같은 행동 제목 경로·사건 단위 시기/출처 규칙 (2026-10-29, docs/EXPERIMENT.md §14.6)
+RULES_MODEL_V6 = "rules-v6"  # v6: 완료 오독 가드·어절 경계 발췌·새로운문제 예방/배경 가드 (2026-10-30 코드 리뷰 A4·A5·B3) — 캐시 무효화용
 
 # ---------------------------------------------------------------- ⓐ 약속 추출
+
+
+def actor_from_source(source: str, responsible_org: str = "") -> str | None:
+    """발언 주체 원문 → 기관명. 규칙 정규화 결과를 정규 키로 바꾸고, 그것이 없으면 기관 사전이 **아는** 기관일 때만 원문에서 뽑는다
+    ('김주수 의성 군수' → 의성군, '김문수 고용부 장관' → 고용노동부). 모르면 None = 기관 미상 — '김 지사'·'김문수 장관' 같은 원문을
+    기관(actor_org)으로 저장하지 않는다 (10-30 rules-2)."""
+    from ..rules.actors import normalize_actor_org
+    from ..rules.orgs import is_known_org
+
+    normalized = normalize_actor_org(source, responsible_org)
+    if normalized:
+        return canonical_org(normalized) or normalized
+    cand = canonical_org(source)
+    return cand if cand and is_known_org(cand) else None
+
+
 # 구체 행동 동사 (명사형 어간). '…하겠다' 앞에 오면 계획 이상
 _CONCRETE = (
     "전수조사", "재발 방지", "재발방지", "마련", "설치", "보강", "점검", "교체", "확충", "신설", "강화", "복구", "정비", "증설", "개선",
@@ -53,6 +70,7 @@ _DIRECTIVE_RE = re.compile(r"(해야\s*(한다|합니다|할|하며|하고)?|했
 _ACTION_RE = re.compile("(" + "|".join(sorted({*_CONCRETE, "하겠다", "하겠습니다", "할 계획", "예정"}, key=len, reverse=True)) + ")")
 _CLAUSE_SPLIT_RE = re.compile(r"[.!?。\n]|(?<=다)\s|,\s|·")
 _ACTION_MAX = 40
+_FRAGMENT_HEAD_RE = re.compile(r"(도록|않도록|하고|되고|하며|되며|으며|면서|고자|어서|해서|니다|다는|라는|이며|이고|이므로|것이므로|으로|에서|에게|대로)$")
 
 _REL_DEADLINES: tuple[tuple[re.Pattern[str], str], ...] = (
     (re.compile(r"(\d{4})\s*년\s*(\d{1,2})\s*월\s*(\d{1,2})\s*일\s*(까지|안에|내|중)?"), "ymd"),
@@ -162,7 +180,15 @@ def _action_clause(quotation: str) -> str | None:
     if start > 0 and clause[start - 1] != " ":
         nxt = clause.find(" ", start)
         start = nxt + 1 if 0 <= nxt < end - 4 else start  # 어절 중간에서 시작하지 않게
-    return clause[start:end].strip()
+    out = clause[start:end].strip()
+    # 앞 어절이 '않도록'·'하고'·'며' 같은 용언 꼬리면 떼어 낸다 — '않도록 민간자문단 …' 조각 방지 (10-30 B11)
+    while out and len(out) > 20:
+        head, _, rest = out.partition(" ")
+        if rest and _FRAGMENT_HEAD_RE.search(head):
+            out = rest
+            continue
+        break
+    return out
 
 
 def _strength(quotation: str, has_deadline: bool) -> str:
@@ -251,12 +277,43 @@ def _promise_terms(p: PromiseRef) -> list[str]:
     return [t for t in terms if len(t) >= 2 and t not in _OVERLAP_STOP and not _TERM_VERBISH.search(t)][:6]
 
 
+_WORD_BREAK = " \t\n.…·,"  # 어절·구절 경계로 삼는 글자
+
+
 def _window(sentence: str, m: re.Match[str]) -> str:
-    """100자 넘는 문장은 매칭 위치를 포함하는 100자 창 (입력의 부분 문자열 유지)."""
+    """100자 넘는 문장은 매칭 위치를 포함하는 100자 이내 창 (입력의 부분 문자열 유지).
+
+    창의 시작과 끝은 어절 경계에 맞춘다 — 글자 단위로 자르면 '무등록업체' 가 '등록업체' 로 뜻이 뒤집힌다 (10-30 press-5).
+    잘렸다는 표시('…')는 저장하지 않고 화면·초안이 붙인다 (발췌는 입력의 부분 문자열이어야 validate_span 을 통과한다)."""
     if len(sentence) <= MAX_SPAN_CHARS:
         return sentence
     start = max(0, min(m.start() - 40, len(sentence) - MAX_SPAN_CHARS))
-    return sentence[start : start + MAX_SPAN_CHARS].strip()
+    if start > 0 and sentence[start - 1] not in _WORD_BREAK:
+        prev = max(sentence.rfind(ch, 0, start) for ch in _WORD_BREAK)
+        if prev >= 0 and m.end() - (prev + 1) <= MAX_SPAN_CHARS:
+            start = prev + 1  # 어절 시작으로 앞당긴다
+        else:
+            nxt = min((i for i in (sentence.find(ch, start) for ch in _WORD_BREAK) if i >= 0), default=-1)
+            if 0 <= nxt < m.start():
+                start = nxt + 1  # 앞당길 수 없으면 다음 어절 시작으로
+    end = min(len(sentence), start + MAX_SPAN_CHARS)
+    if end < len(sentence) and sentence[end] not in _WORD_BREAK:
+        last = max(sentence.rfind(ch, m.end(), end) for ch in _WORD_BREAK)
+        if last > m.end():
+            end = last
+    return sentence[start:end].strip()
+
+
+def span_truncated_prefix(span: str, *texts: str) -> str:
+    """발췌가 어떤 원문 조각의 첫머리가 아니면(앞이 잘렸으면) 화면·초안에 붙일 '…' 를 돌려준다."""
+    sp = (span or "").strip()
+    if not sp:
+        return ""
+    for t in texts:
+        for piece in _SENT_SPLIT_RE.split(t or ""):
+            if (piece or "").strip().startswith(sp):
+                return ""
+    return "…"
 
 
 KW_ALONE = 0.8  # 약속 키워드와 겹치지 않아도 이 이상 사건 고유어가 있는 문장은 신호 후보
@@ -284,7 +341,15 @@ _ACTION_GROUPS: tuple[tuple[str, ...], ...] = (
 )
 _COMMIT_SENT_RE = re.compile(r"(하겠|할\s*계획|할\s*예정|예정이다|예정입니다|방침이다|키로|하기로|제안하겠|건의하겠|요청하겠|추진할)")
 _DEMAND_SENT_RE = re.compile(r"(필요하|필요한|필요성|필요해|필요가|촉구|요구|해야|시급|바란다|당부|건의)")
-_PREVENT_RE = re.compile(r"추가\s*(사고|붕괴|피해)\s*(를|가|의|도)?\s*(최소화|예방|방지|막|줄이|없도록|우려)")
+_PREVENT_RE = re.compile(r"추가\s*(사고|붕괴|피해)\S{0,2}\s*(를|가|의|도|에)?\s*(최소화|예방|방지|막|줄이|없도록|우려|대비|조사|않도록|점검)")  # '추가 피해지 조사'·'추가 붕괴 우려'·'추가 붕괴에 대비'
+# 10-30 rules-6: 재발 표현 뒤 '하지 않도록·막기 위해·대비' 는 예방 다짐이고, '중단됐던·중단돼 왔다가·중단된 뒤 (재개)' 는 재개의 배경 서술이다
+# 재발 표현 바로 뒤(조사·'피해'·'사고' 한 어절까지)가 예방 서술어일 때만 — '또 사고 났는데 재발 방지책은 없었다' 는 재발이다 (10-30 R4)
+_PROBLEM_PREVENT_TAIL_RE = re.compile(
+    r"^(가|이|를|을|의|도)?\s*((피해|사고|붕괴|침수)?\s*(가|이|를|을)?\s*)?(하지\s*않도록|않도록|없도록|없게|막기\s*위해|막고자|방지를\s*위해|방지하기\s*위해|예방을\s*위해|예방하기\s*위해|에\s*대비해|에\s*대비하|우려를\s*(덜|씻))"
+)
+_PROBLEM_BACKGROUND_RE = re.compile(r"중단\s*(됐던|되었던|돼\s*왔다가|된\s*뒤|됐다가|되었다가|된\s*이후|됐던)")
+_QUOTED_SPAN_RE = re.compile(r"[\"“‘'][^\"”’']{1,80}[\"”’']")
+_RADIO_WORD_RE = re.compile(r"(무전|교신|송신|관제)")
 # 꼬리 없는 '재개장·재개통' 옆에 앞날을 가리키는 말이 있으면 아직 열리지 않았다 ('청과동, 내년 2월 재개장')
 _FUTURE_WORD_RE = re.compile(r"(내년|다음\s*달|오는\s|예정|목표|계획|앞두|앞둔)")
 
@@ -299,13 +364,52 @@ _HEADLINE_DONE_RE = re.compile(
 )
 # 조사·수사의 결과 (원인 규명을 약속·지시한 사건의 후속) — '원인' 과 결론 표현이 한 문장에, 추정·조사 중은 제외
 # 제목형 완료 바로 옆(앞 12자·뒤 8자)에 앞날을 가리키는 말이 있으면 진행 — '작업중지 연내 전면해제'. '장마 앞두고 복구 완료' 의 '앞두' 는 넣지 않는다
-_HEADLINE_FUTURE_RE = re.compile(r"(내년|다음\s*달|오는\s|예정|목표|계획|연내|올해\s*안|이달\s*중)")
+_HEADLINE_FUTURE_RE = re.compile(r"(내년|다음\s*달|오는\s|예정|목표|계획|연내|올해\s*안|이달\s*중|상반기|하반기|분기|올해\s*말|이달\s*말)")
 # 제목의 '-ㄴ다·-ㄹ' 꼬리는 앞날의 완료다 ('8월까지 설치 끝낸다', '설치 완료한다') — 진행으로 본다
 _HEADLINE_FUTURE_TAIL_RE = re.compile(r"^\s*(낸다|낼|난다|날\s|된다|될|한다|할)")
 _HEADLINE_COND_RE = re.compile(r"(해야|아야|어야|려면|하도록|토록)")  # '공사를 완료하고 사용승인을 받아야' — 조건·요구이지 완료가 아니다
 # ---- rules-v5 구절 오독 고침 (FOLLOWUP_PHRASE_FIXES)
 _DEMAND_TAIL_RE = re.compile(r"^\S{0,3}?\s*(하라|해라|하십시오|해\s*달라|해\s*주길|해야|아야|어야|려면|하도록|토록)")  # '폐로 절차에 착수하라' — 요구
 _ALSO_AT_RE = re.compile(r"^\s*(당시|때|현장|이후|직후|로\s|으로\s|와\s|과\s|에\s*대한)")  # '또 화재 당시' — '또한 화재 때' 이지 재발이 아니다
+# ---- 10-30 rules-5 완료 오독 가드: 완료 표현 바로 뒤·앞의 요구·부정·조건·이유·대조·임박·발언 표현은 완료가 아니다
+_DONE_TAIL_DEMAND_RE = re.compile(r"^(를|을|도|이|가)?\s*(당부|촉구|요구|요청|주문|지시|건의|호소|강조|독려)")  # '조속한 복구 완료를 당부했다' ('완료 후 개선 건의' 는 아니다)
+_DONE_TAIL_NEG_RE = re.compile(r"^(나|내|되|하|이|을|를|가|지)?\s*(지\s*(않|못|말)|않|못\s*(했|하|한)|안\s*(됐|했|돼)|되지\s*(않|못))")  # '끝나지 않았다'·'끝내지 않았다'
+_DONE_TAIL_COND_RE = re.compile(
+    r"^(나|되|하|이|을|를|가|돼|되어|내|해)?\s*(면|려면|다면|거나|더라도|야\b|야\s|야$|도\s|도$|도,|라\s|라$)"  # '드러나면'·'끝내야'·'완료돼야'·'마무리돼도'·'끝나도'·'끝내라'
+    r"|^(되는|하는|될|할|나는|내는)\s*(시점|때|날|대로|즉시|직후|순간|까지|\d{2,4}\s*년|내년|올해|이달|다음|오는|\d{1,2}\s*월)"  # '마무리되는 시점'·'마무리되는 2027년께' (앞날)
+    r"|^(나기|내기|하기|되기)\s*(전|까지|전까지|직전)"  # '끝나기 전까지'
+)
+_DONE_TAIL_REASON_RE = re.compile(r"^(기\s*때문|으므로|기에\s|어서\s|해서\s|기\s*땜)")  # '교체했기 때문에 노후화되지 않았다' — 배경 설명
+_DONE_TAIL_CONTRAST_RE = re.compile(r"^(으나|지만|으나,|지만,)\s*\S{0,12}?(효과|소용|변화|진전)\s*(가|이|는|도)?\s*(없|미미|적)")  # '설치했으나 효과가 없었다'
+_DONE_TAIL_IMMINENT_RE = re.compile(r"^\s*(을|를)?\s*(앞두|앞둔|눈앞|코앞)")  # '복구 완료를 앞두고'
+_DONE_HEAD_SPEECH_RE = re.compile(r"(발언|말|연설|인사말|인사|축사|답변|설명|브리핑|보고|기자회견|회견)(을|를)\s*$")  # '발언을 마쳤다'
+_DONE_HEAD_NEG_RE = re.compile(r"(어려운|어렵다는|않은|못한|불가능한|힘든|없는|불가능하다는)\s*(것으로|것이|것|상태로)?\s*$")  # '규명이 어려운 것으로 확인됐다'
+
+
+def completion_blocked(sentence: str, m: re.Match[str]) -> str | None:
+    """완료 표현이 요구·부정·조건·이유·대조·발언 종료 문맥이면 사유를, 아니면 None 을 돌려준다 (10-30 rules-5)."""
+    tail = sentence[m.end() : m.end() + 16]
+    head = sentence[max(0, m.start() - 14) : m.start()]
+    if _DONE_TAIL_DEMAND_RE.search(tail):
+        return "요구·당부"
+    if _DONE_TAIL_NEG_RE.search(tail):
+        return "부정"
+    if _DONE_TAIL_COND_RE.search(tail):
+        return "조건"
+    if _DONE_TAIL_REASON_RE.search(tail):
+        return "이유·배경"
+    if _DONE_TAIL_CONTRAST_RE.search(tail):
+        return "효과 없음"
+    if _DONE_HEAD_SPEECH_RE.search(head):
+        return "발언 종료"
+    if _DONE_HEAD_NEG_RE.search(head):
+        return "부정"
+    return None
+
+
+def completion_imminent(sentence: str, m: re.Match[str]) -> bool:
+    """완료 표현 바로 뒤가 '앞두고' 면 아직 끝나지 않았다 — 진행으로 본다."""
+    return _DONE_TAIL_IMMINENT_RE.search(sentence[m.end() : m.end() + 8]) is not None
 _UNDER_CONSTRUCTION_RE = re.compile(r"^\s*(이던|이었던|인\s|인데|에\s|에서)")  # '공사 중이던 냉동창고에서 불' — 장소 설명이지 진행이 아니다
 INVESTIGATION_TAG = "수사·조사 표현"  # judge 가 원천 발언이 수사·조사가 아닌 사건이면 내린다 (FOLLOWUP_INVESTIGATION_SOURCE)
 _INVESTIGATION_SPAN_RE = re.compile(r"(입건|송치|구속|수사|감식|합동\s*조사|압수수색|원인)")
@@ -336,6 +440,16 @@ _RESUMED_RE = re.compile(
 )
 
 
+def _inside_quoted_radio(s: str, m: re.Match[str]) -> bool:
+    """문장에 무전·교신 말이 있고 매칭이 따옴표 안에 들어 있으면 True ('…"작업 중단, 응답하라" 고 무전했다' 는 상태 표현이 아니다)."""
+    if not _RADIO_WORD_RE.search(s):
+        return False
+    for q in _QUOTED_SPAN_RE.finditer(s):
+        if q.start() <= m.start() and m.end() <= q.end():
+            return True
+    return False
+
+
 def _expressions(s: str, fixes: bool = False, headline: bool = False, phrase: bool = False) -> list[tuple[str, re.Match[str]]]:
     """fixes (FOLLOWUP_EXPRESSION_FIXES): '추가 피해 최소화·예방' 은 새로운 문제가 아니고, 앞날을 가리키는 말 옆의 꼬리 없는 '재개장·재개통' 은 완료가 아니다.
     headline (FOLLOWUP_HEADLINE_EXPRESSIONS, rules-v4): 제목형 명사 표현(_HEADLINE_DONE_RE·_HEADLINE_PROGRESS_RE·조사 결과)도 본다.
@@ -359,6 +473,12 @@ def _expressions(s: str, fixes: bool = False, headline: bool = False, phrase: bo
                     continue  # '착수하라·마쳐야' — 요구·조건이지 상태 보도가 아니다
                 if sig == "새로운문제" and m.group(0).startswith("또") and _ALSO_AT_RE.search(tail):
                     continue  # '또 화재 당시' — 재발이 아니다
+                if sig == "새로운문제" and _PROBLEM_PREVENT_TAIL_RE.search(s[m.end() : m.end() + 14]):
+                    continue  # '다시 발생하지 않도록'·'재발 방지를 위해' — 예방 다짐 (10-30 rules-6)
+                if sig == "새로운문제" and "중단" in m.group(0) and _PROBLEM_BACKGROUND_RE.search(s[m.start() : m.end() + 8]):
+                    continue  # '중단됐던 공사가 재개'·'중단돼 왔다가' — 배경 서술
+                if sig == "새로운문제" and _inside_quoted_radio(s, m):
+                    continue  # 사고 직전 무전·교신 인용 구절
                 if pat is _PROGRESS_RE and m.group(0).replace(" ", "").startswith("공사중") and _UNDER_CONSTRUCTION_RE.search(tail):
                     continue  # '공사 중이던 창고' — 장소 설명
             if pat in (_HEADLINE_DONE_RE, _HEADLINE_PROGRESS_RE) and _HEADLINE_COND_RE.search(s[m.end() : m.end() + 25]):
@@ -366,10 +486,16 @@ def _expressions(s: str, fixes: bool = False, headline: bool = False, phrase: bo
             if pat is _HEADLINE_DONE_RE and (_HEADLINE_FUTURE_RE.search(s[max(0, m.start() - 12) : m.end() + 8]) or _HEADLINE_FUTURE_TAIL_RE.search(s[m.end() : m.end() + 4])):
                 found.append(("진행", m))  # '연내 전면해제' — 앞날의 완료는 진행
                 continue
+            if phrase and sig == "완료":
+                if completion_blocked(s, m):
+                    continue  # '복구 완료를 당부했다'·'끝나지 않았다'·'드러나면'·'교체했기 때문에'·'설치했으나 효과가 없었다' (10-30 rules-5)
+                if completion_imminent(s, m):
+                    found.append(("진행", m))  # '완료를 앞두고' — 아직 끝나지 않았다
+                    continue
             found.append((sig, m))
     if headline and "원인" in s and not _CAUSE_PENDING_RE.search(s):
         m = _CAUSE_RESULT_RE.search(s)
-        if m:
+        if m and not (phrase and completion_blocked(s, m)):
             found.append(("완료", m))  # 조사·수사 결과 — '작업대 선로 침범이 직접 원인', '담배꽁초가 원인이었다'
     return found
 
@@ -384,7 +510,7 @@ class RulesLLM:
         st = self.settings
         if st is not None and any(getattr(st, f, False) for f in ("followup_phrase_fixes", "followup_same_action", "followup_investigation_source",
                                                                     "followup_recurrence")) or (st is not None and getattr(st, "followup_early_problem_days", 0)):
-            return RULES_MODEL_V5
+            return RULES_MODEL_V6 if getattr(st, "followup_phrase_fixes", False) else RULES_MODEL_V5
         if st is not None and (getattr(st, "followup_headline_expressions", False) or getattr(st, "followup_event_path", False)):
             return RULES_MODEL_V4
         v3 = st is not None and (
@@ -441,9 +567,7 @@ class RulesLLM:
             published = date.fromisoformat(inp.published_at[:10])
         except ValueError:
             published = date.today()
-        from ..rules.actors import normalize_actor_org
-
-        actor = canonical_org(normalize_actor_org(inp.source, inp.responsible_org) or inp.source) or None
+        actor = actor_from_source(inp.source, inp.responsible_org)
         committed = " ".join(_commitment_sentences(inp.quotation))
         if not committed:
             # 다짐 문장이 없다: 지시('…하라')·검토·노력은 의사표명, 사실 묘사는 해당없음 — 추적하지 않는다

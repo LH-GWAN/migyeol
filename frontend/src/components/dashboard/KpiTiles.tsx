@@ -10,7 +10,7 @@ interface Tile {
 }
 
 /** KPI 타일: 추적 사건 / 후속보도 확인 / 기한 경과 / 기관 발표 확인 / 마지막 갱신 (+ 보도된 인명 피해가 있으면) */
-export default function KpiTiles({ s, casualties }: { s: DashboardSummary; casualties: { dead: number | null; injured: number | null } }) {
+export default function KpiTiles({ s }: { s: DashboardSummary }) {
   const tiles: Tile[] = [
     { label: "추적 중인 사건", value: String(s.events_total), unit: "건", note: `관련 기관 ${s.orgs}곳`, accent: "bg-gray-900" },
     {
@@ -23,12 +23,13 @@ export default function KpiTiles({ s, casualties }: { s: DashboardSummary; casua
     { label: "발표 기한이 지난 사건", value: String(s.overdue), unit: "건", note: `${s.events_total}건 중 · 조치 완료가 확인된 사건 제외`, accent: "bg-red-500" },
     { label: "기관 발표 확인", value: String(s.with_org_notice), unit: "건", note: `${s.events_total}건 중 · 기관 공식 게시판에서 찾은 사건`, accent: "bg-violet-500" },
   ];
-  if (casualties.dead !== null || casualties.injured !== null) {
+  const c = s.casualties;
+  if (c && c.events > 0 && (c.dead !== null || c.injured !== null)) {
     tiles.push({
-      label: "보도된 인명 피해",
-      value: `${casualties.dead ?? "-"}`,
+      label: `보도된 인명 피해 (${c.events}건 기준)`,
+      value: `${c.dead ?? "-"}`,
       unit: "명 사망",
-      note: `부상 ${casualties.injured ?? "-"}명 · 기사 제목·발췌 기준`,
+      note: `부상 ${c.injured ?? "-"}명 · 기사 제목·발췌에 피해 숫자가 나온 ${c.events}건의 합 (전체 ${c.events_total}건 중)`,
       accent: "bg-gray-500",
     });
   }

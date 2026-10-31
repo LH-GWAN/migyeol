@@ -342,6 +342,8 @@ class Experiment:
         failures: list[dict[str, str]] = []
         ex_stats, pf_stats = [], []
         for e in evs:
+            if getattr(self.llm, "mode", "") == "rules":
+                pipe.call_budget["remaining"] = self.settings.llm_max_calls_per_run  # 규칙 추출은 공짜·결정적 — 실행당 상한을 사건마다 되돌려 뒤쪽 사건이 '대기' 로 남지 않게 (10-31)
             try:
                 ex_stats.append(extract_mod.extract_event(self.session, self.client, e, self.llm, self.settings, self.embedder, pipe.call_budget))
             except Exception as exc:  # noqa: BLE001 — 사건 단위 격리

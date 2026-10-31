@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { ShowMoreList } from "@/components/ShowMore";
 import type { Result } from "@/lib/api";
-import { cleanSnippet, formatDate, formatDateTime } from "@/lib/format";
+import { cleanNoticeSnippet, cleanNoticeTitle, formatDate, formatDateTime } from "@/lib/format";
 import type { EventNoticesOut, NoticeState } from "@/lib/notices";
 
 /**
@@ -63,7 +63,9 @@ export default function OrgNoticePanel({ eventId, result }: { eventId: number; r
       ) : result.data.items.length > 0 ? (
         <>
           <p className="mt-3 text-sm text-emerald-900">
-            뉴스에는 확인되지 않았지만 책임기관 게시판에서 관련 발표 {result.data.items.length}건이 확인됐습니다.
+            {result.data.news_gap
+              ? `뉴스에는 확인되지 않았지만 책임기관 게시판에서 관련 발표 ${result.data.items.length}건이 확인됐습니다.`
+              : `책임기관 게시판에서 관련 발표 ${result.data.items.length}건이 확인됐습니다(보조 근거 — 이 사건은 뉴스 후속보도도 확인됐거나, 발표가 기관의 대응 발언과 같은 시점입니다).`}
           </p>
           <div className="mt-2">
             <ShowMoreList
@@ -73,13 +75,13 @@ export default function OrgNoticePanel({ eventId, result }: { eventId: number; r
               <li key={it.url} className="py-3">
                 <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
                   <a href={it.url} target="_blank" rel="noopener noreferrer" className="text-sm font-semibold text-blue-700 hover:underline">
-                    {it.title}
+                    {cleanNoticeTitle(it.title)}
                   </a>
                   <span className="text-xs text-gray-500">
                     {it.published_at ? formatDate(it.published_at) : "게시일 미상"} · {it.site_name}
                   </span>
                 </div>
-                {cleanSnippet(it.snippet) && <p className="mt-1 text-xs leading-relaxed text-gray-600">{cleanSnippet(it.snippet)}</p>}
+                {cleanNoticeSnippet(it.snippet, 240, it.title) && <p className="mt-1 line-clamp-3 text-xs leading-relaxed text-gray-600">{cleanNoticeSnippet(it.snippet, 240, it.title)}</p>}
                 <p className="mt-1 flex flex-wrap items-center gap-1 text-[11px] text-gray-500">
                   매칭 점수 <span className="font-semibold text-gray-800">{it.match_score.toFixed(2)}</span>
                   {it.matched_terms.map((t) => (

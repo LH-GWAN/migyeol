@@ -443,9 +443,29 @@ def rerank_decision(p: float, settings: Settings) -> str:
     return "drop"
 
 
-def keep_late_facility(a: L.Assessment, feats: dict[str, float], settings: Settings) -> bool:
-    """분류기가 내리지 못하는 바닥: 재순위 전 자동 연결 + 창 뒤 기사 + 제목에 사건 시설명 (RERANK_KEEP_LATE_FACILITY)."""
-    return settings.rerank_keep_late_facility and a.base_decision == "link" and feats.get("late", 0.0) > 0 and feats.get("t_fac", 0.0) > 0
+def _norm_title(t: str) -> str:
+    return "".join((t or "").split()).lower()
+
+
+def keep_late_facility(a: L.Assessment, feats: dict[str, float], settings: Settings, event: Event | None = None, article: Article | None = None) -> bool:
+    """분류기가 내리지 못하는 바닥: 재순위 전 자동 연결 + 창 뒤 기사 + 제목에 **구체 시설명 전체** (RERANK_KEEP_LATE_FACILITY).
+
+    10-30 link-1: 시설 어절 하나('지하철'·'한국타이어'·'여객기'·'청라')만 겹치는 일반 어절 일치는 바닥이 아니다 — 시설명 전체가 제목에 있고
+    specific_facility() 가 참이어야 한다(만덕~센텀 대심도 터널 공사장 보호는 유지). event·article 이 없으면 이전 피처 기준."""
+    if not (settings.rerank_keep_late_facility and a.base_decision == "link" and feats.get("late", 0.0) > 0 and feats.get("t_fac", 0.0) > 0):
+        return False
+    if event is None or article is None:
+        return True
+    fac = (event.facility or "").strip()
+    if not fac or not specific_facility(fac):
+        return False
+    title = _norm_title(article.title or "")
+    full = _norm_title(fac)
+    if full in title:
+        return True
+    # '만덕~센텀 대심도 터널 공사장' 처럼 긴 시설명은 핵심 구간('만덕~센텀')이 제목에 있으면 인정한다 — 일반어 토큰(터널·공사장)만으로는 안 된다
+    core = [t for t in W.text_tokens(_LEADING_NUM_RE.sub("", fac)) if t not in L._GENERIC_PLACE and not W.is_generic(t, set()) and len(t) >= 3]
+    return bool(core) and all(_norm_title(t) in title for t in core)
 
 
 def apply(reranker: Reranker | CrossReranker, ctx: L.EventContext, items: list[tuple[Article, L.Assessment]], settings: Settings) -> dict[str, int]:
@@ -457,11 +477,16 @@ def apply(reranker: Reranker | CrossReranker, ctx: L.EventContext, items: list[t
     feats = [assessment_features(ctx, art, a, settings) for art, a in target]
     probs = reranker.score(ctx, [art for art, _ in target], feats)
     rank = {"drop": 0, "review": 1, "link": 2}
-    for (_, a), f, p in zip(target, feats, probs, strict=True):
+    for (art, a), f, p in zip(target, feats, probs, strict=True):
         a.prob = float(p)
         a.decision = rerank_decision(a.prob, settings)
-        if a.decision != "link" and keep_late_facility(a, f, settings):
-            a.decision = "link"
+        if a.decision != "link" and keep_late_facility(a, f, settings, ctx.event, art):
+            # 바닥으로 올리더라도 확률이 FOLLOWUP_KEPT_LATE_MIN_PROB(0.1) 미만이면 자동 연결이 아니라 검토 큐 — 판정이 근거로 쓰는 기준과 같은 값
+            # (10-30 link-1 은 RERANK_REVIEW 0.2 였는데 175 '옥룡제 보수 완료' p 0.11 이 검토 큐로 빠졌다 — 10-31 R5). 같은 시설의 새 사고 기사는 확률과 무관
+            from .judge import recurrence_article
+
+            floor = float(getattr(settings, "followup_kept_late_min_prob", 0.0))
+            a.decision = "link" if (a.prob >= floor or recurrence_article(ctx.event, art)) else "review"
             a.notes.append("keep-late-facility")
             out["kept_late_facility"] += 1
         # 경로 표시는 그대로: 강한 규칙으로 자동 연결이던 것이 남으면 rule, 그 밖의 자동 연결·검토 큐는 embedding

@@ -153,7 +153,7 @@ def test_article_event_draft_gap(client, session):
     assert body["title"] == f"‘{ev.title}’, 기관 발표 이후 후속보도 확인되지 않아"
     text = body["sections"][1]["body"]
     assert "배수펌프" in text and "후속보도는 확인되지 않았다" in text and DISCLAIMER in text
-    assert "책임기관 공식 게시판 확인 결과는 ‘등록된 게시판 없음’" in text
+    assert "책임기관 공식 게시판 확인 결과: 책임기관의 게시판이 등록부에 없음" in text
 
 
 def test_article_every_event_generates(client):

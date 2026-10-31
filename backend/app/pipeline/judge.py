@@ -116,6 +116,12 @@ def link_prob(link) -> float | None:
     return float(link.link_score) if m else None
 
 
+def signal_in_scope(s, promises: list, settings: Settings) -> bool:
+    """저장된 신호가 지금 설정에서 판정·집계에 쓰이는가 — 사건 경로 신호(promise_id NULL, 약속 없는 사건)는 FOLLOWUP_EVENT_PATH 가 켜져 있을 때만
+    (10-30 B13: 판정·대시보드·실험 지표가 같은 기준)."""
+    return s.promise_id is not None or bool(promises) or bool(getattr(settings, "followup_event_path", False))
+
+
 def kept_late(link) -> bool:
     """재순위 바닥 규칙(창 뒤 + 제목 시설명)으로 남은 연결 — 몇 년 뒤 후속(만덕~센텀 2026)을 지키려고 둔 것이다."""
     return "keep-late-facility" in (link.link_reason or "")
@@ -137,15 +143,26 @@ def occurrence_gate_link(link) -> bool:
     return "occ-window" in (link.link_reason or "").split("+")
 
 
-def usable_followup_link(link, settings: Settings) -> bool:
-    """후속 근거로 쓸 연결: 활성 + 발생 창 완화 연결이 아니고 + 확률이 낮지 않거나, 낮아도 바닥 규칙으로 남은 늦은 기사(완료·새로운문제 근거로만 — classify_followups)."""
-    return link.is_active and not occurrence_gate_link(link) and (not low_prob_link(link, settings) or kept_late(link))
+def kept_late_usable(link, settings: Settings, article=None, event: Event | None = None) -> bool:
+    """바닥 규칙으로 남은 늦은 연결을 후속 근거로 쓰는 조건: 재순위 확률이 FOLLOWUP_KEPT_LATE_MIN_PROB 이상이거나, 제목이 같은 시설의 새 사고
+    (recurrence_article — '만덕~센텀 … 또 지반 침하' p 0.04)일 때 (10-30 link-1·R5 — p 0.02 짜리 '헌혈 캠페인' 은 근거가 되지 않는다)."""
+    if not kept_late(link):
+        return False
+    if article is not None and event is not None and recurrence_article(event, article):
+        return True
+    p = link_prob(link)
+    return p is None or p >= float(getattr(settings, "followup_kept_late_min_prob", 0.0))
+
+
+def usable_followup_link(link, settings: Settings, article=None, event: Event | None = None) -> bool:
+    """후속 근거로 쓸 연결: 활성 + 발생 창 완화 연결이 아니고 + 확률이 낮지 않거나, 낮아도 바닥 규칙으로 남은 늦은 기사(최소 확률 이상 또는 재발 기사, 완료·새로운문제 근거로만 — classify_followups)."""
+    return link.is_active and not occurrence_gate_link(link) and (not low_prob_link(link, settings) or kept_late_usable(link, settings, article, event))
 
 
 EVENT_PATH_PROMISE_ID = 0  # 사건 직접 후속 경로의 가짜 약속 id — 신호에는 promise_id 없이(NULL) 저장한다
 CAUSE_RESULT_MIN_DAYS = 7  # 조사 결과 표현(rules-v4)은 원천 발언 뒤 이 일수가 지나야 후속으로 센다
 RECURRENCE_MIN_DAYS = 90  # 같은 시설 재발(rules-v5)은 발생 뒤 이 일수가 지난 기사만
-_RECUR_ACCIDENT_RE = re.compile(r"(사고|추락|전복|좌초|넘어져|넘어지|뒤집|충돌|붕괴|무너|화재|불이?\s*나|불길|침수|물에\s*잠|폭발|사망|숨져|숨진|부상|다쳐)")
+_RECUR_ACCIDENT_RE = re.compile(r"(사고|추락|전복|좌초|넘어져|넘어지|뒤집|충돌|붕괴|무너|화재|불이?\s*나|불길|침수|물에\s*잠|폭발|사망|숨져|숨진|부상|다쳐|침하|싱크홀|땅\s*꺼짐|탈선|추돌|누출|유출)")  # 10-30 R5: '또 지반 침하'
 _INVESTIGATION_SOURCE_RE = re.compile(r"(수사|감식|원인|규명|조사|입건|처벌|엄정|진상)")
 _GENERIC_FACILITY = {"공사장", "공사현장", "현장", "시장", "도로", "터널", "교량", "다리", "선착장", "항구", "하천", "아파트", "건물", "공장", "창고", "물류센터"}
 
@@ -201,10 +218,12 @@ def followup_articles(session: Session, event: Event, settings: Settings) -> lis
     cutoff = followup_cutoff(session, event, settings)
     out = []
     for l in event.links:
-        if not usable_followup_link(l, settings):
+        if not l.is_active or occurrence_gate_link(l):
             continue
         a = session.get(Article, l.news_id)
-        if a is not None and a.published_at is not None and a.published_at > cutoff and a.change_status != "cancelled":
+        if a is None or not usable_followup_link(l, settings, a, event):
+            continue
+        if a.published_at is not None and a.published_at > cutoff and a.change_status != "cancelled":
             out.append(a)
     return sorted(out, key=lambda a: a.published_at)
 
@@ -358,8 +377,9 @@ def rejudge_event(session: Session, event: Event, settings: Settings, today: dat
     by_news = {a.news_id: a for a in followups}
     promises = trackable_promises(event)
     pset = promise_set_hash(promises)
-    # 현재 약속 집합으로 분류된 신호만 유효하다 — 약속이 취소·해제된 뒤 남은 옛 신호로 판정하지 않는다
-    current = [s for s in event.signals if s.prompt_version == version and s.news_id in by_news and s.promise_set_hash == pset]
+    # 현재 약속 집합으로 분류된 신호만 유효하다 — 약속이 취소·해제된 뒤 남은 옛 신호로 판정하지 않는다.
+    # 사건 경로 신호(promise_id NULL)는 FOLLOWUP_EVENT_PATH 가 켜져 있을 때만 쓴다 (끄면 저장된 것도 무시 — 10-30 rules-12)
+    current = [s for s in event.signals if s.prompt_version == version and s.news_id in by_news and s.promise_set_hash == pset and signal_in_scope(s, promises, settings)]
     pending = len(by_news) - len({s.news_id for s in current}) if promises else 0
     pending_q = int(event.pending_quotations or 0)
     signals_in = [
@@ -385,7 +405,8 @@ def rejudge_event(session: Session, event: Event, settings: Settings, today: dat
     if pending:
         notes.append(f"후속 기사 {pending}건은 아직 분류 전")
     if notes:
-        note = ", ".join(notes) + "(호출 상한·실패 이월) — 잠정 판정"
+        why = "이전 실행에서 추출·분류되지 않음" if getattr(settings, "llm_mode", "") == "rules" else "호출 상한·실패 이월"
+        note = ", ".join(notes) + f"({why}) — 잠정 판정"
         j.reason_text = f"{j.reason_text} ({note})"
         j.unresolved_reason = f"{j.unresolved_reason} / {note}" if j.unresolved_reason else note
 
@@ -425,14 +446,22 @@ def rejudge_event(session: Session, event: Event, settings: Settings, today: dat
         has_firm_promise=any(p.strength == "확약" for p in promises),
     )
 
-    # 유효 신호가 있는 기사의 단계 갱신 — 채택 여부와 무관하게 모든 유효 신호 (R1·R2 사건의 진행·완료 기사도 단계에 반영)
+    # 유효 신호가 있는 기사의 단계 갱신 — 채택 여부와 무관하게 모든 유효 신호 (R1·R2 사건의 진행·완료 기사도 단계에 반영).
+    # 더는 유효하지 않은 신호의 기사는 처음 단계(발생·원인조사·기타)로 되돌린다 — '헌혈 캠페인' 이 '결과확인' 칸에 남지 않게 (10-30 R5)
+    from .link import initial_phase
+
     valid_ids = set(j.valid_signal_ids)
-    for s in event.signals:
-        if s.id not in valid_ids:
+    valid_news = {s.news_id: s for s in event.signals if s.id in valid_ids}
+    for l in event.links:
+        if l.phase == "대응발표":
             continue
-        for l in event.links:
-            if l.news_id == s.news_id and l.phase != "대응발표":
-                l.phase = "조치진행" if s.signal == SIGNAL_PROGRESS else "결과확인"
+        s = valid_news.get(l.news_id)
+        if s is not None:
+            l.phase = "조치진행" if s.signal == SIGNAL_PROGRESS else "결과확인"
+        elif l.phase in ("조치진행", "결과확인"):
+            a = session.get(Article, l.news_id)
+            if a is not None:
+                l.phase = initial_phase(event, a)
     session.commit()
     return j
 
